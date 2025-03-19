@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -26,20 +25,6 @@ import TeamPerformanceOverview from "@/components/CallActivity/TeamPerformanceOv
 import { useRealTimeTeamMetrics } from "@/services/RealTimeMetricsService";
 import { Brain, Sparkles, ChevronRight, MicOff, Mic, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import RecentCallsTable from "@/components/CallActivity/RecentCallsTable";
-
-// Define type that helps with type conversion between CallTranscript and Call
-interface Call {
-  id: string;
-  userId: string;
-  userName: string;
-  date: string;
-  duration: number;
-  customerName: string;
-  outcome: string;
-  sentiment: number;
-  nextSteps: string;
-}
 
 const Index = () => {
   const { isDarkMode } = useContext(ThemeContext);
@@ -56,9 +41,6 @@ const Index = () => {
   } = useCallTranscripts();
   
   const [teamMetrics, teamMetricsLoading] = useRealTimeTeamMetrics(filters);
-  
-  // Convert CallTranscript[] to Call[]
-  const [calls, setCalls] = useState<Call[]>([]);
   
   const throttledFetchTranscripts = useCallback(
     animationUtils.throttle((options?: any) => {
@@ -135,47 +117,6 @@ const Index = () => {
     }
   }, [isRecording, startRecording, stopRecording]);
 
-  // Convert transcripts to calls format when transcripts change
-  useEffect(() => {
-    if (transcripts && transcripts.length > 0) {
-      const convertedCalls: Call[] = transcripts.map(transcript => {
-        // Generate a customer name from the filename or create a default one
-        const filenameBase = transcript.filename?.split('.')[0] || '';
-        const customerName = filenameBase.includes('_') 
-          ? filenameBase.split('_')[1] 
-          : `Customer ${transcript.id.substring(0, 5)}`;
-        
-        // Determine outcome based on sentiment
-        const outcome = transcript.sentiment === 'positive' ? "Qualified Lead" : 
-                      transcript.sentiment === 'negative' ? "No Interest" : "Follow-up Required";
-        
-        // Convert sentiment string to number value for display
-        const sentimentValue = transcript.sentiment === 'positive' ? 0.8 : 
-                              transcript.sentiment === 'negative' ? 0.3 : 0.6;
-        
-        // Determine next steps based on outcome
-        const nextSteps = outcome === "Qualified Lead" ? "Schedule demo" : 
-                        outcome === "No Interest" ? "No action required" : "Send additional information";
-        
-        return {
-          id: transcript.id,
-          userId: transcript.user_id || "unknown",
-          userName: "Sales Rep", // Default name since we may not have this info
-          date: transcript.created_at || new Date().toISOString(),
-          duration: transcript.duration || 0,
-          customerName,
-          outcome,
-          sentiment: sentimentValue,
-          nextSteps
-        };
-      });
-      
-      setCalls(convertedCalls);
-    } else {
-      setCalls([]);
-    }
-  }, [transcripts]);
-
   return (
     <DashboardLayout>
       <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
@@ -206,60 +147,8 @@ const Index = () => {
       <TeamPerformanceOverview 
         teamMetrics={teamMetrics} 
         teamMetricsLoading={teamMetricsLoading}
-        callsLength={calls.length}
+        callsLength={transcripts?.length || 0}
       />
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="md:col-span-2">
-          <ContentLoader 
-            isLoading={transcriptsLoading}
-            height={400}
-            skeletonCount={1}
-            preserveHeight={true}
-          >
-            <div className="bg-blue-950/20 dark:bg-slate-900/80 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg">
-              <div className="p-4 border-b border-white/10">
-                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center gap-2`}>
-                  Recent Calls
-                  <span className="text-xs text-blue-400 ml-2 px-2 py-1 bg-blue-500/10 rounded-full">Today</span>
-                </h2>
-              </div>
-              <div className="p-0">
-                <RecentCallsTable 
-                  calls={calls}
-                  isAdmin={false}
-                  isManager={true}
-                  loading={transcriptsLoading}
-                />
-              </div>
-            </div>
-          </ContentLoader>
-        </div>
-        
-        <div className="md:col-span-1">
-          <ContentLoader 
-            isLoading={transcriptsLoading}
-            height={400}
-            skeletonCount={1}
-            preserveHeight={true}
-          >
-            <div className="bg-indigo-950/20 dark:bg-slate-900/80 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg h-full">
-              <div className="p-4 border-b border-white/10 flex justify-between items-center">
-                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center gap-2`}>
-                  <span className="text-indigo-400 flex items-center gap-1"><Brain className="h-4 w-4" />AI</span> 
-                  Insights
-                </h2>
-                <Button variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300">
-                  View All
-                </Button>
-              </div>
-              <div className="p-4">
-                <AIInsights />
-              </div>
-            </div>
-          </ContentLoader>
-        </div>
-      </div>
 
       <div className="mb-6">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center`}>
@@ -290,55 +179,66 @@ const Index = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 mb-8">
-        <div className="bg-slate-900/50 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg">
-          <div className="p-4 border-b border-white/10">
-            <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
-              Call Analysis
-            </h2>
+      <Tabs 
+        defaultValue="dashboard" 
+        className="w-full mb-8"
+        onValueChange={handleLiveMetricsTab}
+      >
+        <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="livemetrics" className="flex items-center gap-1">
+            <Mic className="h-3.5 w-3.5" />
+            Live Metrics
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-1">
+            <Headphones className="h-3.5 w-3.5" />
+            Call History
+          </TabsTrigger>
+          <TabsTrigger value="trends">Trends</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="dashboard">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="col-span-1 md:col-span-2">
+              <ContentLoader 
+                isLoading={transcriptsLoading} 
+                height={400}
+                skeletonCount={1}
+                preserveHeight={true}
+              >
+                <CallsOverview />
+              </ContentLoader>
+            </div>
+            <div>
+              <ContentLoader 
+                isLoading={transcriptsLoading} 
+                height={400}
+                skeletonCount={1}
+                preserveHeight={true}
+              >
+                <AIInsights />
+              </ContentLoader>
+            </div>
           </div>
           
-          <div className="p-4">
-            <Tabs 
-              defaultValue="dashboard" 
-              className="w-full"
-              onValueChange={handleLiveMetricsTab}
-            >
-              <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
-                <TabsTrigger value="dashboard">Call Transcript</TabsTrigger>
-                <TabsTrigger value="livemetrics" className="flex items-center gap-1">
-                  <Mic className="h-3.5 w-3.5" />
-                  Sentiment Analysis
-                </TabsTrigger>
-                <TabsTrigger value="history" className="flex items-center gap-1">
-                  <Headphones className="h-3.5 w-3.5" />
-                  Keyword Insights
-                </TabsTrigger>
-                <TabsTrigger value="trends">Call Rating</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="dashboard">
-                <CallAnalysisSection isLoading={transcriptsLoading} />
-              </TabsContent>
-              
-              <TabsContent value="livemetrics">
-                <LiveMetricsDisplay isCallActive={showLiveMetrics} />
-              </TabsContent>
-              
-              <TabsContent value="history">
-                <PastCallsList />
-              </TabsContent>
-              
-              <TabsContent value="trends">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <KeywordTrendsChart />
-                  <SentimentTrendsChart />
-                </div>
-              </TabsContent>
-            </Tabs>
+          <CallAnalysisSection isLoading={transcriptsLoading} />
+        </TabsContent>
+        
+        <TabsContent value="livemetrics">
+          <LiveMetricsDisplay isCallActive={showLiveMetrics} />
+        </TabsContent>
+        
+        <TabsContent value="history">
+          <PastCallsList />
+        </TabsContent>
+        
+        <TabsContent value="trends">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <KeywordTrendsChart />
+            <SentimentTrendsChart />
           </div>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
       
       <div className="flex justify-between items-center mt-8 mb-4">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>

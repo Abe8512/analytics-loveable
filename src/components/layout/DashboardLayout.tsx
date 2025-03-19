@@ -22,9 +22,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const mainClasses = useMemo(() => 
     cn(
       "flex-1 p-6 pt-16 overflow-y-auto transition-colors duration-200 hardware-accelerated",
-      isDarkMode ? 
-        'bg-dark-purple bg-[radial-gradient(at_top_left,rgba(139,92,246,0.05)_0%,rgba(0,240,255,0.05)_100%)]' : 
-        'bg-gray-50 bg-[radial-gradient(at_top_left,rgba(139,92,246,0.02)_0%,rgba(0,240,255,0.02)_100%)]'
+      isDarkMode ? 'bg-dark-purple bg-[radial-gradient(at_top_left,rgba(139,92,246,0.05)_0%,rgba(0,240,255,0.05)_100%)]' : 
+      'bg-gray-50 bg-[radial-gradient(at_top_left,rgba(139,92,246,0.02)_0%,rgba(0,240,255,0.02)_100%)]'
     ),
     [isDarkMode]
   );
@@ -36,9 +35,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <TopBar setSidebarOpen={setSidebarOpen} />
         <main className={mainClasses}>
           <div className="max-w-7xl mx-auto">
-            <div className="bg-gradient-to-bl from-blue-900/5 via-purple-900/5 to-transparent backdrop-blur-[2px] rounded-xl p-4 md:p-6 border border-white/5 shadow-2xl shadow-blue-500/5">
-              {children}
-            </div>
+            {children}
           </div>
         </main>
       </div>

@@ -171,9 +171,50 @@ const CallTranscript = () => {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <GlowingCard className="h-full">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gray-800"}`}>Call Transcript</h2>
+          <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+            {transcript ? (
+              <>Call with {transcript.speakerName || "Customer"} • {transcript.duration ? `${Math.floor(transcript.duration / 60)}:${(transcript.duration % 60).toString().padStart(2, '0')}` : "Unknown duration"}</>
+            ) : (
+              "No transcript available"
+            )}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          {transcript && <WhisperButton recordingId={transcript.id} />}
+          
+          <div className="flex items-center">
+            <SpeechToTextRecorder 
+              onTranscriptionComplete={handleSpeechInput}
+              buttonSize="sm"
+            />
+          </div>
+          
+          <button 
+            className={`flex items-center gap-1 ${isDarkMode ? "bg-white/5 hover:bg-white/10 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-800"} px-3 py-1.5 rounded text-sm transition-colors`}
+            disabled={!transcript}
+          >
+            <Play className="h-4 w-4" />
+            <span>Play Audio</span>
+          </button>
+          
+          <button 
+            className={`flex items-center gap-1 ${isDarkMode ? "bg-white/5 hover:bg-white/10 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-800"} px-3 py-1.5 rounded text-sm transition-colors`}
+            onClick={handleCopy}
+            disabled={!transcript}
+          >
+            <Copy className="h-4 w-4" />
+            <span>Copy</span>
+          </button>
+        </div>
+      </div>
+      
       {transcript ? (
-        <div className="space-y-0 mb-3 max-h-[500px] overflow-y-auto pr-2 divide-y divide-white/10">
+        <div className="space-y-0 mb-3 max-h-[600px] overflow-y-auto pr-2 divide-y divide-white/5">
           {parsedMessages.map((message) => (
             <Message
               key={message.id}
@@ -187,22 +228,13 @@ const CallTranscript = () => {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 text-muted-foreground h-full flex flex-col items-center justify-center">
-          <div className="bg-blue-500/10 rounded-full p-3 mb-4">
-            <Mic className="h-6 w-6 text-blue-400" />
-          </div>
-          <p className="text-gray-300 font-medium">No transcript data available</p>
-          <p className="text-sm mt-2 text-gray-400">Upload audio files or record a call to see transcripts</p>
-          <div className="mt-6">
-            <SpeechToTextRecorder 
-              onTranscriptionComplete={handleSpeechInput}
-              buttonSize="md"
-            />
-          </div>
+        <div className="text-center py-12 text-muted-foreground">
+          <p>No transcript data available</p>
+          <p className="text-sm mt-2">Upload audio files or record a call to see transcripts</p>
         </div>
       )}
       
-      <div className={`pt-4 border-t ${isDarkMode ? "border-white/10" : "border-gray-200"} mt-auto`}>
+      <div className={`pt-4 border-t ${isDarkMode ? "border-white/10" : "border-gray-200"} mt-4`}>
         <div className="flex items-center gap-3 text-sm text-gray-400">
           <AIWaveform color="blue" barCount={8} className="h-5" />
           <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
@@ -210,7 +242,7 @@ const CallTranscript = () => {
           </p>
         </div>
       </div>
-    </div>
+    </GlowingCard>
   );
 };
 
