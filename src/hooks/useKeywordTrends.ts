@@ -128,7 +128,7 @@ export function useKeywordTrends() {
   
   // Function to save a keyword to the database with proper error handling and type safety
   const saveKeyword = async (keyword: string, category: Exclude<KeywordCategory, 'all'>) => {
-    if (!keyword || !category || category === 'all') {
+    if (!keyword || !category) {
       console.error('Invalid keyword or category');
       return;
     }
