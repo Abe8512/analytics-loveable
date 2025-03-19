@@ -196,6 +196,29 @@ const Index = () => {
             </Button>
           </div>
           
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="md:col-span-2">
+              <ContentLoader 
+                isLoading={transcriptsLoading} 
+                height={400}
+                skeletonCount={1}
+                preserveHeight={true}
+              >
+                <CallsOverview />
+              </ContentLoader>
+            </div>
+            <div className="md:col-span-1">
+              <ContentLoader 
+                isLoading={transcriptsLoading} 
+                height={400}
+                skeletonCount={1}
+                preserveHeight={true}
+              >
+                <AIInsights />
+              </ContentLoader>
+            </div>
+          </div>
+          
           <CallAnalysisSection isLoading={transcriptsLoading} />
         </TabsContent>
         
@@ -215,29 +238,6 @@ const Index = () => {
         </TabsContent>
       </Tabs>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="md:col-span-2">
-          <ContentLoader 
-            isLoading={transcriptsLoading} 
-            height={400}
-            skeletonCount={1}
-            preserveHeight={true}
-          >
-            <CallsOverview />
-          </ContentLoader>
-        </div>
-        <div className="md:col-span-1">
-          <ContentLoader 
-            isLoading={transcriptsLoading} 
-            height={400}
-            skeletonCount={1}
-            preserveHeight={true}
-          >
-            <AIInsights />
-          </ContentLoader>
-        </div>
-      </div>
-
       <div className="flex justify-between items-center mt-8 mb-4">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
           Recent Call Analysis
