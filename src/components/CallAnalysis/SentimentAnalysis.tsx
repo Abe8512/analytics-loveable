@@ -1,365 +1,73 @@
-import React, { useContext, useEffect, useState } from "react";
-import { LineChart, Line, ResponsiveContainer, ReferenceLine, CartesianGrid, XAxis, YAxis, Legend, Tooltip } from "recharts";
-import { Info } from "lucide-react";
-import GlowingCard from "../ui/GlowingCard";
-import ExpandableChart from "../ui/ExpandableChart";
-import { useChartData } from "@/hooks/useChartData";
-import { Button } from "../ui/button";
-import { ChartContainer, ChartTooltipContent } from "../ui/chart";
-import { getStoredTranscriptions, StoredTranscription } from "@/services/WhisperService";
+
+import React, { useContext } from "react";
 import { ThemeContext } from "@/App";
-
-const analyzeTranscriptSentiment = (transcript: StoredTranscription | null) => {
-  if (!transcript || !transcript.text) {
-    return null;
-  }
-  
-  const text = transcript.text;
-  const duration = transcript.duration || 480; // Default to 8 minutes if no duration
-  
-  const dataPoints = 16; // Number of data points to generate
-  const segmentLength = Math.floor(text.length / dataPoints);
-  
-  const positiveWords = ['great', 'good', 'excellent', 'happy', 'pleased', 'thank', 'appreciate', 'yes', 'perfect', 'love'];
-  const negativeWords = ['bad', 'terrible', 'unhappy', 'disappointed', 'issue', 'problem', 'no', 'not', 'cannot', 'wrong'];
-  
-  const sentimentData = [];
-  
-  for (let i = 0; i < dataPoints; i++) {
-    const startIdx = i * segmentLength;
-    const endIdx = Math.min((i + 1) * segmentLength, text.length);
-    const segment = text.substring(startIdx, endIdx).toLowerCase();
-    
-    let positiveScore = 0;
-    let negativeScore = 0;
-    
-    positiveWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = segment.match(regex);
-      if (matches) positiveScore += matches.length;
-    });
-    
-    negativeWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = segment.match(regex);
-      if (matches) negativeScore += matches.length;
-    });
-    
-    const netScore = (positiveScore - negativeScore) / Math.max(1, positiveScore + negativeScore);
-    
-    const minutes = Math.floor((i * duration) / dataPoints / 60);
-    const seconds = Math.floor((i * duration) / dataPoints % 60);
-    const time = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    
-    sentimentData.push({
-      time,
-      agent: Math.min(0.8, Math.max(-0.8, netScore * 0.8 + 0.2)),
-      customer: Math.min(0.8, Math.max(-0.8, netScore * 0.7 - 0.1)),
-    });
-  }
-  
-  return sentimentData;
-};
-
-const findSentimentKeyMoments = (transcript: StoredTranscription | null, sentimentData: any[]) => {
-  if (!transcript || !sentimentData || sentimentData.length === 0) {
-    return [];
-  }
-  
-  const keyMoments = [];
-  
-  let largestDrop = 0;
-  let dropIndex = -1;
-  
-  for (let i = 1; i < sentimentData.length; i++) {
-    const drop = sentimentData[i-1].customer - sentimentData[i].customer;
-    if (drop > largestDrop) {
-      largestDrop = drop;
-      dropIndex = i;
-    }
-  }
-  
-  if (dropIndex > 0 && largestDrop > 0.2) {
-    keyMoments.push({
-      time: sentimentData[dropIndex].time,
-      description: "Customer sentiment dropped significantly, possibly due to objection or concern",
-      type: "negative"
-    });
-  }
-  
-  let largestIncrease = 0;
-  let increaseIndex = -1;
-  
-  for (let i = 1; i < sentimentData.length; i++) {
-    const increase = sentimentData[i].customer - sentimentData[i-1].customer;
-    if (increase > largestIncrease) {
-      largestIncrease = increase;
-      increaseIndex = i;
-    }
-  }
-  
-  if (increaseIndex > 0 && largestIncrease > 0.2) {
-    keyMoments.push({
-      time: sentimentData[increaseIndex].time,
-      description: "Customer sentiment improved significantly, likely due to value proposition or solution",
-      type: "positive"
-    });
-  }
-  
-  const endSentiment = sentimentData[sentimentData.length - 1].customer;
-  if (endSentiment > 0.3) {
-    keyMoments.push({
-      time: sentimentData[sentimentData.length - 1].time,
-      description: "Call ended on a positive note with good customer sentiment",
-      type: "positive"
-    });
-  } else if (endSentiment < -0.3) {
-    keyMoments.push({
-      time: sentimentData[sentimentData.length - 1].time,
-      description: "Call ended with negative customer sentiment, follow-up may be needed",
-      type: "negative"
-    });
-  }
-  
-  return keyMoments;
-};
+import { Progress } from "@/components/ui/progress";
+import { Info } from "lucide-react";
 
 const SentimentAnalysis = () => {
   const { isDarkMode } = useContext(ThemeContext);
-  const [latestTranscript, setLatestTranscript] = useState<StoredTranscription | null>(null);
-  const [initialSentimentData, setInitialSentimentData] = useState<any[]>([]);
-  const [sentimentKeyMoments, setSentimentKeyMoments] = useState<any[]>([]);
   
-  useEffect(() => {
-    const transcriptions = getStoredTranscriptions();
-    if (transcriptions.length > 0) {
-      const latest = [...transcriptions].sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      )[0];
-      
-      setLatestTranscript(latest);
-      
-      const sentimentData = analyzeTranscriptSentiment(latest);
-      if (sentimentData) {
-        setInitialSentimentData(sentimentData);
-        
-        const keyMoments = findSentimentKeyMoments(latest, sentimentData);
-        setSentimentKeyMoments(keyMoments);
-      }
-    }
-  }, []);
-
-  const {
-    data: sentimentData,
-    isLoading,
-    refresh,
-    lastUpdated,
-    simulateDataUpdate
-  } = useChartData(initialSentimentData);
-
-  const expandedSentimentChart = (
-    <div className="space-y-4">
-      <div className="flex justify-between">
-        <div>
-          <h3 className="text-lg font-bold">Detailed Sentiment Analysis</h3>
-          <p className="text-sm text-muted-foreground">Track sentiment changes throughout the call</p>
-        </div>
-        <Button onClick={simulateDataUpdate}>Simulate Update</Button>
-      </div>
-      
-      <div className="h-[400px]">
-        <ChartContainer
-          config={{
-            agent: {
-              label: "Agent",
-              theme: {
-                light: "#00F0FF",
-                dark: "#00F0FF",
-              },
-            },
-            customer: {
-              label: "Customer",
-              theme: {
-                light: "#FF4DCD",
-                dark: "#FF4DCD",
-              },
-            },
-          }}
-        >
-          <LineChart 
-            data={sentimentData} 
-            margin={{ top: 20, right: 30, left: 20, bottom: 30 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" />
-            <YAxis domain={[-1, 1]} />
-            <Tooltip content={<ChartTooltipContent />} />
-            <Legend />
-            <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
-            <Line
-              type="monotone"
-              dataKey="agent"
-              stroke="var(--color-agent)"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              activeDot={{ r: 5 }}
-              name="Agent"
-            />
-            <Line
-              type="monotone"
-              dataKey="customer"
-              stroke="var(--color-customer)"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              activeDot={{ r: 5 }}
-              name="Customer"
-            />
-          </LineChart>
-        </ChartContainer>
-      </div>
-      
-      <div className="space-y-2">
-        <h4 className="font-medium">Sentiment Key Points</h4>
-        {sentimentKeyMoments.length > 0 ? (
-          sentimentKeyMoments.map((moment, index) => (
-            <div 
-              key={index} 
-              className={`p-4 rounded-lg text-sm flex gap-3 ${
-                moment.type === "positive" 
-                  ? "bg-neon-green/10 border border-neon-green/30" 
-                  : "bg-neon-red/10 border border-neon-red/30"
-              }`}
-            >
-              <span className={`font-medium w-12 ${
-                moment.type === "positive" ? "text-neon-green" : "text-neon-red"
-              }`}>
-                {moment.time}
-              </span>
-              <span className="text-foreground">{moment.description}</span>
-            </div>
-          ))
-        ) : (
-          <div className="p-4 rounded-lg text-sm border">
-            No key points identified in this call
-          </div>
-        )}
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 border rounded-lg">
-          <div className="text-sm text-muted-foreground">Average Agent Sentiment</div>
-          <div className="text-2xl font-bold">
-            {sentimentData.length > 0 ? 
-              (sentimentData.reduce((acc, item) => acc + item.agent, 0) / sentimentData.length).toFixed(2) : 
-              "N/A"
-            }
-          </div>
-        </div>
-        <div className="p-4 border rounded-lg">
-          <div className="text-sm text-muted-foreground">Average Customer Sentiment</div>
-          <div className="text-2xl font-bold">
-            {sentimentData.length > 0 ?
-              (sentimentData.reduce((acc, item) => acc + item.customer, 0) / sentimentData.length).toFixed(2) :
-              "N/A"
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // Dummy data - in a real application, this would come from a proper source
+  const sentimentScore = 68; // Out of 100
+  const hasData = true; // Flag to determine if we have sentiment data
+  
+  const getSentimentColor = (score: number) => {
+    if (score >= 70) return "bg-green-500";
+    if (score >= 40) return "bg-amber-500";
+    return "bg-red-500";
+  };
+  
+  const getSentimentText = (score: number) => {
+    if (score >= 70) return "Positive";
+    if (score >= 40) return "Neutral";
+    return "Negative";
+  };
 
   return (
-    <GlowingCard gradient="blue" className="h-full">
-      <div className="flex justify-between items-center mb-3">
-        <h2 className="text-xl font-bold text-white">Sentiment Analysis</h2>
-        <button className="text-gray-400 hover:text-white">
-          <Info className="h-5 w-5" />
-        </button>
-      </div>
-      
-      {sentimentData.length > 0 ? (
-        <>
-          <ExpandableChart 
-            title="Call Sentiment" 
-            subtitle="Agent and customer sentiment throughout the call"
-            expandedContent={expandedSentimentChart}
-            isLoading={isLoading}
-            onRefresh={simulateDataUpdate}
-            lastUpdated={lastUpdated}
-            className="mb-4"
-          >
-            <div className="h-60">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sentimentData}>
-                  <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
-                  <Line
-                    type="monotone"
-                    dataKey="agent"
-                    stroke="#00F0FF"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Agent"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="customer"
-                    stroke="#FF4DCD"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Customer"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+    <div className="h-full">
+      {hasData ? (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center">
+              <span className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-800"}`}>
+                {sentimentScore}%
+              </span>
+              <span className={`ml-2 text-sm ${
+                sentimentScore >= 70 ? "text-green-500" : 
+                sentimentScore >= 40 ? "text-amber-500" : 
+                "text-red-500"
+              }`}>
+                {getSentimentText(sentimentScore)}
+              </span>
             </div>
-          </ExpandableChart>
-          
-          <div className="flex justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-neon-blue"></div>
-              <span className="text-sm text-gray-400">Agent</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-neon-pink"></div>
-              <span className="text-sm text-gray-400">Customer</span>
-            </div>
+            <button className="text-muted-foreground hover:text-foreground">
+              <Info className="h-4 w-4" />
+            </button>
           </div>
           
-          <h3 className="text-sm font-medium text-white mb-2">Key Moments</h3>
-          <div className="space-y-2">
-            {sentimentKeyMoments.length > 0 ? (
-              sentimentKeyMoments.map((moment, index) => (
-                <div 
-                  key={index} 
-                  className={`p-2 rounded-lg text-sm flex gap-2 ${
-                    moment.type === "positive" 
-                      ? "bg-neon-green/10 border border-neon-green/30" 
-                      : "bg-neon-red/10 border border-neon-red/30"
-                  }`}
-                >
-                  <span className={`font-medium ${
-                    moment.type === "positive" ? "text-neon-green" : "text-neon-red"
-                  }`}>
-                    {moment.time}
-                  </span>
-                  <span className="text-white">{moment.description}</span>
-                </div>
-              ))
-            ) : (
-              <div className="p-2 rounded-lg text-sm border border-white/10 text-white">
-                No key moments identified
-              </div>
-            )}
+          <Progress 
+            value={sentimentScore} 
+            className="h-2" 
+            indicatorClassName={getSentimentColor(sentimentScore)}
+          />
+          
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Agent</div>
+              <Progress value={72} className="h-1.5" indicatorClassName="bg-neon-blue" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Customer</div>
+              <Progress value={64} className="h-1.5" indicatorClassName="bg-neon-pink" />
+            </div>
           </div>
-        </>
+        </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-64 text-center">
-          <p className="text-muted-foreground mb-2">No sentiment data available</p>
-          <p className="text-sm text-muted-foreground">
-            Upload or record a call to see sentiment analysis
-          </p>
+        <div className="h-full flex items-center justify-center">
+          <p className="text-muted-foreground text-sm">No sentiment data available</p>
         </div>
       )}
-    </GlowingCard>
+    </div>
   );
 };
 

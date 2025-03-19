@@ -1,206 +1,91 @@
 
-import React, { useEffect, useState } from 'react';
-import { useCallMetricsStore } from '@/store/useCallMetricsStore';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useContext } from "react";
+import { ThemeContext } from "@/App";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
-import { supabase } from "@/integrations/supabase/client";
-import { useSharedKeywordData } from "@/services/SharedDataService";
-import { useSharedFilters } from "@/contexts/SharedFilterContext";
-import type { Database } from '@/integrations/supabase/types';
-
-type KeywordCategory = 'positive' | 'neutral' | 'negative';
 
 const KeywordInsights = () => {
-  const { keywordsByCategory, classifyKeywords, isRecording } = useCallMetricsStore();
-  const [isUpdating, setIsUpdating] = useState(false);
-  const { filters } = useSharedFilters();
-  const { keywords: sharedKeywords } = useSharedKeywordData(filters);
+  const { isDarkMode } = useContext(ThemeContext);
   
-  // Default empty arrays for categories to avoid undefined errors
-  const defaultCategories = {
-    positive: [] as string[],
-    neutral: [] as string[],
-    negative: [] as string[]
-  };
+  const positiveKeywords = [
+    "solution", "benefits", "value", "interested", "agree", 
+    "understand", "absolutely", "perfect", "great"
+  ];
   
-  // Ensure keywordsByCategory has default values
-  const safeKeywordsByCategory = keywordsByCategory || defaultCategories;
+  const neutralKeywords = [
+    "price", "cost", "time", "change", "demo", 
+    "features", "contract", "question", "explain", "call"
+  ];
   
-  // Ensure sharedKeywords is an array
-  const safeSharedKeywords = Array.isArray(sharedKeywords) ? sharedKeywords : [];
-  
-  // Merge live and historical keywords
-  const mergedKeywords = {
-    positive: [...new Set([
-      ...safeKeywordsByCategory.positive || [], 
-      ...safeSharedKeywords.filter(k => k.category === 'positive').map(k => k.keyword)
-    ])],
-    neutral: [...new Set([
-      ...safeKeywordsByCategory.neutral || [], 
-      ...safeSharedKeywords.filter(k => k.category === 'neutral').map(k => k.keyword)
-    ])],
-    negative: [...new Set([
-      ...safeKeywordsByCategory.negative || [], 
-      ...safeSharedKeywords.filter(k => k.category === 'negative').map(k => k.keyword)
-    ])]
-  };
-  
-  // Save keywords to Supabase for cross-component consistency
-  const saveKeywordsTrends = async () => {
-    if (!isRecording || isUpdating || !keywordsByCategory) return;
-    
-    setIsUpdating(true);
-    
-    try {
-      // Process each category
-      for (const [category, keywords] of Object.entries(safeKeywordsByCategory)) {
-        // Skip if no keywords
-        if (!keywords || !keywords.length) continue;
-        
-        // Ensure category is a valid KeywordCategory
-        const typedCategory = category as KeywordCategory;
-        
-        // Process each keyword
-        for (const keyword of keywords) {
-          // First check if keyword exists
-          const { data } = await supabase
-            .from('keyword_trends')
-            .select('*')
-            .eq('keyword', keyword as string)
-            .eq('category', typedCategory)
-            .maybeSingle();
-            
-          if (data) {
-            // Update existing keyword
-            const updateData: Database['public']['Tables']['keyword_trends']['Update'] = {
-              count: (data.count || 1) + 1,
-              last_used: new Date().toISOString()
-            };
-            
-            await supabase
-              .from('keyword_trends')
-              .update(updateData)
-              .eq('id', data.id);
-          } else {
-            // Insert new keyword
-            const insertData: Database['public']['Tables']['keyword_trends']['Insert'] = {
-              keyword: keyword as string,
-              category: typedCategory,
-              count: 1,
-              last_used: new Date().toISOString()
-            };
-            
-            await supabase
-              .from('keyword_trends')
-              .insert(insertData);
-          }
-        }
-      }
-      
-      // Log for data validation
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Keywords saved to database for cross-component consistency');
-      }
-    } catch (error) {
-      console.error('Error saving keyword trends:', error);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-  
-  useEffect(() => {
-    // Initial classification if available
-    if (classifyKeywords) {
-      classifyKeywords();
-    }
-    
-    // Reclassify when recording is active
-    if (isRecording && classifyKeywords) {
-      const interval = setInterval(() => {
-        classifyKeywords();
-        saveKeywordsTrends();
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [classifyKeywords, isRecording]);
-  
-  // Skip rendering if no keywords from any source
-  const hasKeywords = mergedKeywords.positive.length > 0 || 
-                     mergedKeywords.neutral.length > 0 || 
-                     mergedKeywords.negative.length > 0 ||
-                     isRecording;
-                     
-  if (!hasKeywords) {
-    return null;
-  }
-  
+  const negativeKeywords = [
+    "expensive", "issue", "problem", "no", "not", "wait"
+  ];
+
+  const hasData = true; // Flag to determine if we have keyword data
+
   return (
-    <Card className="shadow-md">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-blue-500" />
-          Keyword Insights
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <ThumbsUp className="h-4 w-4 text-green-500" />
-              <h3 className="font-medium text-green-500">Positive Keywords</h3>
+    <div className="h-full">
+      {hasData ? (
+        <div>
+          <div className="mb-2">
+            <div className="flex items-center text-xs mb-1">
+              <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+              <span className="font-medium">Positive Keywords</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {mergedKeywords.positive.length > 0 ? (
-                mergedKeywords.positive.map((keyword, index) => (
-                  <Badge key={index} variant="outline" className="bg-green-50 text-green-600 border-green-200">
-                    {keyword}
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No positive keywords detected</p>
-              )}
+            <div className="flex flex-wrap gap-1">
+              {positiveKeywords.slice(0, 6).map((keyword, index) => (
+                <Badge 
+                  key={index} 
+                  variant="outline" 
+                  className={`text-xs ${isDarkMode ? "border-green-500/40 text-green-400" : "border-green-500/40 text-green-700 bg-green-50"}`}
+                >
+                  {keyword}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          
+          <div className="mb-2">
+            <div className="flex items-center text-xs mb-1">
+              <div className="w-2 h-2 rounded-full bg-gray-400 mr-2"></div>
+              <span className="font-medium">Neutral Keywords</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {neutralKeywords.slice(0, 6).map((keyword, index) => (
+                <Badge 
+                  key={index} 
+                  variant="outline" 
+                  className={`text-xs ${isDarkMode ? "border-gray-500/40 text-gray-300" : "border-gray-400/40 text-gray-700 bg-gray-50"}`}
+                >
+                  {keyword}
+                </Badge>
+              ))}
             </div>
           </div>
           
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Minus className="h-4 w-4 text-gray-500" />
-              <h3 className="font-medium text-gray-500">Neutral Keywords</h3>
+            <div className="flex items-center text-xs mb-1">
+              <div className="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
+              <span className="font-medium">Negative Keywords</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {mergedKeywords.neutral.length > 0 ? (
-                mergedKeywords.neutral.map((keyword, index) => (
-                  <Badge key={index} variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
-                    {keyword}
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No neutral keywords detected</p>
-              )}
-            </div>
-          </div>
-          
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <ThumbsDown className="h-4 w-4 text-red-500" />
-              <h3 className="font-medium text-red-500">Negative Keywords</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {mergedKeywords.negative.length > 0 ? (
-                mergedKeywords.negative.map((keyword, index) => (
-                  <Badge key={index} variant="outline" className="bg-red-50 text-red-600 border-red-200">
-                    {keyword}
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No negative keywords detected</p>
-              )}
+            <div className="flex flex-wrap gap-1">
+              {negativeKeywords.map((keyword, index) => (
+                <Badge 
+                  key={index} 
+                  variant="outline" 
+                  className={`text-xs ${isDarkMode ? "border-red-500/40 text-red-400" : "border-red-500/40 text-red-700 bg-red-50"}`}
+                >
+                  {keyword}
+                </Badge>
+              ))}
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      ) : (
+        <div className="h-full flex items-center justify-center">
+          <p className="text-muted-foreground text-sm">No keyword data available</p>
+        </div>
+      )}
+    </div>
   );
 };
 

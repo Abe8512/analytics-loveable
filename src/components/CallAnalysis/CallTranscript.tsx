@@ -1,12 +1,13 @@
+
 import React, { useContext, useEffect, useState } from "react";
 import { Copy, Flag, Play, User, Mic } from "lucide-react";
-import GlowingCard from "../ui/GlowingCard";
 import AIWaveform from "../ui/AIWaveform";
 import { ThemeContext } from "@/App";
 import WhisperButton from "../Whisper/WhisperButton";
 import SpeechToTextRecorder from "../Whisper/SpeechToTextRecorder";
-import { getStoredTranscriptions, StoredTranscription, TranscriptSegment } from "@/services/WhisperService";
+import { getStoredTranscriptions, StoredTranscription } from "@/services/WhisperService";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 interface MessageProps {
   sender: "agent" | "customer";
@@ -105,7 +106,7 @@ const CallTranscript = () => {
             
             const minute = Math.floor(index * 45 / segments.length);
             const second = Math.floor((index * 45 / segments.length - minute) * 60);
-            const timestamp = `00:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
+            const timestamp = `${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
             
             const flagged = content.toLowerCase().includes("interrupt") || 
                            (content.length < 20 && content.endsWith("--")) ||
@@ -133,7 +134,7 @@ const CallTranscript = () => {
             id: 1,
             sender: "agent",
             content: latest.text,
-            timestamp: "00:00:00"
+            timestamp: "00:00"
           }]);
         }
       }
@@ -170,51 +171,55 @@ const CallTranscript = () => {
     }
   };
 
+  const getCallInfo = () => {
+    if (!transcript) return "No transcript available";
+    const customer = transcript.speakerName || "Customer";
+    const duration = transcript.duration 
+      ? `${Math.floor(transcript.duration / 60)}:${(transcript.duration % 60).toString().padStart(2, '0')}`
+      : "Unknown duration";
+    return `Call with ${customer} • ${duration}`;
+  };
+
   return (
-    <GlowingCard className="h-full">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gray-800"}`}>Call Transcript</h2>
-          <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-            {transcript ? (
-              <>Call with {transcript.speakerName || "Customer"} • {transcript.duration ? `${Math.floor(transcript.duration / 60)}:${(transcript.duration % 60).toString().padStart(2, '0')}` : "Unknown duration"}</>
-            ) : (
-              "No transcript available"
-            )}
-          </p>
-        </div>
+    <div className="h-full flex flex-col">
+      <div className="flex justify-between items-center p-2">
+        <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+          {getCallInfo()}
+        </p>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {transcript && <WhisperButton recordingId={transcript.id} />}
           
-          <div className="flex items-center">
-            <SpeechToTextRecorder 
-              onTranscriptionComplete={handleSpeechInput}
-              buttonSize="sm"
-            />
-          </div>
+          <SpeechToTextRecorder 
+            onTranscriptionComplete={handleSpeechInput}
+            buttonSize="sm"
+          />
           
-          <button 
-            className={`flex items-center gap-1 ${isDarkMode ? "bg-white/5 hover:bg-white/10 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-800"} px-3 py-1.5 rounded text-sm transition-colors`}
+          <Button 
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1 h-8"
             disabled={!transcript}
           >
             <Play className="h-4 w-4" />
-            <span>Play Audio</span>
-          </button>
+            <span className="hidden sm:inline">Play</span>
+          </Button>
           
-          <button 
-            className={`flex items-center gap-1 ${isDarkMode ? "bg-white/5 hover:bg-white/10 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-800"} px-3 py-1.5 rounded text-sm transition-colors`}
+          <Button 
+            variant="outline"
+            size="sm"
             onClick={handleCopy}
             disabled={!transcript}
+            className="h-8"
           >
             <Copy className="h-4 w-4" />
-            <span>Copy</span>
-          </button>
+            <span className="hidden sm:inline">Copy</span>
+          </Button>
         </div>
       </div>
       
       {transcript ? (
-        <div className="space-y-0 mb-3 max-h-[600px] overflow-y-auto pr-2 divide-y divide-white/5">
+        <div className="flex-1 overflow-y-auto px-4 my-3 divide-y divide-border">
           {parsedMessages.map((message) => (
             <Message
               key={message.id}
@@ -228,13 +233,15 @@ const CallTranscript = () => {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 text-muted-foreground">
-          <p>No transcript data available</p>
-          <p className="text-sm mt-2">Upload audio files or record a call to see transcripts</p>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center p-6 text-muted-foreground">
+            <p>No transcript data available</p>
+            <p className="text-sm mt-2">Upload audio files or record a call to see transcripts</p>
+          </div>
         </div>
       )}
       
-      <div className={`pt-4 border-t ${isDarkMode ? "border-white/10" : "border-gray-200"} mt-4`}>
+      <div className={`px-4 py-3 border-t ${isDarkMode ? "border-white/10" : "border-gray-200"}`}>
         <div className="flex items-center gap-3 text-sm text-gray-400">
           <AIWaveform color="blue" barCount={8} className="h-5" />
           <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
@@ -242,7 +249,7 @@ const CallTranscript = () => {
           </p>
         </div>
       </div>
-    </GlowingCard>
+    </div>
   );
 };
 
