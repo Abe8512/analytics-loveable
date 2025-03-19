@@ -160,7 +160,7 @@ const Index = () => {
       
       <Tabs 
         defaultValue="dashboard" 
-        className="w-full mb-6"
+        className="w-full mb-4"
         onValueChange={handleLiveMetricsTab}
       >
         <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
@@ -177,7 +177,7 @@ const Index = () => {
         </TabsList>
         
         <TabsContent value="dashboard">
-          <div className="mb-6 flex justify-center">
+          <div className="mb-4 flex justify-center">
             <Button 
               className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
               onClick={() => handleLiveMetricsTab('livemetrics')}
@@ -196,7 +196,7 @@ const Index = () => {
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
             <div className="md:col-span-2">
               <ContentLoader 
                 isLoading={transcriptsLoading} 
@@ -238,7 +238,7 @@ const Index = () => {
         </TabsContent>
       </Tabs>
       
-      <div className="flex justify-between items-center mt-8 mb-4">
+      <div className="flex justify-between items-center mt-4 mb-4">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
           Recent Call Analysis
         </h2>
