@@ -8,22 +8,27 @@ import { getStoredTranscriptions } from "@/services/WhisperService";
 import { useNavigate } from "react-router-dom";
 import { useCallTranscripts } from "@/services/CallTranscriptService";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { USE_MOCK_DATA } from "@/services/MockDataService";
 
 const AIInsights = () => {
   const { isDarkMode } = useContext(ThemeContext);
   const navigate = useNavigate();
   const [transcriptCount, setTranscriptCount] = useState(0);
   const { transcripts } = useCallTranscripts();
-  // Set isOpen to false by default to make it collapsed
   const [isOpen, setIsOpen] = useState(false);
   
   useEffect(() => {
-    const storedTranscriptions = getStoredTranscriptions();
-    const totalCount = Math.max(transcripts.length, storedTranscriptions.length);
-    setTranscriptCount(totalCount);
+    if (USE_MOCK_DATA) {
+      // Use mock transcript count if in mock mode
+      setTranscriptCount(Math.floor(Math.random() * 15) + 5);
+    } else {
+      const storedTranscriptions = getStoredTranscriptions();
+      const totalCount = Math.max(transcripts?.length || 0, storedTranscriptions.length);
+      setTranscriptCount(totalCount);
+    }
   }, [transcripts]);
   
-  const hasData = transcriptCount > 0;
+  const hasData = USE_MOCK_DATA || transcriptCount > 0;
   
   const insights = [
     {

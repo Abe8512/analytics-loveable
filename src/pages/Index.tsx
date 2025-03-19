@@ -25,6 +25,7 @@ import TeamPerformanceOverview from "@/components/CallActivity/TeamPerformanceOv
 import { useRealTimeTeamMetrics } from "@/services/RealTimeMetricsService";
 import { Brain, Sparkles, ChevronRight, MicOff, Mic, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { generateMockTeamMetrics, USE_MOCK_DATA } from "@/services/MockDataService";
 
 const Index = () => {
   const { isDarkMode } = useContext(ThemeContext);
@@ -199,7 +200,7 @@ const Index = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
             <div className="md:col-span-2">
               <ContentLoader 
-                isLoading={transcriptsLoading} 
+                isLoading={transcriptsLoading && !USE_MOCK_DATA} 
                 height={400}
                 skeletonCount={1}
                 preserveHeight={true}
@@ -209,7 +210,7 @@ const Index = () => {
             </div>
             <div className="md:col-span-1">
               <ContentLoader 
-                isLoading={transcriptsLoading} 
+                isLoading={transcriptsLoading && !USE_MOCK_DATA} 
                 height={400}
                 skeletonCount={1}
                 preserveHeight={true}
@@ -219,7 +220,7 @@ const Index = () => {
             </div>
           </div>
           
-          <CallAnalysisSection isLoading={transcriptsLoading} />
+          <CallAnalysisSection isLoading={transcriptsLoading && !USE_MOCK_DATA} />
         </TabsContent>
         
         <TabsContent value="livemetrics">

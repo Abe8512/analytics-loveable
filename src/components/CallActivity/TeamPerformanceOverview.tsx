@@ -6,6 +6,7 @@ import { Phone, Activity, Clock, AlertCircle, ArrowUpRight, Zap } from "lucide-r
 import { TeamMetrics } from "@/services/RealTimeMetricsService";
 import ContentLoader from "@/components/ui/ContentLoader";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
+import { generateMockTeamMetrics, USE_MOCK_DATA } from "@/services/MockDataService";
 
 interface TeamPerformanceOverviewProps {
   teamMetrics: TeamMetrics;
@@ -18,28 +19,42 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
   teamMetricsLoading,
   callsLength
 }) => {
-  // Use guaranteed default values when metrics are undefined to prevent blank displays
+  // Generate mock data if needed
+  const mockMetrics = useMemo(() => generateMockTeamMetrics(), []);
+  
+  // Use either real metrics or mock metrics based on the flag
+  const displayMetrics = useMemo(() => {
+    if (USE_MOCK_DATA) {
+      return mockMetrics;
+    }
+    return teamMetrics;
+  }, [teamMetrics, mockMetrics]);
+  
+  // Calculate derived values from either real or mock metrics
   const totalCalls = useMemo(() => {
-    const baseCount = teamMetrics?.totalCalls !== undefined ? teamMetrics.totalCalls : 42;
+    const baseCount = displayMetrics?.totalCalls !== undefined ? displayMetrics.totalCalls : 42;
     return Math.round(baseCount + (callsLength || 0));
-  }, [teamMetrics?.totalCalls, callsLength]);
+  }, [displayMetrics?.totalCalls, callsLength]);
   
   const sentiment = useMemo(() => {
-    const sentimentValue = teamMetrics?.avgSentiment !== undefined ? teamMetrics.avgSentiment : 0.68;
+    const sentimentValue = displayMetrics?.avgSentiment !== undefined ? displayMetrics.avgSentiment : 0.68;
     return Math.round(sentimentValue * 100);
-  }, [teamMetrics?.avgSentiment]);
+  }, [displayMetrics?.avgSentiment]);
   
   const talkRatio = useMemo(() => {
-    const agent = Math.round(teamMetrics?.avgTalkRatio?.agent !== undefined ? teamMetrics.avgTalkRatio.agent : 55);
-    const customer = Math.round(teamMetrics?.avgTalkRatio?.customer !== undefined ? teamMetrics.avgTalkRatio.customer : 45);
+    const agent = Math.round(displayMetrics?.avgTalkRatio?.agent !== undefined ? displayMetrics.avgTalkRatio.agent : 55);
+    const customer = Math.round(displayMetrics?.avgTalkRatio?.customer !== undefined ? displayMetrics.avgTalkRatio.customer : 45);
     return `${agent}:${customer}`;
-  }, [teamMetrics?.avgTalkRatio?.agent, teamMetrics?.avgTalkRatio?.customer]);
+  }, [displayMetrics?.avgTalkRatio?.agent, displayMetrics?.avgTalkRatio?.customer]);
   
   const topKeywords = useMemo(() => {
-    return teamMetrics?.topKeywords?.length ? 
-      teamMetrics.topKeywords.slice(0, 3) : 
+    return displayMetrics?.topKeywords?.length ? 
+      displayMetrics.topKeywords.slice(0, 3) : 
       ["pricing", "features", "support"];
-  }, [teamMetrics?.topKeywords]);
+  }, [displayMetrics?.topKeywords]);
+  
+  // Determine if we should show loading state
+  const showLoading = teamMetricsLoading && !USE_MOCK_DATA;
   
   return (
     <Card className="mb-6 overflow-hidden border-0 shadow-md dark:shadow-none dark:border-white/10 bg-white/80 dark:bg-dark-purple/80 backdrop-blur-sm">
@@ -63,7 +78,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <Card className="bg-purple-50 dark:bg-purple-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
-              <ContentLoader isLoading={teamMetricsLoading} height={80}>
+              <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Calls</p>
@@ -81,7 +96,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
           
           <Card className="bg-green-50 dark:bg-green-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
-              <ContentLoader isLoading={teamMetricsLoading} height={80}>
+              <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg Sentiment</p>
@@ -99,7 +114,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
           
           <Card className="bg-blue-50 dark:bg-blue-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
-              <ContentLoader isLoading={teamMetricsLoading} height={80}>
+              <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Talk Ratio</p>
@@ -115,7 +130,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
           
           <Card className="bg-amber-50 dark:bg-amber-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
-              <ContentLoader isLoading={teamMetricsLoading} height={80}>
+              <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-muted-foreground">Top Keywords</p>

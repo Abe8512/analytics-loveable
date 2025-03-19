@@ -1,4 +1,3 @@
-
 import React, { useMemo } from "react";
 import { LineChart, Line, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Tooltip } from "recharts";
 import { TrendingUp, TrendingDown, BarChart3, LineChart as LineChartIcon, AreaChart as AreaChartIcon } from "lucide-react";
@@ -9,6 +8,7 @@ import { useRealTimeTeamMetrics } from "@/services/RealTimeMetricsService";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { Skeleton } from "../ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { generateMockChartData, generateMockKPIData, USE_MOCK_DATA } from "@/services/MockDataService";
 
 interface MetricCardProps {
   title: string;
@@ -22,7 +22,6 @@ interface MetricCardProps {
 }
 
 const MetricCard = ({ title, value, change, gradient = "blue", suffix = "", children, onClick, isLoading = false }: MetricCardProps) => {
-  // Ensure value is never undefined to prevent blank display
   const displayValue = value !== undefined ? value : 0;
   
   return (
@@ -71,37 +70,37 @@ const PerformanceMetrics = () => {
   
   const [metrics, isLoading] = useRealTimeTeamMetrics(filters);
   
-  // Generate sample data for charts - using fixed values for stability
-  const performanceData = useMemo(() => [
-    { name: "Mon", score: 65 },
-    { name: "Tue", score: 68 },
-    { name: "Wed", score: 72 },
-    { name: "Thu", score: 75 },
-    { name: "Fri", score: 82 },
-    { name: "Sat", score: 78 },
-    { name: "Sun", score: 80 }
-  ], []);
+  const mockData = useMemo(() => generateMockKPIData(), []);
+  const chartData = useMemo(() => generateMockChartData(), []);
   
-  const callVolumeData = useMemo(() => [
-    { name: "Mon", calls: 5 },
-    { name: "Tue", calls: 8 },
-    { name: "Wed", calls: 12 },
-    { name: "Thu", calls: 7 },
-    { name: "Fri", calls: 11 },
-    { name: "Sat", calls: 4 },
-    { name: "Sun", calls: 6 }
-  ], []);
-  
-  const conversionData = useMemo(() => [
-    { name: "Mon", rate: 20 },
-    { name: "Tue", rate: 25 },
-    { name: "Wed", rate: 30 },
-    { name: "Thu", rate: 28 },
-    { name: "Fri", rate: 35 },
-    { name: "Sat", rate: 32 },
-    { name: "Sun", rate: 30 }
-  ], []);
-  
+  const displayData = useMemo(() => {
+    if (USE_MOCK_DATA) {
+      return {
+        performanceScore: mockData.performanceScore,
+        totalCalls: mockData.totalCalls, 
+        conversionRate: mockData.conversionRate,
+        performanceChange: mockData.performanceChange,
+        callsChange: mockData.callsChange,
+        conversionChange: mockData.conversionChange,
+        performanceData: chartData.performanceData,
+        callVolumeData: chartData.callVolumeData,
+        conversionData: chartData.conversionData
+      };
+    } else {
+      return {
+        performanceScore: metrics?.performanceScore ?? 75,
+        totalCalls: metrics?.totalCalls ?? 42,
+        conversionRate: metrics?.conversionRate ?? 28,
+        performanceChange: 7,
+        callsChange: 5,
+        conversionChange: 12,
+        performanceData: chartData.performanceData,
+        callVolumeData: chartData.callVolumeData,
+        conversionData: chartData.conversionData
+      };
+    }
+  }, [metrics, mockData, chartData]);
+
   const navigateToCallActivity = () => {
     navigate("/call-activity");
     toast({
@@ -109,16 +108,6 @@ const PerformanceMetrics = () => {
       description: "View detailed metrics and analysis"
     });
   };
-
-  // Fixed values for change percentages
-  const performanceChange = 7;
-  const callsChange = 5;
-  const conversionChange = 12;
-
-  // Always ensure we have fallback values to display
-  const performanceScore = metrics?.performanceScore ?? 75;
-  const totalCalls = metrics?.totalCalls ?? 42;
-  const conversionRate = metrics?.conversionRate ?? 28;
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -136,18 +125,18 @@ const PerformanceMetrics = () => {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
       <MetricCard 
         title="Performance Score" 
-        value={performanceScore}
-        change={performanceChange}
+        value={displayData.performanceScore}
+        change={displayData.performanceChange}
         gradient="blue"
         onClick={navigateToCallActivity}
-        isLoading={isLoading}
+        isLoading={isLoading && !USE_MOCK_DATA}
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-gray-400">Last 7 days</span>
           <LineChartIcon size={14} className="text-neon-blue" />
         </div>
         <ResponsiveContainer width="100%" height={80}>
-          <LineChart data={performanceData}>
+          <LineChart data={displayData.performanceData}>
             <Tooltip content={<CustomTooltip />} />
             <Line 
               type="monotone" 
@@ -163,18 +152,18 @@ const PerformanceMetrics = () => {
       
       <MetricCard 
         title="Total Calls" 
-        value={totalCalls}
-        change={callsChange}
+        value={displayData.totalCalls}
+        change={displayData.callsChange}
         gradient="purple"
         onClick={navigateToCallActivity}
-        isLoading={isLoading}
+        isLoading={isLoading && !USE_MOCK_DATA}
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-gray-400">Last 7 days</span>
           <BarChart3 size={14} className="text-neon-purple" />
         </div>
         <ResponsiveContainer width="100%" height={80}>
-          <BarChart data={callVolumeData}>
+          <BarChart data={displayData.callVolumeData}>
             <Tooltip content={<CustomTooltip />} />
             <Bar 
               dataKey="calls" 
@@ -187,19 +176,19 @@ const PerformanceMetrics = () => {
       
       <MetricCard 
         title="Conversion Rate" 
-        value={conversionRate}
-        change={conversionChange}
+        value={displayData.conversionRate}
+        change={displayData.conversionChange}
         gradient="green"
         suffix="%"
         onClick={navigateToCallActivity}
-        isLoading={isLoading}
+        isLoading={isLoading && !USE_MOCK_DATA}
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-gray-400">Last 7 days</span>
           <AreaChartIcon size={14} className="text-neon-green" />
         </div>
         <ResponsiveContainer width="100%" height={80}>
-          <AreaChart data={conversionData}>
+          <AreaChart data={displayData.conversionData}>
             <Tooltip content={<CustomTooltip />} />
             <defs>
               <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
