@@ -157,27 +157,29 @@ const Index = () => {
         </h2>
         <PerformanceMetrics />
       </div>
-
-      {!showLiveMetrics && (
-        <div className="mb-6">
-          <Button 
-            className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
-            onClick={() => handleLiveMetricsTab('livemetrics')}
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="md:col-span-2">
+          <ContentLoader 
+            isLoading={transcriptsLoading} 
+            height={400}
+            skeletonCount={1}
+            preserveHeight={true}
           >
-            {isRecording ? (
-              <>
-                <MicOff className="mr-2 h-4 w-4" />
-                Stop Recording
-              </>
-            ) : (
-              <>
-                <Mic className="mr-2 h-4 w-4" />
-                Start Live Recording
-              </>
-            )}
-          </Button>
+            <CallsOverview />
+          </ContentLoader>
         </div>
-      )}
+        <div className="md:col-span-1">
+          <ContentLoader 
+            isLoading={transcriptsLoading} 
+            height={400}
+            skeletonCount={1}
+            preserveHeight={true}
+          >
+            <AIInsights />
+          </ContentLoader>
+        </div>
+      </div>
 
       <Tabs 
         defaultValue="dashboard" 
@@ -198,30 +200,28 @@ const Index = () => {
         </TabsList>
         
         <TabsContent value="dashboard">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="col-span-1 md:col-span-2">
-              <ContentLoader 
-                isLoading={transcriptsLoading} 
-                height={400}
-                skeletonCount={1}
-                preserveHeight={true}
-              >
-                <CallsOverview />
-              </ContentLoader>
-            </div>
-            <div>
-              <ContentLoader 
-                isLoading={transcriptsLoading} 
-                height={400}
-                skeletonCount={1}
-                preserveHeight={true}
-              >
-                <AIInsights />
-              </ContentLoader>
-            </div>
-          </div>
-          
           <CallAnalysisSection isLoading={transcriptsLoading} />
+          
+          {!showLiveMetrics && (
+            <div className="mb-6 flex justify-center">
+              <Button 
+                className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
+                onClick={() => handleLiveMetricsTab('livemetrics')}
+              >
+                {isRecording ? (
+                  <>
+                    <MicOff className="mr-2 h-4 w-4" />
+                    Stop Recording
+                  </>
+                ) : (
+                  <>
+                    <Mic className="mr-2 h-4 w-4" />
+                    Start Live Recording
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="livemetrics">
