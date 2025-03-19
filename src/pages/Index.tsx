@@ -41,7 +41,7 @@ const Index = () => {
         dateRange: filters.dateRange,
         ...options
       });
-    }, 1000),
+    }, 2000), // Increased throttle time to reduce update frequency
     [fetchTranscripts, filters.dateRange]
   );
   
@@ -116,7 +116,7 @@ const Index = () => {
 
   return (
     <DashboardLayout>
-      <div className="mb-8 flex justify-between items-center">
+      <div className="mb-8 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-800'} mb-1`}>
             <span className="text-gradient-blue">AI</span> Sales Call Analyzer
@@ -126,7 +126,7 @@ const Index = () => {
           </p>
         </div>
         
-        <div className="flex space-x-3 items-center">
+        <div className="flex flex-wrap gap-3 items-center">
           <DateRangeFilter 
             dateRange={filters.dateRange} 
             setDateRange={updateDateRange}
@@ -145,7 +145,7 @@ const Index = () => {
         className="w-full mb-8"
         onValueChange={handleLiveMetricsTab}
       >
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 flex overflow-x-auto">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="livemetrics">Live Metrics</TabsTrigger>
           <TabsTrigger value="history">Call History</TabsTrigger>
@@ -196,4 +196,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default React.memo(Index);

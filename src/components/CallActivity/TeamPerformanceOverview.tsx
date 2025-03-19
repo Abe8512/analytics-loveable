@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Activity, Clock, AlertCircle } from "lucide-react";
 import { TeamMetrics } from "@/services/RealTimeMetricsService";
-import { animationUtils } from "@/utils/animationUtils";
 import ContentLoader from "@/components/ui/ContentLoader";
 
 interface TeamPerformanceOverviewProps {
@@ -18,80 +17,27 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
   teamMetricsLoading,
   callsLength
 }) => {
-  // Track previous metrics to smooth transitions
-  const [stableMetrics, setStableMetrics] = useState<TeamMetrics | null>(null);
-  const [stableCallsLength, setStableCallsLength] = useState(0);
-  
   // Memoize to prevent unnecessary re-renders
-  const memoizedMetrics = useMemo(() => teamMetrics, [
-    teamMetrics?.totalCalls,
-    teamMetrics?.avgSentiment,
-    teamMetrics?.avgTalkRatio?.agent,
-    teamMetrics?.avgTalkRatio?.customer,
-    teamMetrics?.topKeywords?.join(',')
-  ]);
+  const totalCalls = useMemo(() => 
+    Math.round(teamMetrics?.totalCalls || 0) + callsLength, 
+    [teamMetrics?.totalCalls, callsLength]
+  );
   
-  // Smooth transitions for metrics to prevent UI jitter
-  useEffect(() => {
-    if (!teamMetricsLoading && memoizedMetrics) {
-      if (!stableMetrics) {
-        setStableMetrics(memoizedMetrics);
-      } else {
-        // Only update if values have changed significantly to avoid loops
-        const totalCallsDiff = Math.abs(memoizedMetrics.totalCalls - stableMetrics.totalCalls);
-        const sentimentDiff = Math.abs(memoizedMetrics.avgSentiment - stableMetrics.avgSentiment);
-        const talkRatioDiff = Math.abs(
-          (memoizedMetrics.avgTalkRatio?.agent || 0) - (stableMetrics.avgTalkRatio?.agent || 0)
-        );
-        
-        // Only update if changes are significant enough
-        if (totalCallsDiff > 0.5 || sentimentDiff > 0.01 || talkRatioDiff > 0.5) {
-          const newMetrics = {
-            ...stableMetrics,
-            totalCalls: animationUtils.smoothTransition(
-              memoizedMetrics.totalCalls, 
-              stableMetrics.totalCalls, 
-              3
-            ),
-            avgSentiment: animationUtils.smoothTransition(
-              memoizedMetrics.avgSentiment,
-              stableMetrics.avgSentiment,
-              0.05
-            ),
-            avgTalkRatio: {
-              agent: animationUtils.smoothTransition(
-                memoizedMetrics.avgTalkRatio?.agent || 0,
-                stableMetrics.avgTalkRatio?.agent || 0,
-                0.5
-              ),
-              customer: animationUtils.smoothTransition(
-                memoizedMetrics.avgTalkRatio?.customer || 0,
-                stableMetrics.avgTalkRatio?.customer || 0,
-                0.5
-              )
-            },
-            topKeywords: memoizedMetrics.topKeywords // Keywords don't need smoothing
-          };
-          
-          setStableMetrics(newMetrics);
-        }
-      }
-    }
-  }, [memoizedMetrics, teamMetricsLoading, stableMetrics]);
+  const sentiment = useMemo(() => 
+    Math.round((teamMetrics?.avgSentiment || 0) * 100), 
+    [teamMetrics?.avgSentiment]
+  );
   
-  // Smooth transitions for calls length, with throttling to prevent loops
-  useEffect(() => {
-    // Only update if there's a significant change
-    if (Math.abs(callsLength - stableCallsLength) > 0.5) {
-      if (stableCallsLength === 0 && callsLength > 0) {
-        setStableCallsLength(callsLength);
-      } else if (callsLength !== stableCallsLength) {
-        setStableCallsLength(prevLength => 
-          animationUtils.smoothTransition(callsLength, prevLength, 2)
-        );
-      }
-    }
-  }, [callsLength, stableCallsLength]);
+  const talkRatio = useMemo(() => {
+    const agent = Math.round(teamMetrics?.avgTalkRatio?.agent || 50);
+    const customer = Math.round(teamMetrics?.avgTalkRatio?.customer || 50);
+    return `${agent}:${customer}`;
+  }, [teamMetrics?.avgTalkRatio?.agent, teamMetrics?.avgTalkRatio?.customer]);
+  
+  const topKeywords = useMemo(() => 
+    teamMetrics?.topKeywords?.slice(0, 3) || [], 
+    [teamMetrics?.topKeywords]
+  );
   
   return (
     <Card className="mb-6">
@@ -109,9 +55,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Calls</p>
-                    <h3 className="text-2xl font-bold mt-1">
-                      {stableMetrics ? Math.round((stableMetrics?.totalCalls || 0) + stableCallsLength) : '...'}
-                    </h3>
+                    <h3 className="text-2xl font-bold mt-1">{totalCalls}</h3>
                   </div>
                   <Phone className="h-8 w-8 text-neon-purple opacity-80" />
                 </div>
@@ -125,11 +69,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg Sentiment</p>
-                    <h3 className="text-2xl font-bold mt-1">
-                      {stableMetrics 
-                        ? `${Math.round((stableMetrics?.avgSentiment || 0) * 100)}%` 
-                        : '...'}
-                    </h3>
+                    <h3 className="text-2xl font-bold mt-1">{sentiment}%</h3>
                   </div>
                   <Activity className="h-8 w-8 text-green-500 opacity-80" />
                 </div>
@@ -143,11 +83,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Talk Ratio</p>
-                    <h3 className="text-2xl font-bold mt-1">
-                      {stableMetrics 
-                        ? `${Math.round((stableMetrics?.avgTalkRatio?.agent || 0))}:${Math.round((stableMetrics?.avgTalkRatio?.customer || 0))}`
-                        : '...'}
-                    </h3>
+                    <h3 className="text-2xl font-bold mt-1">{talkRatio}</h3>
                   </div>
                   <Clock className="h-8 w-8 text-neon-blue opacity-80" />
                 </div>
@@ -164,16 +100,15 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                     <AlertCircle className="h-5 w-5 text-amber-500 opacity-80" />
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {stableMetrics
-                      ? (stableMetrics?.topKeywords?.length || 0) > 0 
-                        ? (stableMetrics?.topKeywords || []).slice(0, 3).map((keyword, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {keyword}
-                            </Badge>
-                          ))
-                        : <p className="text-sm">No keywords recorded</p>
-                      : <p className="text-sm">Loading...</p>
-                    }
+                    {topKeywords.length > 0 ? (
+                      topKeywords.map((keyword, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs">
+                          {keyword}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-sm">No keywords recorded</p>
+                    )}
                   </div>
                 </div>
               </ContentLoader>

@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { RepMetrics } from "@/services/RealTimeMetricsService";
-import { animationUtils } from '@/utils/animationUtils';
 import ContentLoader from '@/components/ui/ContentLoader';
 
 interface RepPerformanceCardsProps {
@@ -15,40 +14,8 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
   repMetrics, 
   repMetricsLoading 
 }) => {
-  // Store stable metrics to prevent UI jitter during updates
-  const [stableMetrics, setStableMetrics] = useState<RepMetrics[]>([]);
-  
-  useEffect(() => {
-    if (repMetricsLoading) return;
-    
-    // Initialize with first data load
-    if (stableMetrics.length === 0 && repMetrics.length > 0) {
-      setStableMetrics(repMetrics);
-      return;
-    }
-    
-    // Only update metrics with smooth transitions when data changes
-    if (repMetrics.length > 0) {
-      const smoothedMetrics = repMetrics.map(rep => {
-        // Find existing rep data
-        const existingRep = stableMetrics.find(sr => sr.id === rep.id);
-        
-        if (existingRep) {
-          // Apply smooth transitions to prevent UI jitter
-          return {
-            ...rep,
-            callVolume: animationUtils.smoothTransition(rep.callVolume, existingRep.callVolume, 2),
-            successRate: animationUtils.smoothTransition(rep.successRate, existingRep.successRate, 3),
-            sentiment: animationUtils.smoothTransition(rep.sentiment, existingRep.sentiment, 0.05)
-          };
-        }
-        
-        return rep;
-      });
-      
-      setStableMetrics(smoothedMetrics);
-    }
-  }, [repMetrics, repMetricsLoading, stableMetrics]);
+  // Use stable metrics with memoization
+  const stableMetrics = useMemo(() => repMetrics, [repMetrics]);
   
   return (
     <Card className="mb-6">
@@ -75,7 +42,7 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
                       </div>
                       <Progress 
                         value={rep.callVolume / 2} 
-                        className="h-1.5 transition-all duration-500" 
+                        className="h-1.5" 
                       />
                     </div>
                     
@@ -86,7 +53,7 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
                       </div>
                       <Progress 
                         value={rep.successRate} 
-                        className="h-1.5 transition-all duration-500" 
+                        className="h-1.5" 
                       />
                     </div>
                     
@@ -97,7 +64,7 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
                       </div>
                       <Progress 
                         value={rep.sentiment * 100} 
-                        className="h-1.5 transition-all duration-500" 
+                        className="h-1.5" 
                       />
                     </div>
                     
@@ -125,4 +92,4 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
   );
 };
 
-export default RepPerformanceCards;
+export default React.memo(RepPerformanceCards);
