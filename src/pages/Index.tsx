@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -182,29 +181,6 @@ const Index = () => {
         </div>
       </div>
 
-      <CallAnalysisSection isLoading={transcriptsLoading} />
-
-      {!showLiveMetrics && (
-        <div className="mb-6">
-          <Button 
-            className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
-            onClick={() => handleLiveMetricsTab('livemetrics')}
-          >
-            {isRecording ? (
-              <>
-                <MicOff className="mr-2 h-4 w-4" />
-                Stop Recording
-              </>
-            ) : (
-              <>
-                <Mic className="mr-2 h-4 w-4" />
-                Start Live Recording
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-
       <Tabs 
         defaultValue="dashboard" 
         className="w-full mb-8"
@@ -224,7 +200,28 @@ const Index = () => {
         </TabsList>
         
         <TabsContent value="dashboard">
-          {/* Dashboard content is now arranged above */}
+          <CallAnalysisSection isLoading={transcriptsLoading} />
+          
+          {!showLiveMetrics && (
+            <div className="mb-6 flex justify-center">
+              <Button 
+                className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
+                onClick={() => handleLiveMetricsTab('livemetrics')}
+              >
+                {isRecording ? (
+                  <>
+                    <MicOff className="mr-2 h-4 w-4" />
+                    Stop Recording
+                  </>
+                ) : (
+                  <>
+                    <Mic className="mr-2 h-4 w-4" />
+                    Start Live Recording
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="livemetrics">
