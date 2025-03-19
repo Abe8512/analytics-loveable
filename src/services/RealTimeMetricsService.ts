@@ -23,7 +23,6 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
   avgSentiment: 0.68,
   topKeywords: ["pricing", "features", "support"],
   avgTalkRatio: { agent: 55, customer: 45 }
-  // Removing avgCallDuration as it doesn't exist in TeamMetricsData
 };
 
 /**

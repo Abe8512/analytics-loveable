@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useMemo } from "react";
 import { LineChart, Line, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -22,12 +22,12 @@ interface MetricCardProps {
 
 const MetricCard = ({ title, value, change, gradient = "blue", suffix = "", children, onClick, isLoading = false }: MetricCardProps) => {
   return (
-    <GlowingCard gradient={gradient} className="h-full" onClick={onClick}>
+    <GlowingCard gradient={gradient} className="h-full transition-all duration-300 hover:scale-[1.02]" onClick={onClick}>
       <div className="flex flex-col h-full">
         <div className="flex justify-between items-start mb-4">
           <h3 className="text-sm font-medium text-gray-400">{title}</h3>
           {!isLoading && (
-            <div className={`flex items-center text-xs font-medium ${change >= 0 ? "text-neon-green" : "text-neon-red"}`}>
+            <div className={`flex items-center text-xs font-medium px-2 py-1 rounded-full ${change >= 0 ? "bg-neon-green/20 text-neon-green" : "bg-neon-red/20 text-neon-red"}`}>
               {change >= 0 ? <TrendingUp size={12} className="mr-1" /> : <TrendingDown size={12} className="mr-1" />}
               {Math.abs(change)}%
             </div>
@@ -61,7 +61,7 @@ const PerformanceMetrics = () => {
   const { metrics, isLoading: isMetricsLoading } = useSharedTeamMetrics(filters);
   
   // Generate sample data for charts - using fixed values for stability
-  const performanceData = [
+  const performanceData = useMemo(() => [
     { name: "Mon", score: 65 },
     { name: "Tue", score: 68 },
     { name: "Wed", score: 72 },
@@ -69,9 +69,9 @@ const PerformanceMetrics = () => {
     { name: "Fri", score: 82 },
     { name: "Sat", score: 78 },
     { name: "Sun", score: 80 }
-  ];
+  ], []);
   
-  const callVolumeData = [
+  const callVolumeData = useMemo(() => [
     { name: "Mon", calls: 5 },
     { name: "Tue", calls: 8 },
     { name: "Wed", calls: 12 },
@@ -79,9 +79,9 @@ const PerformanceMetrics = () => {
     { name: "Fri", calls: 11 },
     { name: "Sat", calls: 4 },
     { name: "Sun", calls: 6 }
-  ];
+  ], []);
   
-  const conversionData = [
+  const conversionData = useMemo(() => [
     { name: "Mon", rate: 20 },
     { name: "Tue", rate: 25 },
     { name: "Wed", rate: 30 },
@@ -89,7 +89,7 @@ const PerformanceMetrics = () => {
     { name: "Fri", rate: 35 },
     { name: "Sat", rate: 32 },
     { name: "Sun", rate: 30 }
-  ];
+  ], []);
   
   const navigateToCallActivity = () => {
     navigate("/call-activity");
@@ -101,7 +101,7 @@ const PerformanceMetrics = () => {
   const conversionChange = 12;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
       <MetricCard 
         title="Performance Score" 
         value={metrics.performanceScore || 0} 
@@ -120,7 +120,8 @@ const PerformanceMetrics = () => {
                 dataKey="score" 
                 stroke="#00F0FF" 
                 strokeWidth={2} 
-                dot={false} 
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>

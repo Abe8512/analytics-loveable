@@ -1,15 +1,17 @@
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { useKeywordTrends, KeywordCategory } from '@/hooks/useKeywordTrends';
 import KeywordChart from './KeywordChart';
 import KeywordCategoryTabs from './KeywordCategoryTabs';
+import { Button } from '@/components/ui/button';
 
 const KeywordTrendsChart = () => {
   // Get keyword trends data using the custom hook
-  const { isLoading, keywordTrends, lastUpdated } = useKeywordTrends();
+  const { isLoading, keywordTrends, lastUpdated, fetchKeywordTrends } = useKeywordTrends();
   const [activeCategory, setActiveCategory] = useState<KeywordCategory>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Get the current keywords based on active category
   const currentKeywords = useMemo(() => 
@@ -24,15 +26,30 @@ const KeywordTrendsChart = () => {
     // Format the date to a readable format
     return `Last updated: ${lastUpdated.toLocaleTimeString()}`;
   };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchKeywordTrends();
+    setTimeout(() => setIsRefreshing(false), 800); // Add a slight delay for better UX
+  };
   
   return (
-    <Card className="shadow-md">
+    <Card className="shadow-md overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle>Keyword Trends</CardTitle>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
             {getLastUpdatedText()}
           </span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8" 
+            onClick={handleRefresh}
+            disabled={isLoading || isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -41,18 +58,27 @@ const KeywordTrendsChart = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <>
+          <div className="space-y-4">
             <KeywordCategoryTabs 
               activeCategory={activeCategory}
               onCategoryChange={setActiveCategory}
             />
             
-            <KeywordChart 
-              keywords={currentKeywords}
-              category={activeCategory}
-              isLoading={false}
-            />
-          </>
+            {currentKeywords.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+                <p>No keywords found for this category</p>
+                <p className="text-sm mt-2">Try another category or add new keywords</p>
+              </div>
+            ) : (
+              <div className="transition-all duration-300">
+                <KeywordChart 
+                  keywords={currentKeywords}
+                  category={activeCategory}
+                  isLoading={false}
+                />
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
