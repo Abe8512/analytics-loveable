@@ -31,7 +31,7 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
 export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
   // Add delay to loading state transitions to prevent flickering
-  const stableLoading = useStableLoadingState(isLoading, 800);
+  const stableLoading = useStableLoadingState(isLoading, 300); // Reduced from 800ms to 300ms for faster loading
   
   // Stabilize metrics with memoization to prevent UI jitter
   const stableMetrics = useMemo(() => {
@@ -41,10 +41,11 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
     
     // Create a new object with rounded values to prevent tiny fluctuations
     return {
-      ...metrics,
+      ...DEFAULT_TEAM_METRICS, // First spread defaults to ensure all properties have values
+      ...metrics, // Then override with actual metrics if available
       // Round percentage values to prevent small fluctuations
       performanceScore: Math.round(metrics.performanceScore || DEFAULT_TEAM_METRICS.performanceScore),
-      conversionRate: Math.round((metrics.conversionRate || DEFAULT_TEAM_METRICS.conversionRate)),
+      conversionRate: Math.round(metrics.conversionRate || DEFAULT_TEAM_METRICS.conversionRate),
       totalCalls: Math.round(metrics.totalCalls || DEFAULT_TEAM_METRICS.totalCalls),
       // Ensure talk ratio always adds up to 100%
       avgTalkRatio: {
@@ -106,7 +107,7 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
   // Access the error property safely
   const error = 'error' in repMetricsResponse ? repMetricsResponse.error : undefined;
   
-  const stableLoading = useStableLoadingState(isLoading, 800);
+  const stableLoading = useStableLoadingState(isLoading, 300); // Reduced from 800ms to 300ms
   
   // Use default metrics when loading or no data available
   const stableMetrics = useMemo(() => {

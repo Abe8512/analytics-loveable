@@ -17,9 +17,9 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
   teamMetricsLoading,
   callsLength
 }) => {
-  // Memoize to prevent unnecessary re-renders
+  // Use default values when metrics are undefined
   const totalCalls = useMemo(() => 
-    Math.round(teamMetrics?.totalCalls || 0) + callsLength, 
+    Math.round((teamMetrics?.totalCalls || 0) + callsLength), 
     [teamMetrics?.totalCalls, callsLength]
   );
   
@@ -35,7 +35,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
   }, [teamMetrics?.avgTalkRatio?.agent, teamMetrics?.avgTalkRatio?.customer]);
   
   const topKeywords = useMemo(() => 
-    teamMetrics?.topKeywords?.slice(0, 3) || [], 
+    teamMetrics?.topKeywords?.slice(0, 3) || ["pricing", "features", "support"], 
     [teamMetrics?.topKeywords]
   );
   

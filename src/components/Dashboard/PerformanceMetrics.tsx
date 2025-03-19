@@ -5,9 +5,10 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import GlowingCard from "../ui/GlowingCard";
 import AnimatedNumber from "../ui/AnimatedNumber";
-import { useSharedTeamMetrics } from "@/services/SharedDataService";
+import { useRealTimeTeamMetrics } from "@/services/RealTimeMetricsService";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { Skeleton } from "../ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 interface MetricCardProps {
   title: string;
@@ -57,8 +58,9 @@ const MetricCard = ({ title, value, change, gradient = "blue", suffix = "", chil
 const PerformanceMetrics = () => {
   const navigate = useNavigate();
   const { filters } = useSharedFilters();
+  const { toast } = useToast();
   
-  const { metrics, isLoading: isMetricsLoading } = useSharedTeamMetrics(filters);
+  const [metrics, isLoading] = useRealTimeTeamMetrics(filters);
   
   // Generate sample data for charts - using fixed values for stability
   const performanceData = useMemo(() => [
@@ -93,6 +95,10 @@ const PerformanceMetrics = () => {
   
   const navigateToCallActivity = () => {
     navigate("/call-activity");
+    toast({
+      title: "Navigating to Call Activity",
+      description: "View detailed metrics and analysis"
+    });
   };
 
   // Fixed values for change percentages
@@ -104,13 +110,13 @@ const PerformanceMetrics = () => {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
       <MetricCard 
         title="Performance Score" 
-        value={metrics.performanceScore || 0} 
+        value={metrics?.performanceScore || 0} 
         change={performanceChange}
         gradient="blue"
         onClick={navigateToCallActivity}
-        isLoading={isMetricsLoading}
+        isLoading={isLoading}
       >
-        {isMetricsLoading ? (
+        {isLoading ? (
           <Skeleton className="w-full h-20" />
         ) : (
           <ResponsiveContainer width="100%" height={80}>
@@ -130,13 +136,13 @@ const PerformanceMetrics = () => {
       
       <MetricCard 
         title="Total Calls" 
-        value={metrics.totalCalls} 
+        value={metrics?.totalCalls || 0} 
         change={callsChange}
         gradient="purple"
         onClick={navigateToCallActivity}
-        isLoading={isMetricsLoading}
+        isLoading={isLoading}
       >
-        {isMetricsLoading ? (
+        {isLoading ? (
           <Skeleton className="w-full h-20" />
         ) : (
           <ResponsiveContainer width="100%" height={80}>
@@ -153,14 +159,14 @@ const PerformanceMetrics = () => {
       
       <MetricCard 
         title="Conversion Rate" 
-        value={metrics.conversionRate} 
+        value={metrics?.conversionRate || 0} 
         change={conversionChange}
         gradient="green"
         suffix="%"
         onClick={navigateToCallActivity}
-        isLoading={isMetricsLoading}
+        isLoading={isLoading}
       >
-        {isMetricsLoading ? (
+        {isLoading ? (
           <Skeleton className="w-full h-20" />
         ) : (
           <ResponsiveContainer width="100%" height={80}>
