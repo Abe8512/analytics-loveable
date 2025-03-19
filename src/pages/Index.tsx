@@ -25,6 +25,7 @@ import TeamPerformanceOverview from "@/components/CallActivity/TeamPerformanceOv
 import { useRealTimeTeamMetrics } from "@/services/RealTimeMetricsService";
 import { Brain, Sparkles, ChevronRight, MicOff, Mic, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import RecentCallsTable from "@/components/CallActivity/RecentCallsTable";
 
 const Index = () => {
   const { isDarkMode } = useContext(ThemeContext);
@@ -150,6 +151,58 @@ const Index = () => {
         callsLength={transcripts?.length || 0}
       />
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="md:col-span-2">
+          <ContentLoader 
+            isLoading={transcriptsLoading}
+            height={400}
+            skeletonCount={1}
+            preserveHeight={true}
+          >
+            <div className="bg-blue-950/20 dark:bg-slate-900/80 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg">
+              <div className="p-4 border-b border-white/10">
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center gap-2`}>
+                  Recent Calls
+                  <span className="text-xs text-blue-400 ml-2 px-2 py-1 bg-blue-500/10 rounded-full">Today</span>
+                </h2>
+              </div>
+              <div className="p-0">
+                <RecentCallsTable 
+                  calls={transcripts || []}
+                  isAdmin={false}
+                  isManager={true}
+                  loading={transcriptsLoading}
+                />
+              </div>
+            </div>
+          </ContentLoader>
+        </div>
+        
+        <div className="md:col-span-1">
+          <ContentLoader 
+            isLoading={transcriptsLoading}
+            height={400}
+            skeletonCount={1}
+            preserveHeight={true}
+          >
+            <div className="bg-indigo-950/20 dark:bg-slate-900/80 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg h-full">
+              <div className="p-4 border-b border-white/10 flex justify-between items-center">
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center gap-2`}>
+                  <span className="text-indigo-400 flex items-center gap-1"><Brain className="h-4 w-4" />AI</span> 
+                  Insights
+                </h2>
+                <Button variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300">
+                  View All
+                </Button>
+              </div>
+              <div className="p-4">
+                <AIInsights />
+              </div>
+            </div>
+          </ContentLoader>
+        </div>
+      </div>
+
       <div className="mb-6">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center`}>
           <Brain className="mr-2 h-5 w-5 text-neon-purple" />
@@ -179,66 +232,55 @@ const Index = () => {
         </div>
       )}
 
-      <Tabs 
-        defaultValue="dashboard" 
-        className="w-full mb-8"
-        onValueChange={handleLiveMetricsTab}
-      >
-        <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="livemetrics" className="flex items-center gap-1">
-            <Mic className="h-3.5 w-3.5" />
-            Live Metrics
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-1">
-            <Headphones className="h-3.5 w-3.5" />
-            Call History
-          </TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="dashboard">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="col-span-1 md:col-span-2">
-              <ContentLoader 
-                isLoading={transcriptsLoading} 
-                height={400}
-                skeletonCount={1}
-                preserveHeight={true}
-              >
-                <CallsOverview />
-              </ContentLoader>
-            </div>
-            <div>
-              <ContentLoader 
-                isLoading={transcriptsLoading} 
-                height={400}
-                skeletonCount={1}
-                preserveHeight={true}
-              >
-                <AIInsights />
-              </ContentLoader>
-            </div>
+      <div className="grid grid-cols-1 gap-6 mb-8">
+        <div className="bg-slate-900/50 backdrop-blur-sm rounded-lg overflow-hidden shadow-lg">
+          <div className="p-4 border-b border-white/10">
+            <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
+              Call Analysis
+            </h2>
           </div>
           
-          <CallAnalysisSection isLoading={transcriptsLoading} />
-        </TabsContent>
-        
-        <TabsContent value="livemetrics">
-          <LiveMetricsDisplay isCallActive={showLiveMetrics} />
-        </TabsContent>
-        
-        <TabsContent value="history">
-          <PastCallsList />
-        </TabsContent>
-        
-        <TabsContent value="trends">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <KeywordTrendsChart />
-            <SentimentTrendsChart />
+          <div className="p-4">
+            <Tabs 
+              defaultValue="dashboard" 
+              className="w-full"
+              onValueChange={handleLiveMetricsTab}
+            >
+              <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
+                <TabsTrigger value="dashboard">Call Transcript</TabsTrigger>
+                <TabsTrigger value="livemetrics" className="flex items-center gap-1">
+                  <Mic className="h-3.5 w-3.5" />
+                  Sentiment Analysis
+                </TabsTrigger>
+                <TabsTrigger value="history" className="flex items-center gap-1">
+                  <Headphones className="h-3.5 w-3.5" />
+                  Keyword Insights
+                </TabsTrigger>
+                <TabsTrigger value="trends">Call Rating</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="dashboard">
+                <CallAnalysisSection isLoading={transcriptsLoading} />
+              </TabsContent>
+              
+              <TabsContent value="livemetrics">
+                <LiveMetricsDisplay isCallActive={showLiveMetrics} />
+              </TabsContent>
+              
+              <TabsContent value="history">
+                <PastCallsList />
+              </TabsContent>
+              
+              <TabsContent value="trends">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <KeywordTrendsChart />
+                  <SentimentTrendsChart />
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
       
       <div className="flex justify-between items-center mt-8 mb-4">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
