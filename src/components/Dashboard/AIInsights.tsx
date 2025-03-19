@@ -14,7 +14,8 @@ const AIInsights = () => {
   const navigate = useNavigate();
   const [transcriptCount, setTranscriptCount] = useState(0);
   const { transcripts } = useCallTranscripts();
-  const [isOpen, setIsOpen] = useState(true);
+  // Set isOpen to false by default to make it collapsed
+  const [isOpen, setIsOpen] = useState(false);
   
   useEffect(() => {
     const storedTranscriptions = getStoredTranscriptions();
@@ -69,10 +70,10 @@ const AIInsights = () => {
   };
 
   return (
-    <div className="mt-6">
-      <GlowingCard gradient="purple">
+    <div className="h-full">
+      <GlowingCard gradient="purple" className="h-full">
         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-2">
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-neon-purple" />
               <h2 className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gray-800"}`}>AI Insights</h2>
