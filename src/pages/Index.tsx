@@ -158,6 +158,63 @@ const Index = () => {
         <PerformanceMetrics />
       </div>
       
+      <Tabs 
+        defaultValue="dashboard" 
+        className="w-full mb-6"
+        onValueChange={handleLiveMetricsTab}
+      >
+        <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="livemetrics" className="flex items-center gap-1">
+            <Mic className="h-3.5 w-3.5" />
+            Live Metrics
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-1">
+            <Headphones className="h-3.5 w-3.5" />
+            Call History
+          </TabsTrigger>
+          <TabsTrigger value="trends">Trends</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="dashboard">
+          <div className="mb-6 flex justify-center">
+            <Button 
+              className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
+              onClick={() => handleLiveMetricsTab('livemetrics')}
+            >
+              {isRecording ? (
+                <>
+                  <MicOff className="mr-2 h-4 w-4" />
+                  Stop Recording
+                </>
+              ) : (
+                <>
+                  <Mic className="mr-2 h-4 w-4" />
+                  Start Live Recording
+                </>
+              )}
+            </Button>
+          </div>
+          
+          <CallAnalysisSection isLoading={transcriptsLoading} />
+        </TabsContent>
+        
+        <TabsContent value="livemetrics">
+          <LiveMetricsDisplay isCallActive={showLiveMetrics} />
+        </TabsContent>
+        
+        <TabsContent value="history">
+          <PastCallsList />
+        </TabsContent>
+        
+        <TabsContent value="trends">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <KeywordTrendsChart />
+            <SentimentTrendsChart />
+          </div>
+        </TabsContent>
+      </Tabs>
+      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="md:col-span-2">
           <ContentLoader 
@@ -181,65 +238,6 @@ const Index = () => {
         </div>
       </div>
 
-      <Tabs 
-        defaultValue="dashboard" 
-        className="w-full mb-8"
-        onValueChange={handleLiveMetricsTab}
-      >
-        <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="livemetrics" className="flex items-center gap-1">
-            <Mic className="h-3.5 w-3.5" />
-            Live Metrics
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-1">
-            <Headphones className="h-3.5 w-3.5" />
-            Call History
-          </TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="dashboard">
-          <CallAnalysisSection isLoading={transcriptsLoading} />
-          
-          {!showLiveMetrics && (
-            <div className="mb-6 flex justify-center">
-              <Button 
-                className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
-                onClick={() => handleLiveMetricsTab('livemetrics')}
-              >
-                {isRecording ? (
-                  <>
-                    <MicOff className="mr-2 h-4 w-4" />
-                    Stop Recording
-                  </>
-                ) : (
-                  <>
-                    <Mic className="mr-2 h-4 w-4" />
-                    Start Live Recording
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="livemetrics">
-          <LiveMetricsDisplay isCallActive={showLiveMetrics} />
-        </TabsContent>
-        
-        <TabsContent value="history">
-          <PastCallsList />
-        </TabsContent>
-        
-        <TabsContent value="trends">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <KeywordTrendsChart />
-            <SentimentTrendsChart />
-          </div>
-        </TabsContent>
-      </Tabs>
-      
       <div className="flex justify-between items-center mt-8 mb-4">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
           Recent Call Analysis
