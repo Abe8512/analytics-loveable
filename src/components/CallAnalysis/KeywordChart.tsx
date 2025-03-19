@@ -1,19 +1,16 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { KeywordTrend, KeywordCategory } from '@/hooks/useKeywordTrends';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface KeywordChartProps {
   keywords: KeywordTrend[];
   category: KeywordCategory;
+  isLoading?: boolean;
 }
 
-const KeywordChart: React.FC<KeywordChartProps> = ({ keywords, category }) => {
-  // Sort by count (highest first) and limit to top 10
-  const chartData = [...keywords]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
-
+const KeywordChart: React.FC<KeywordChartProps> = ({ keywords, category, isLoading = false }) => {
   // Get color based on category
   const getCategoryColor = (cat: KeywordCategory): string => {
     switch (cat) {
@@ -22,6 +19,24 @@ const KeywordChart: React.FC<KeywordChartProps> = ({ keywords, category }) => {
       default: return '#3B82F6';
     }
   };
+  
+  // Memoize the chart data preparation to prevent unnecessary recalculations
+  const chartData = useMemo(() => {
+    if (!Array.isArray(keywords)) return [];
+    
+    // Sort by count (highest first) and limit to top 10
+    return [...keywords]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [keywords]);
+
+  if (isLoading) {
+    return (
+      <div className="w-full h-[300px] flex items-center justify-center">
+        <Skeleton className="h-[250px] w-full" />
+      </div>
+    );
+  }
 
   if (chartData.length === 0) {
     return (
@@ -50,12 +65,16 @@ const KeywordChart: React.FC<KeywordChartProps> = ({ keywords, category }) => {
           height={80}
         />
         <YAxis />
-        <Tooltip />
+        <Tooltip 
+          formatter={(value) => [`${value} mentions`, 'Frequency']}
+          labelFormatter={(label) => `Keyword: ${label}`}
+        />
         <Legend />
         <Bar 
           dataKey="count" 
           name="Frequency" 
           fill={getCategoryColor(category)}
+          animationDuration={500}
         />
       </BarChart>
     </ResponsiveContainer>
