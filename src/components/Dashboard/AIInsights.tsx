@@ -70,86 +70,84 @@ const AIInsights = () => {
   };
 
   return (
-    <div className="h-full">
-      <GlowingCard gradient="purple" className="h-full">
-        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-neon-purple" />
-              <h2 className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gray-800"}`}>AI Insights</h2>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button 
-                className="text-neon-purple hover:text-neon-purple/80 text-sm font-medium transition-colors flex items-center gap-1"
-                onClick={() => navigate('/ai-coaching')}
-              >
-                <span>View All</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
-              
-              <CollapsibleTrigger asChild>
-                <button className={`${isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-800"} rounded-full p-1 transition-colors`}>
-                  {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-              </CollapsibleTrigger>
-            </div>
+    <GlowingCard gradient="purple" className="h-full mt-6">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <Bot className="h-5 w-5 text-neon-purple" />
+            <h2 className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gray-800"}`}>AI Insights</h2>
           </div>
           
-          <CollapsibleContent>
-            <div className="flex items-center gap-3 mb-4">
-              <AIWaveform color="purple" barCount={15} />
-              <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                {hasData 
-                  ? `AI analyzing ${transcriptCount} calls from last 7 days` 
-                  : "No calls analyzed yet. Upload calls to get insights."
-                }
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <button 
+              className="text-neon-purple hover:text-neon-purple/80 text-sm font-medium transition-colors flex items-center gap-1"
+              onClick={() => navigate('/ai-coaching')}
+            >
+              <span>View All</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
             
-            <div className="space-y-3">
-              {insights.map((insight) => (
-                <div key={insight.id} className={`p-2.5 rounded-lg ${isDarkMode ? `neon-${insight.gradient}-border bg-white/5` : `light-${insight.gradient}-border bg-gray-50`}`}>
-                  <div className="flex gap-3">
-                    <div className="mt-1">{insight.icon}</div>
-                    <div>
-                      <h3 className={`font-medium mb-1 ${isDarkMode ? "text-white" : "text-gray-800"}`}>{insight.title}</h3>
-                      <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>{insight.description}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className={`mt-4 p-3 rounded-lg ${isDarkMode ? "bg-dark-purple/50 border border-white/10" : "bg-gray-50 border border-gray-200"}`}>
-              <div className="flex items-start gap-3">
-                <div className={`${isDarkMode ? "bg-neon-purple/20" : "bg-neon-purple/10"} rounded-full p-2 mt-1`}>
-                  <Bot className="h-5 w-5 text-neon-purple" />
-                </div>
-                <div>
-                  <p className={`text-xs ${isDarkMode ? "text-white" : "text-gray-800"} mb-2`}>
-                    <span className="font-medium">Suggestion:</span> {getSuggestion()}
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <button 
-                      className="bg-neon-purple hover:bg-neon-purple/90 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-                      onClick={() => navigate('/ai-coaching')}
-                    >
-                      {hasData ? "Apply to Script" : "Get Started"}
-                    </button>
-                    {hasData && (
-                      <button className={`${isDarkMode ? "bg-white/10 hover:bg-white/15 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-800"} px-3 py-1.5 rounded text-xs font-medium transition-colors`}>
-                        Show Examples
-                      </button>
-                    )}
+            <CollapsibleTrigger asChild>
+              <button className={`${isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-800"} rounded-full p-1 transition-colors`}>
+                {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </CollapsibleTrigger>
+          </div>
+        </div>
+        
+        <CollapsibleContent>
+          <div className="flex items-center gap-3 mb-4">
+            <AIWaveform color="purple" barCount={15} />
+            <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+              {hasData 
+                ? `AI analyzing ${transcriptCount} calls from last 7 days` 
+                : "No calls analyzed yet. Upload calls to get insights."
+              }
+            </p>
+          </div>
+          
+          <div className="space-y-3">
+            {insights.map((insight) => (
+              <div key={insight.id} className={`p-2.5 rounded-lg ${isDarkMode ? `neon-${insight.gradient}-border bg-white/5` : `light-${insight.gradient}-border bg-gray-50`}`}>
+                <div className="flex gap-3">
+                  <div className="mt-1">{insight.icon}</div>
+                  <div>
+                    <h3 className={`font-medium mb-1 ${isDarkMode ? "text-white" : "text-gray-800"}`}>{insight.title}</h3>
+                    <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>{insight.description}</p>
                   </div>
                 </div>
               </div>
+            ))}
+          </div>
+          
+          <div className={`mt-4 p-3 rounded-lg ${isDarkMode ? "bg-dark-purple/50 border border-white/10" : "bg-gray-50 border border-gray-200"}`}>
+            <div className="flex items-start gap-3">
+              <div className={`${isDarkMode ? "bg-neon-purple/20" : "bg-neon-purple/10"} rounded-full p-2 mt-1`}>
+                <Bot className="h-5 w-5 text-neon-purple" />
+              </div>
+              <div>
+                <p className={`text-xs ${isDarkMode ? "text-white" : "text-gray-800"} mb-2`}>
+                  <span className="font-medium">Suggestion:</span> {getSuggestion()}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button 
+                    className="bg-neon-purple hover:bg-neon-purple/90 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                    onClick={() => navigate('/ai-coaching')}
+                  >
+                    {hasData ? "Apply to Script" : "Get Started"}
+                  </button>
+                  {hasData && (
+                    <button className={`${isDarkMode ? "bg-white/10 hover:bg-white/15 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-800"} px-3 py-1.5 rounded text-xs font-medium transition-colors`}>
+                      Show Examples
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </GlowingCard>
-    </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </GlowingCard>
   );
 };
 

@@ -196,7 +196,7 @@ const Index = () => {
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
             <div className="md:col-span-2">
               <ContentLoader 
                 isLoading={transcriptsLoading} 
@@ -238,7 +238,7 @@ const Index = () => {
         </TabsContent>
       </Tabs>
       
-      <div className="flex justify-between items-center mt-8 mb-4">
+      <div className="flex justify-between items-center mt-2 mb-2">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
           Recent Call Analysis
         </h2>
