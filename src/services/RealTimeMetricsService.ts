@@ -31,7 +31,7 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
 export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
   // Add short delay to loading state transitions to prevent flickering
-  const stableLoading = useStableLoadingState(isLoading, 200); // Reduced delay for faster UI updates
+  const stableLoading = useStableLoadingState(isLoading, 100); // Reduced delay for faster UI updates
   
   // Stabilize metrics with memoization to prevent UI jitter
   const stableMetrics = useMemo(() => {
@@ -113,7 +113,7 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
   // Access the error property safely
   const error = 'error' in repMetricsResponse ? repMetricsResponse.error : undefined;
   
-  const stableLoading = useStableLoadingState(isLoading, 300); // Reduced from 800ms to 300ms
+  const stableLoading = useStableLoadingState(isLoading, 100); // Reduced from 300ms to 100ms
   
   // Use default metrics when loading or no data available
   const stableMetrics = useMemo(() => {

@@ -1,7 +1,7 @@
 
 import React, { useMemo } from "react";
-import { LineChart, Line, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Tooltip } from "recharts";
+import { TrendingUp, TrendingDown, BarChart3, LineChart as LineChartIcon, AreaChart as AreaChartIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import GlowingCard from "../ui/GlowingCard";
 import AnimatedNumber from "../ui/AnimatedNumber";
@@ -26,7 +26,11 @@ const MetricCard = ({ title, value, change, gradient = "blue", suffix = "", chil
   const displayValue = value !== undefined ? value : 0;
   
   return (
-    <GlowingCard gradient={gradient} className="h-full transition-all duration-300 hover:scale-[1.02]" onClick={onClick}>
+    <GlowingCard 
+      gradient={gradient} 
+      className="h-full transition-all duration-300 hover:scale-[1.02] cursor-pointer backdrop-blur-sm" 
+      onClick={onClick}
+    >
       <div className="flex flex-col h-full">
         <div className="flex justify-between items-start mb-4">
           <h3 className="text-sm font-medium text-gray-400">{title}</h3>
@@ -66,9 +70,6 @@ const PerformanceMetrics = () => {
   const { toast } = useToast();
   
   const [metrics, isLoading] = useRealTimeTeamMetrics(filters);
-  
-  // Add console.log to debug metrics
-  console.log("Performance metrics:", { metrics, isLoading });
   
   // Generate sample data for charts - using fixed values for stability
   const performanceData = useMemo(() => [
@@ -119,6 +120,18 @@ const PerformanceMetrics = () => {
   const totalCalls = metrics?.totalCalls ?? 42;
   const conversionRate = metrics?.conversionRate ?? 28;
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-dark-purple p-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+          <p className="font-medium">{`${label}`}</p>
+          <p className="text-neon-purple">{`${payload[0].name}: ${payload[0].value}`}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
       <MetricCard 
@@ -129,15 +142,20 @@ const PerformanceMetrics = () => {
         onClick={navigateToCallActivity}
         isLoading={isLoading}
       >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-gray-400">Last 7 days</span>
+          <LineChartIcon size={14} className="text-neon-blue" />
+        </div>
         <ResponsiveContainer width="100%" height={80}>
           <LineChart data={performanceData}>
+            <Tooltip content={<CustomTooltip />} />
             <Line 
               type="monotone" 
               dataKey="score" 
               stroke="#00F0FF" 
               strokeWidth={2} 
               dot={false}
-              activeDot={{ r: 4, strokeWidth: 0 }}
+              activeDot={{ r: 4, strokeWidth: 0, fill: "#00F0FF" }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -151,8 +169,13 @@ const PerformanceMetrics = () => {
         onClick={navigateToCallActivity}
         isLoading={isLoading}
       >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-gray-400">Last 7 days</span>
+          <BarChart3 size={14} className="text-neon-purple" />
+        </div>
         <ResponsiveContainer width="100%" height={80}>
           <BarChart data={callVolumeData}>
+            <Tooltip content={<CustomTooltip />} />
             <Bar 
               dataKey="calls" 
               fill="#8B5CF6" 
@@ -171,8 +194,13 @@ const PerformanceMetrics = () => {
         onClick={navigateToCallActivity}
         isLoading={isLoading}
       >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-gray-400">Last 7 days</span>
+          <AreaChartIcon size={14} className="text-neon-green" />
+        </div>
         <ResponsiveContainer width="100%" height={80}>
           <AreaChart data={conversionData}>
+            <Tooltip content={<CustomTooltip />} />
             <defs>
               <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#06D6A0" stopOpacity={0.8}/>
@@ -186,6 +214,7 @@ const PerformanceMetrics = () => {
               strokeWidth={2}
               fillOpacity={1} 
               fill="url(#colorRate)" 
+              activeDot={{ r: 4, strokeWidth: 0, fill: "#06D6A0" }}
             />
           </AreaChart>
         </ResponsiveContainer>

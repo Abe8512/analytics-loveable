@@ -1,9 +1,11 @@
+
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Activity, Clock, AlertCircle } from "lucide-react";
+import { Phone, Activity, Clock, AlertCircle, ArrowUpRight, Zap } from "lucide-react";
 import { TeamMetrics } from "@/services/RealTimeMetricsService";
 import ContentLoader from "@/components/ui/ContentLoader";
+import AnimatedNumber from "@/components/ui/AnimatedNumber";
 
 interface TeamPerformanceOverviewProps {
   teamMetrics: TeamMetrics;
@@ -40,44 +42,62 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
   }, [teamMetrics?.topKeywords]);
   
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 overflow-hidden border-0 shadow-md dark:shadow-none dark:border-white/10 bg-white/80 dark:bg-dark-purple/80 backdrop-blur-sm">
       <CardHeader className="pb-3">
-        <CardTitle>Team Performance Overview</CardTitle>
-        <CardDescription>
-          Real-time metrics from all calls and recordings
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center">
+              Team Performance Overview
+              <Zap className="h-5 w-5 ml-2 text-neon-purple" />
+            </CardTitle>
+            <CardDescription>
+              Real-time metrics from all calls and recordings
+            </CardDescription>
+          </div>
+          <div className="flex items-center justify-center bg-neon-purple/10 dark:bg-neon-purple/20 p-1.5 rounded-md">
+            <ArrowUpRight className="h-4 w-4 text-neon-purple" />
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          <Card className="bg-purple-50 dark:bg-purple-950/20">
+          <Card className="bg-purple-50 dark:bg-purple-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
               <ContentLoader isLoading={teamMetricsLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Calls</p>
-                    <h3 className="text-2xl font-bold mt-1">{totalCalls}</h3>
+                    <h3 className="text-2xl font-bold mt-1">
+                      <AnimatedNumber value={totalCalls} duration={800} />
+                    </h3>
                   </div>
-                  <Phone className="h-8 w-8 text-neon-purple opacity-80" />
+                  <div className="p-3 rounded-full bg-neon-purple/10 dark:bg-neon-purple/20">
+                    <Phone className="h-5 w-5 text-neon-purple" />
+                  </div>
                 </div>
               </ContentLoader>
             </CardContent>
           </Card>
           
-          <Card className="bg-green-50 dark:bg-green-950/20">
+          <Card className="bg-green-50 dark:bg-green-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
               <ContentLoader isLoading={teamMetricsLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg Sentiment</p>
-                    <h3 className="text-2xl font-bold mt-1">{sentiment}%</h3>
+                    <h3 className="text-2xl font-bold mt-1">
+                      <AnimatedNumber value={sentiment} duration={800} suffix="%" />
+                    </h3>
                   </div>
-                  <Activity className="h-8 w-8 text-green-500 opacity-80" />
+                  <div className="p-3 rounded-full bg-neon-green/10 dark:bg-neon-green/20">
+                    <Activity className="h-5 w-5 text-neon-green" />
+                  </div>
                 </div>
               </ContentLoader>
             </CardContent>
           </Card>
           
-          <Card className="bg-blue-50 dark:bg-blue-950/20">
+          <Card className="bg-blue-50 dark:bg-blue-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
               <ContentLoader isLoading={teamMetricsLoading} height={80}>
                 <div className="flex items-center justify-between">
@@ -85,24 +105,28 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                     <p className="text-sm font-medium text-muted-foreground">Talk Ratio</p>
                     <h3 className="text-2xl font-bold mt-1">{talkRatio}</h3>
                   </div>
-                  <Clock className="h-8 w-8 text-neon-blue opacity-80" />
+                  <div className="p-3 rounded-full bg-neon-blue/10 dark:bg-neon-blue/20">
+                    <Clock className="h-5 w-5 text-neon-blue" />
+                  </div>
                 </div>
               </ContentLoader>
             </CardContent>
           </Card>
           
-          <Card className="bg-amber-50 dark:bg-amber-950/20">
+          <Card className="bg-amber-50 dark:bg-amber-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
             <CardContent className="p-6">
               <ContentLoader isLoading={teamMetricsLoading} height={80}>
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-muted-foreground">Top Keywords</p>
-                    <AlertCircle className="h-5 w-5 text-amber-500 opacity-80" />
+                    <div className="p-2 rounded-full bg-amber-500/10 dark:bg-amber-500/20">
+                      <AlertCircle className="h-4 w-4 text-amber-500" />
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {topKeywords.length > 0 ? (
                       topKeywords.map((keyword, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
+                        <Badge key={idx} variant="outline" className="text-xs bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
                           {keyword}
                         </Badge>
                       ))

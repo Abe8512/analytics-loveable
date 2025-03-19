@@ -22,7 +22,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const mainClasses = useMemo(() => 
     cn(
       "flex-1 p-6 pt-16 overflow-y-auto transition-colors duration-200 hardware-accelerated",
-      isDarkMode ? 'bg-dark-purple' : 'bg-gray-50'
+      isDarkMode ? 'bg-dark-purple bg-[radial-gradient(at_top_left,rgba(139,92,246,0.05)_0%,rgba(0,240,255,0.05)_100%)]' : 
+      'bg-gray-50 bg-[radial-gradient(at_top_left,rgba(139,92,246,0.02)_0%,rgba(0,240,255,0.02)_100%)]'
     ),
     [isDarkMode]
   );
@@ -33,7 +34,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       <div className="flex flex-col flex-1">
         <TopBar setSidebarOpen={setSidebarOpen} />
         <main className={mainClasses}>
-          {children}
+          <div className="max-w-7xl mx-auto">
+            {children}
+          </div>
         </main>
       </div>
     </div>
