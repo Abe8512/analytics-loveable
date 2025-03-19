@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -27,6 +28,19 @@ import { Brain, Sparkles, ChevronRight, MicOff, Mic, Headphones } from "lucide-r
 import { Button } from "@/components/ui/button";
 import RecentCallsTable from "@/components/CallActivity/RecentCallsTable";
 
+// Define type that helps with type conversion between CallTranscript and Call
+interface Call {
+  id: string;
+  userId: string;
+  userName: string;
+  date: string;
+  duration: number;
+  customerName: string;
+  outcome: string;
+  sentiment: number;
+  nextSteps: string;
+}
+
 const Index = () => {
   const { isDarkMode } = useContext(ThemeContext);
   const { filters, updateDateRange } = useSharedFilters();
@@ -42,6 +56,9 @@ const Index = () => {
   } = useCallTranscripts();
   
   const [teamMetrics, teamMetricsLoading] = useRealTimeTeamMetrics(filters);
+  
+  // Convert CallTranscript[] to Call[]
+  const [calls, setCalls] = useState<Call[]>([]);
   
   const throttledFetchTranscripts = useCallback(
     animationUtils.throttle((options?: any) => {
@@ -118,6 +135,47 @@ const Index = () => {
     }
   }, [isRecording, startRecording, stopRecording]);
 
+  // Convert transcripts to calls format when transcripts change
+  useEffect(() => {
+    if (transcripts && transcripts.length > 0) {
+      const convertedCalls: Call[] = transcripts.map(transcript => {
+        // Generate a customer name from the filename or create a default one
+        const filenameBase = transcript.filename?.split('.')[0] || '';
+        const customerName = filenameBase.includes('_') 
+          ? filenameBase.split('_')[1] 
+          : `Customer ${transcript.id.substring(0, 5)}`;
+        
+        // Determine outcome based on sentiment
+        const outcome = transcript.sentiment === 'positive' ? "Qualified Lead" : 
+                      transcript.sentiment === 'negative' ? "No Interest" : "Follow-up Required";
+        
+        // Convert sentiment string to number value for display
+        const sentimentValue = transcript.sentiment === 'positive' ? 0.8 : 
+                              transcript.sentiment === 'negative' ? 0.3 : 0.6;
+        
+        // Determine next steps based on outcome
+        const nextSteps = outcome === "Qualified Lead" ? "Schedule demo" : 
+                        outcome === "No Interest" ? "No action required" : "Send additional information";
+        
+        return {
+          id: transcript.id,
+          userId: transcript.user_id || "unknown",
+          userName: "Sales Rep", // Default name since we may not have this info
+          date: transcript.created_at || new Date().toISOString(),
+          duration: transcript.duration || 0,
+          customerName,
+          outcome,
+          sentiment: sentimentValue,
+          nextSteps
+        };
+      });
+      
+      setCalls(convertedCalls);
+    } else {
+      setCalls([]);
+    }
+  }, [transcripts]);
+
   return (
     <DashboardLayout>
       <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
@@ -148,7 +206,7 @@ const Index = () => {
       <TeamPerformanceOverview 
         teamMetrics={teamMetrics} 
         teamMetricsLoading={teamMetricsLoading}
-        callsLength={transcripts?.length || 0}
+        callsLength={calls.length}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -168,7 +226,7 @@ const Index = () => {
               </div>
               <div className="p-0">
                 <RecentCallsTable 
-                  calls={transcripts || []}
+                  calls={calls}
                   isAdmin={false}
                   isManager={true}
                   loading={transcriptsLoading}
