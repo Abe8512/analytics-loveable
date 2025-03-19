@@ -1,4 +1,5 @@
-import React, { useContext, useState, useEffect } from "react";
+
+import React, { useContext, useState, useEffect, useCallback } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import PerformanceMetrics from "../components/Dashboard/PerformanceMetrics";
 import CallsOverview from "../components/Dashboard/CallsOverview";
@@ -33,13 +34,18 @@ const Index = () => {
     loading: transcriptsLoading 
   } = useCallTranscripts();
   
-  const throttledFetchTranscripts = animationUtils.throttle((options?: any) => {
-    fetchTranscripts({
-      dateRange: filters.dateRange,
-      ...options
-    });
-  }, 1000);
+  // Use useCallback for throttledFetchTranscripts to prevent recreation on each render
+  const throttledFetchTranscripts = useCallback(
+    animationUtils.throttle((options?: any) => {
+      fetchTranscripts({
+        dateRange: filters.dateRange,
+        ...options
+      });
+    }, 1000),
+    [fetchTranscripts, filters.dateRange]
+  );
   
+  // Only run effect when filters.dateRange changes
   useEffect(() => {
     throttledFetchTranscripts();
     
@@ -50,6 +56,7 @@ const Index = () => {
     };
   }, [filters.dateRange, isRecording, stopRecording, throttledFetchTranscripts]);
   
+  // Separate effect for recording-related logic to prevent cycles
   useEffect(() => {
     if (isRecording) {
       const interval = setInterval(() => {
@@ -60,16 +67,21 @@ const Index = () => {
     }
   }, [isRecording, saveSentimentTrend]);
   
-  useEventListener('transcript-created', () => {
+  // Event listeners with useCallback to prevent infinite loops
+  const handleTranscriptCreated = useCallback(() => {
     console.log('New transcript created, refreshing data...');
     throttledFetchTranscripts();
-  });
+  }, [throttledFetchTranscripts]);
   
-  useEventListener('bulk-upload-completed', () => {
+  const handleBulkUploadCompleted = useCallback(() => {
     console.log('Bulk upload completed, refreshing data...');
     throttledFetchTranscripts();
-  });
+  }, [throttledFetchTranscripts]);
   
+  useEventListener('transcript-created', handleTranscriptCreated);
+  useEventListener('bulk-upload-completed', handleBulkUploadCompleted);
+  
+  // Use a single effect for the transcriptions-updated event
   useEffect(() => {
     const handleTranscriptionsUpdated = () => {
       console.log("Transcriptions updated, refreshing data...");
@@ -83,12 +95,12 @@ const Index = () => {
     };
   }, [throttledFetchTranscripts]);
   
-  const handleBulkUploadClose = () => {
+  const handleBulkUploadClose = useCallback(() => {
     setIsBulkUploadOpen(false);
     throttledFetchTranscripts();
-  };
+  }, [throttledFetchTranscripts]);
 
-  const handleLiveMetricsTab = (value: string) => {
+  const handleLiveMetricsTab = useCallback((value: string) => {
     if (value === 'livemetrics') {
       setShowLiveMetrics(true);
       if (!isRecording) {
@@ -100,7 +112,7 @@ const Index = () => {
         stopRecording();
       }
     }
-  };
+  }, [isRecording, startRecording, stopRecording]);
 
   return (
     <DashboardLayout>

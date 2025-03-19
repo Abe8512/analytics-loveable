@@ -20,6 +20,7 @@ export type { TeamMetrics, RepMetrics };
  */
 export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
+  // Add delay to loading state transitions to prevent flickering
   const stableLoading = useStableLoadingState(isLoading, 400);
   
   // Stabilize metrics with memoization to prevent UI jitter
@@ -37,20 +38,33 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
       } as TeamMetrics;
     }
     
+    // Create a new object with rounded values to prevent tiny fluctuations
     return {
       ...metrics,
       // Round percentage values to prevent small fluctuations
-      performanceScore: Math.round(metrics.performanceScore),
-      conversionRate: Math.round(metrics.conversionRate * 10) / 10,
+      performanceScore: Math.round(metrics.performanceScore || 0),
+      conversionRate: Math.round((metrics.conversionRate || 0) * 10) / 10,
+      totalCalls: Math.round(metrics.totalCalls || 0),
       // Ensure talk ratio always adds up to 100%
       avgTalkRatio: {
-        agent: Math.round(metrics.avgTalkRatio.agent),
-        customer: 100 - Math.round(metrics.avgTalkRatio.agent)
-      }
+        agent: Math.round(metrics.avgTalkRatio?.agent || 50),
+        customer: Math.round(metrics.avgTalkRatio?.customer || 50)
+      },
+      // Ensure we have valid defaults for other properties
+      topKeywords: metrics.topKeywords || [],
+      avgSentiment: metrics.avgSentiment || 0
     };
-  }, [metrics]);
+  }, [
+    // Only depend on specific fields to prevent unnecessary re-renders
+    metrics?.performanceScore, 
+    metrics?.conversionRate,
+    metrics?.totalCalls,
+    metrics?.avgTalkRatio?.agent,
+    metrics?.topKeywords?.join(','),
+    metrics?.avgSentiment
+  ]);
   
-  // Add data validation in development mode
+  // Add data validation in development mode, but with a throttled approach
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' && metrics) {
       // Throttle validation to improve performance
@@ -68,7 +82,7 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
         };
       }
     }
-  }, [metrics]);
+  }, [metrics?.performanceScore, metrics?.conversionRate]);
   
   // Log errors for monitoring but don't impact the UI
   useEffect(() => {
@@ -111,7 +125,13 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
       successRate: Math.round(rep.successRate),
       sentiment: Math.round(rep.sentiment * 100) / 100
     }));
-  }, [metrics]);
+  }, [
+    metrics,
+    // We'll also add this extra dependency array check to make sure we react to changes
+    metrics?.length,
+    // This ensures we update when important metrics change
+    JSON.stringify(metrics?.map(m => `${m.id}-${m.successRate}-${m.sentiment}`))
+  ]);
   
   // Handle errors
   useEffect(() => {

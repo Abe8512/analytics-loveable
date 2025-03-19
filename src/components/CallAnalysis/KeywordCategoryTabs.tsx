@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KeywordCategory } from '@/hooks/useKeywordTrends';
 import { Sparkles, ThumbsUp, MinusCircle, ThumbsDown } from 'lucide-react';
@@ -20,7 +20,11 @@ const KeywordCategoryTabs: React.FC<KeywordCategoryTabsProps> = ({
       onValueChange={(value) => onCategoryChange(value as KeywordCategory)}
       className="mb-4"
     >
-      <TabsList className="grid grid-cols-3 w-full">
+      <TabsList className="grid grid-cols-4 w-full">
+        <TabsTrigger value="all" className="flex items-center gap-1">
+          <Sparkles className="h-4 w-4" />
+          <span>All</span>
+        </TabsTrigger>
         <TabsTrigger value="positive" className="flex items-center gap-1">
           <ThumbsUp className="h-4 w-4" />
           <span>Positive</span>
@@ -38,4 +42,5 @@ const KeywordCategoryTabs: React.FC<KeywordCategoryTabsProps> = ({
   );
 };
 
-export default KeywordCategoryTabs;
+// Memoize the component to prevent unnecessary re-renders
+export default memo(KeywordCategoryTabs);
