@@ -20,11 +20,10 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
   performanceScore: 75,
   totalCalls: 42,
   conversionRate: 28,
-  avgCallDuration: 5.2,
   avgSentiment: 0.68,
   topKeywords: ["pricing", "features", "support"],
-  avgTalkRatio: { agent: 55, customer: 45 },
-  callOutcomes: { successful: 28, unsuccessful: 14 }
+  avgTalkRatio: { agent: 55, customer: 45 }
+  // Removing avgCallDuration as it doesn't exist in TeamMetricsData
 };
 
 /**
@@ -82,8 +81,7 @@ const DEFAULT_REP_METRICS: RepMetrics[] = [
     callVolume: 25,
     successRate: 65,
     sentiment: 0.78,
-    insights: ["Asks good discovery questions", "Could improve closing technique"],
-    recentCalls: []
+    insights: ["Asks good discovery questions", "Could improve closing technique"]
   },
   {
     id: "2",
@@ -91,8 +89,7 @@ const DEFAULT_REP_METRICS: RepMetrics[] = [
     callVolume: 32,
     successRate: 72,
     sentiment: 0.82,
-    insights: ["Excellent at handling objections", "Clear product explanations"],
-    recentCalls: []
+    insights: ["Excellent at handling objections", "Clear product explanations"]
   }
 ];
 

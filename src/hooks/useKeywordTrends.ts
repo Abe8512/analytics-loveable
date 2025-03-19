@@ -2,9 +2,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Database } from '@/integrations/supabase/types';
 
-export type KeywordCategory = 'positive' | 'neutral' | 'negative';
+// Update type definition to include 'all'
+export type KeywordCategory = 'all' | 'positive' | 'neutral' | 'negative';
 
 export interface KeywordTrend {
   id: string;
@@ -15,6 +15,7 @@ export interface KeywordTrend {
 }
 
 export interface GroupedKeywords {
+  all: KeywordTrend[];
   positive: KeywordTrend[];
   neutral: KeywordTrend[];
   negative: KeywordTrend[];
@@ -23,6 +24,7 @@ export interface GroupedKeywords {
 export function useKeywordTrends() {
   const [isLoading, setIsLoading] = useState(true);
   const [keywordTrends, setKeywordTrends] = useState<GroupedKeywords>({
+    all: [],
     positive: [],
     neutral: [],
     negative: []
@@ -51,27 +53,40 @@ export function useKeywordTrends() {
       
       // Group keywords by category and ensure correct types
       const grouped: GroupedKeywords = {
+        all: [],
         positive: [],
         neutral: [],
         negative: []
       };
       
       if (data) {
+        // Create a collection of all keywords first
+        const allKeywords: KeywordTrend[] = [];
+        
         data.forEach(item => {
           // Skip items with null or invalid data
           if (!item || !item.keyword || !item.category) return;
           
-          const category = item.category as KeywordCategory;
+          const category = item.category as Exclude<KeywordCategory, 'all'>;
           if (category === 'positive' || category === 'neutral' || category === 'negative') {
-            grouped[category].push({
+            const keywordItem: KeywordTrend = {
               id: item.id,
               keyword: item.keyword,
               category,
               count: item.count || 1,
               last_used: item.last_used || new Date().toISOString()
-            });
+            };
+            
+            // Add to the appropriate category
+            grouped[category].push(keywordItem);
+            
+            // Also add to the 'all' category
+            allKeywords.push(keywordItem);
           }
         });
+        
+        // Sort all keywords by count and add to the 'all' category
+        grouped.all = allKeywords.sort((a, b) => b.count - a.count);
       }
       
       setKeywordTrends(grouped);
@@ -112,8 +127,8 @@ export function useKeywordTrends() {
   }, [fetchKeywordTrends]);
   
   // Function to save a keyword to the database with proper error handling and type safety
-  const saveKeyword = async (keyword: string, category: KeywordCategory) => {
-    if (!keyword || !category) {
+  const saveKeyword = async (keyword: string, category: Exclude<KeywordCategory, 'all'>) => {
+    if (!keyword || !category || category === 'all') {
       console.error('Invalid keyword or category');
       return;
     }
