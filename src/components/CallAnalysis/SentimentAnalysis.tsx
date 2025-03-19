@@ -27,7 +27,7 @@ const SentimentAnalysis = () => {
     <div className="h-full">
       {hasData ? (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center">
               <span className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-800"}`}>
                 {sentimentScore}%
@@ -51,7 +51,7 @@ const SentimentAnalysis = () => {
             indicatorClassName={getSentimentColor(sentimentScore)}
           />
           
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
               <div className="text-xs text-muted-foreground mb-1">Agent</div>
               <Progress value={72} className="h-1.5" indicatorClassName="bg-neon-blue" />

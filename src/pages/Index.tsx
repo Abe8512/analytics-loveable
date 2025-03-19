@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -157,6 +158,31 @@ const Index = () => {
         </h2>
         <PerformanceMetrics />
       </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="md:col-span-2">
+          <ContentLoader 
+            isLoading={transcriptsLoading} 
+            height={400}
+            skeletonCount={1}
+            preserveHeight={true}
+          >
+            <CallsOverview />
+          </ContentLoader>
+        </div>
+        <div className="md:col-span-1">
+          <ContentLoader 
+            isLoading={transcriptsLoading} 
+            height={400}
+            skeletonCount={1}
+            preserveHeight={true}
+          >
+            <AIInsights />
+          </ContentLoader>
+        </div>
+      </div>
+
+      <CallAnalysisSection isLoading={transcriptsLoading} />
 
       {!showLiveMetrics && (
         <div className="mb-6">
@@ -198,30 +224,7 @@ const Index = () => {
         </TabsList>
         
         <TabsContent value="dashboard">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="col-span-1 md:col-span-2">
-              <ContentLoader 
-                isLoading={transcriptsLoading} 
-                height={400}
-                skeletonCount={1}
-                preserveHeight={true}
-              >
-                <CallsOverview />
-              </ContentLoader>
-            </div>
-            <div>
-              <ContentLoader 
-                isLoading={transcriptsLoading} 
-                height={400}
-                skeletonCount={1}
-                preserveHeight={true}
-              >
-                <AIInsights />
-              </ContentLoader>
-            </div>
-          </div>
-          
-          <CallAnalysisSection isLoading={transcriptsLoading} />
+          {/* Dashboard content is now arranged above */}
         </TabsContent>
         
         <TabsContent value="livemetrics">
