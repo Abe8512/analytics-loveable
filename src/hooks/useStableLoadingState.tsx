@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
  * @param minLoadingTime Minimum time to show loading state in ms
  * @returns Stabilized loading state
  */
-export const useStableLoadingState = (isLoading: boolean, minLoadingTime: number = 500): boolean => {
+export const useStableLoadingState = (isLoading: boolean, minLoadingTime: number = 200): boolean => {
   const [stableLoading, setStableLoading] = useState(isLoading);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);

@@ -30,37 +30,43 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
  */
 export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
-  // Add delay to loading state transitions to prevent flickering
-  const stableLoading = useStableLoadingState(isLoading, 300); // Reduced from 800ms to 300ms for faster loading
+  // Add short delay to loading state transitions to prevent flickering
+  const stableLoading = useStableLoadingState(isLoading, 200); // Reduced delay for faster UI updates
   
   // Stabilize metrics with memoization to prevent UI jitter
   const stableMetrics = useMemo(() => {
-    if (!metrics) {
-      return DEFAULT_TEAM_METRICS;
-    }
-    
-    // Create a new object with rounded values to prevent tiny fluctuations
+    // Always return metrics with defaults to ensure UI never shows blank values
     return {
       ...DEFAULT_TEAM_METRICS, // First spread defaults to ensure all properties have values
-      ...metrics, // Then override with actual metrics if available
-      // Round percentage values to prevent small fluctuations
-      performanceScore: Math.round(metrics.performanceScore || DEFAULT_TEAM_METRICS.performanceScore),
-      conversionRate: Math.round(metrics.conversionRate || DEFAULT_TEAM_METRICS.conversionRate),
-      totalCalls: Math.round(metrics.totalCalls || DEFAULT_TEAM_METRICS.totalCalls),
-      // Ensure talk ratio always adds up to 100%
+      ...(metrics || {}), // Then override with actual metrics if available
+      // Ensure performance score has a value
+      performanceScore: metrics?.performanceScore !== undefined ? 
+        Math.round(metrics.performanceScore) : DEFAULT_TEAM_METRICS.performanceScore,
+      // Ensure conversion rate has a value  
+      conversionRate: metrics?.conversionRate !== undefined ? 
+        Math.round(metrics.conversionRate) : DEFAULT_TEAM_METRICS.conversionRate,
+      // Ensure total calls has a value
+      totalCalls: metrics?.totalCalls !== undefined ? 
+        Math.round(metrics.totalCalls) : DEFAULT_TEAM_METRICS.totalCalls,
+      // Ensure talk ratio always has values
       avgTalkRatio: {
-        agent: Math.round(metrics.avgTalkRatio?.agent || DEFAULT_TEAM_METRICS.avgTalkRatio.agent),
-        customer: Math.round(metrics.avgTalkRatio?.customer || DEFAULT_TEAM_METRICS.avgTalkRatio.customer)
+        agent: metrics?.avgTalkRatio?.agent !== undefined ? 
+          Math.round(metrics.avgTalkRatio.agent) : DEFAULT_TEAM_METRICS.avgTalkRatio.agent,
+        customer: metrics?.avgTalkRatio?.customer !== undefined ? 
+          Math.round(metrics.avgTalkRatio.customer) : DEFAULT_TEAM_METRICS.avgTalkRatio.customer
       },
       // Ensure we have valid defaults for other properties
-      topKeywords: metrics.topKeywords || DEFAULT_TEAM_METRICS.topKeywords,
-      avgSentiment: metrics.avgSentiment || DEFAULT_TEAM_METRICS.avgSentiment
+      topKeywords: metrics?.topKeywords?.length ? 
+        metrics.topKeywords : DEFAULT_TEAM_METRICS.topKeywords,
+      avgSentiment: metrics?.avgSentiment !== undefined ? 
+        metrics.avgSentiment : DEFAULT_TEAM_METRICS.avgSentiment
     };
   }, [metrics]);
   
   // Log errors for monitoring but don't impact the UI
   useEffect(() => {
     if (error) {
+      console.error("Error loading team metrics:", error);
       errorHandler.handleError({
         message: "Couldn't load team metrics",
         technical: typeof error === 'string' ? error : JSON.stringify(error),
