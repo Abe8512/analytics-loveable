@@ -1,5 +1,5 @@
-
 import React, { useContext, useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import PerformanceMetrics from "../components/Dashboard/PerformanceMetrics";
 import CallsOverview from "../components/Dashboard/CallsOverview";
@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const { isDarkMode } = useContext(ThemeContext);
+  const navigate = useNavigate();
   const { filters, updateDateRange } = useSharedFilters();
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [showLiveMetrics, setShowLiveMetrics] = useState(false);
@@ -39,21 +40,18 @@ const Index = () => {
     loading: transcriptsLoading 
   } = useCallTranscripts();
   
-  // Get team metrics for the team performance overview
   const [teamMetrics, teamMetricsLoading] = useRealTimeTeamMetrics(filters);
   
-  // Use useCallback for throttledFetchTranscripts to prevent recreation on each render
   const throttledFetchTranscripts = useCallback(
     animationUtils.throttle((options?: any) => {
       fetchTranscripts({
         dateRange: filters.dateRange,
         ...options
       });
-    }, 1000), // Decreased throttle time for faster updates
+    }, 1000),
     [fetchTranscripts, filters.dateRange]
   );
   
-  // Only run effect when filters.dateRange changes
   useEffect(() => {
     throttledFetchTranscripts();
     
@@ -64,7 +62,6 @@ const Index = () => {
     };
   }, [filters.dateRange, isRecording, stopRecording, throttledFetchTranscripts]);
   
-  // Separate effect for recording-related logic to prevent cycles
   useEffect(() => {
     if (isRecording) {
       const interval = setInterval(() => {
@@ -75,7 +72,6 @@ const Index = () => {
     }
   }, [isRecording, saveSentimentTrend]);
   
-  // Event listeners with useCallback to prevent infinite loops
   const handleTranscriptCreated = useCallback(() => {
     console.log('New transcript created, refreshing data...');
     throttledFetchTranscripts();
@@ -89,7 +85,6 @@ const Index = () => {
   useEventListener('transcript-created', handleTranscriptCreated);
   useEventListener('bulk-upload-completed', handleBulkUploadCompleted);
   
-  // Use a single effect for the transcriptions-updated event
   useEffect(() => {
     const handleTranscriptionsUpdated = () => {
       console.log("Transcriptions updated, refreshing data...");
@@ -149,14 +144,12 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Overview metrics section */}
       <TeamPerformanceOverview 
         teamMetrics={teamMetrics} 
         teamMetricsLoading={teamMetricsLoading}
         callsLength={transcripts?.length || 0}
       />
 
-      {/* Performance metrics showcase */}
       <div className="mb-6">
         <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center`}>
           <Brain className="mr-2 h-5 w-5 text-neon-purple" />
@@ -165,7 +158,6 @@ const Index = () => {
         <PerformanceMetrics />
       </div>
 
-      {/* Live recording button */}
       {!showLiveMetrics && (
         <div className="mb-6">
           <Button 
