@@ -67,6 +67,7 @@ class ErrorHandlingService {
   
   /**
    * Measure network latency to help diagnose connection issues
+   * Updated to handle CORS issues properly
    */
   private measureNetworkLatency = async () => {
     if (typeof window === 'undefined' || this._isOffline) return;
@@ -75,9 +76,14 @@ class ErrorHandlingService {
       // Use a tiny request to measure latency
       const start = performance.now();
       
-      // Request a tiny resource or use the Supabase server
-      await fetch('https://yfufpcxkerovnijhodrr.supabase.co/ping', { 
+      // Use the Supabase API endpoint that properly handles CORS
+      // Instead of direct /ping which doesn't have CORS headers
+      await fetch('https://yfufpcxkerovnijhodrr.supabase.co/rest/v1/call_transcripts?select=id&limit=1', { 
         method: 'HEAD',
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmdWZwY3hrZXJvdm5pamhvZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNjI3ODYsImV4cCI6MjA1NzgzODc4Nn0.1x7WAfVIvlm-KPy2q4eFylaVtdc5_ZJmlis5AMJ-Izc',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmdWZwY3hrZXJvdm5pamhvZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNjI3ODYsImV4cCI6MjA1NzgzODc4Nn0.1x7WAfVIvlm-KPy2q4eFylaVtdc5_ZJmlis5AMJ-Izc'
+        },
         cache: 'no-store'
       });
       
