@@ -6,44 +6,18 @@ import { Button } from "@/components/ui/button";
 import { DateRangeFilter } from "@/components/CallAnalysis/DateRangeFilter";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, 
+  CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Pie, Cell 
+} from "recharts";
 import { 
   Download, FileDown, Settings, CalendarRange, 
   BarChart as BarChartIcon, PieChart, LineChart as LineChartIcon, 
   RefreshCw, Filter, Users, Award, TrendingUp, DollarSign,
   Phone, Heart, Target, Calendar
 } from "lucide-react";
-import KeywordTrendsChart from "@/components/CallAnalysis/KeywordTrendsChart";
-import { SentimentTrendsChart } from "@/components/CallAnalysis/SentimentTrendsChart";
-import PerformanceMetrics from "@/components/Dashboard/PerformanceMetrics";
-import KeyMetricsTable from "@/components/Performance/KeyMetricsTable";
-import TeamPerformanceOverview from "@/components/CallActivity/TeamPerformanceOverview";
-import { useRealTimeTeamMetrics, useRealTimeRepMetrics } from "@/services/RealTimeMetricsService";
-import { 
-  getMetrics, 
-  getCallDistributionData, 
-  getCallDistributionByHour, 
-  getSentimentTrendData, 
-  getScoreTrendData, 
-  getKeywordComparisonData 
-} from "@/services/CallTranscriptMetricsService";
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogTrigger 
-} from "@/components/ui/alert-dialog";
-import TeamPerformanceAnalytics from "@/components/Analytics/TeamPerformanceAnalytics";
-import PipelineMetrics from "@/components/Analytics/PipelineMetrics";
-import ActivityMetrics from "@/components/Analytics/ActivityMetrics";
-import CustomerMetrics from "@/components/Analytics/CustomerMetrics";
-import TeamPerformanceMetrics from "@/components/Analytics/TeamPerformanceMetrics";
-import SalesForecast from "@/components/Analytics/SalesForecast";
-import { supabase } from "@/integrations/supabase/client";
 
 interface ComparisonMetric {
   [key: string]: number;
