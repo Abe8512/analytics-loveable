@@ -1,4 +1,3 @@
-
 /**
  * Shared utility functions for advanced sales metrics analysis
  */
@@ -175,6 +174,8 @@ export const analyzeQuestions = (text: string): {
   const painPointQuestions: string[] = [];
   
   questions.forEach(question => {
+    if (!question) return; // Skip if question is undefined
+    
     const lowerQuestion = question.toLowerCase();
     
     // Check question type
