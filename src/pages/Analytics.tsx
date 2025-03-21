@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Download, FileDown, Settings, CalendarRange, 
   BarChart as BarChartIcon, PieChart, LineChart as LineChartIcon, 
-  RefreshCw, Filter, Users, Award, TrendingUp
+  RefreshCw, Filter, Users, Award, TrendingUp, DollarSign,
+  Phone, Heart, Target, Calendar
 } from "lucide-react";
 import KeywordTrendsChart from "@/components/CallAnalysis/KeywordTrendsChart";
 import { SentimentTrendsChart } from "@/components/CallAnalysis/SentimentTrendsChart";
@@ -17,30 +18,32 @@ import PerformanceMetrics from "@/components/Dashboard/PerformanceMetrics";
 import KeyMetricsTable from "@/components/Performance/KeyMetricsTable";
 import TeamPerformanceOverview from "@/components/CallActivity/TeamPerformanceOverview";
 import { useRealTimeTeamMetrics, useRealTimeRepMetrics } from "@/services/RealTimeMetricsService";
-import {
-  getMetrics,
-  getCallDistributionData,
-  getCallDistributionByHour,
-  getSentimentTrendData,
-  getScoreTrendData,
-  getKeywordComparisonData,
-} from "@/services/CallTranscriptMetricsService";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, PieChart as RechartsPieChart, Pie, Cell } from "recharts";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { Skeleton } from "@/components/ui/skeleton";
 import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  getMetrics, 
+  getCallDistributionData, 
+  getCallDistributionByHour, 
+  getSentimentTrendData, 
+  getScoreTrendData, 
+  getKeywordComparisonData 
+} from "@/services/CallTranscriptMetricsService";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
 } from "@/components/ui/alert-dialog";
 import TeamPerformanceAnalytics from "@/components/Analytics/TeamPerformanceAnalytics";
+import PipelineMetrics from "@/components/Analytics/PipelineMetrics";
+import ActivityMetrics from "@/components/Analytics/ActivityMetrics";
+import CustomerMetrics from "@/components/Analytics/CustomerMetrics";
+import TeamPerformanceMetrics from "@/components/Analytics/TeamPerformanceMetrics";
+import SalesForecast from "@/components/Analytics/SalesForecast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ComparisonMetric {
   [key: string]: number;
@@ -251,6 +254,26 @@ const Analytics = () => {
               <Users className="h-4 w-4 mr-1" />
               Team Performance
             </TabsTrigger>
+            <TabsTrigger value="pipeline">
+              <DollarSign className="h-4 w-4 mr-1" />
+              Pipeline
+            </TabsTrigger>
+            <TabsTrigger value="activity">
+              <Calendar className="h-4 w-4 mr-1" />
+              Activities
+            </TabsTrigger>
+            <TabsTrigger value="customer">
+              <Heart className="h-4 w-4 mr-1" />
+              Customer
+            </TabsTrigger>
+            <TabsTrigger value="forecast">
+              <TrendingUp className="h-4 w-4 mr-1" />
+              Forecast
+            </TabsTrigger>
+            <TabsTrigger value="team-metrics">
+              <Award className="h-4 w-4 mr-1" />
+              Team Metrics
+            </TabsTrigger>
             <TabsTrigger value="trends">Trend Analysis</TabsTrigger>
             <TabsTrigger value="keywords">Keyword Analysis</TabsTrigger>
             <TabsTrigger value="calls">Call Distribution</TabsTrigger>
@@ -274,6 +297,26 @@ const Analytics = () => {
               repMetrics={repMetrics} 
               isLoading={teamMetricsLoading || repMetricsLoading} 
             />
+          </TabsContent>
+          
+          <TabsContent value="pipeline" className="space-y-6">
+            <PipelineMetrics isLoading={isLoading} />
+          </TabsContent>
+          
+          <TabsContent value="activity" className="space-y-6">
+            <ActivityMetrics isLoading={isLoading} />
+          </TabsContent>
+          
+          <TabsContent value="customer" className="space-y-6">
+            <CustomerMetrics isLoading={isLoading} />
+          </TabsContent>
+          
+          <TabsContent value="forecast" className="space-y-6">
+            <SalesForecast isLoading={isLoading} />
+          </TabsContent>
+          
+          <TabsContent value="team-metrics" className="space-y-6">
+            <TeamPerformanceMetrics isLoading={isLoading} />
           </TabsContent>
           
           <TabsContent value="trends" className="space-y-6">
