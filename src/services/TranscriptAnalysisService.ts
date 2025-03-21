@@ -1,150 +1,164 @@
 
-// A service for analyzing transcript text and extracting insights
-export class TranscriptAnalysisService {
-  private cachedSentiments = new Map<string, string>();
-  private cachedKeywords = new Map<string, string[]>();
-  private cachedScores = new Map<string, number>();
-  
-  // Analyze text and generate a sentiment score
-  public analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
-    // Check cache first to avoid recalculating for the same text
-    if (this.cachedSentiments.has(text)) {
-      return this.cachedSentiments.get(text) as 'positive' | 'neutral' | 'negative';
-    }
-    
-    const positiveWords = ['great', 'good', 'excellent', 'happy', 'pleased', 'thank', 'appreciate', 'yes', 'perfect', 'love'];
-    const negativeWords = ['bad', 'terrible', 'unhappy', 'disappointed', 'issue', 'problem', 'no', 'not', 'cannot', 'wrong'];
-    
-    const lowerText = text.toLowerCase();
-    let positiveScore = 0;
-    let negativeScore = 0;
-    
-    positiveWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = lowerText.match(regex);
-      if (matches) positiveScore += matches.length;
-    });
-    
-    negativeWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = lowerText.match(regex);
-      if (matches) negativeScore += matches.length;
-    });
-    
-    let result: 'positive' | 'neutral' | 'negative';
-    if (positiveScore > negativeScore * 1.5) result = 'positive';
-    else if (negativeScore > positiveScore * 1.5) result = 'negative';
-    else result = 'neutral';
-    
-    // Cache the result
-    this.cachedSentiments.set(text, result);
-    return result;
-  }
-  
-  // Extract keywords from text
-  public extractKeywords(text: string): string[] {
-    // Check cache first to avoid recalculating
-    if (this.cachedKeywords.has(text)) {
-      return this.cachedKeywords.get(text) || [];
-    }
-    
-    const stopWords = ['a', 'an', 'the', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'about', 'of', 'that', 'this', 'these', 'those'];
-    const words = text.toLowerCase().match(/\b(\w+)\b/g) || [];
-    const wordFrequency: Record<string, number> = {};
-    
-    words.forEach(word => {
-      if (!stopWords.includes(word) && word.length > 2) {
-        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-      }
-    });
-    
-    const result = Object.entries(wordFrequency)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(entry => entry[0]);
-      
-    // Cache the result
-    this.cachedKeywords.set(text, result);
-    return result;
-  }
-  
-  // Generate a call score
-  public generateCallScore(text: string, sentiment: string): number {
-    // Use caching to avoid recalculating
-    const cacheKey = `${text}-${sentiment}`;
-    if (this.cachedScores.has(cacheKey)) {
-      return this.cachedScores.get(cacheKey) || 70;
-    }
-    
-    // Base score
-    let score = 70;
-    
-    if (sentiment === 'positive') score += 15;
-    if (sentiment === 'negative') score -= 10;
-    
-    // Check for customer service phrases
-    const goodPhrases = [
-      'how can i help', 
-      'thank you', 
-      'appreciate', 
-      'understand', 
-      'let me explain',
-      'would you like'
-    ];
-    
-    goodPhrases.forEach(phrase => {
-      if (text.toLowerCase().includes(phrase)) score += 2;
-    });
-    
-    // Add subtle randomness (within 3 points) to avoid jitter on recalculations
-    score += Math.floor(Math.random() * 6) - 3;
-    
-    // Ensure score is between 0-100
-    const finalScore = Math.max(0, Math.min(100, score));
-    
-    // Cache the result
-    this.cachedScores.set(cacheKey, finalScore);
-    return finalScore;
-  }
-  
-  // Split transcript into segments by speaker
-  public splitBySpeaker(text: string, segments: any[] = [], numberOfSpeakers: number = 2): any[] {
-    if (!segments || segments.length === 0) {
-      // If no segments, create a single segment with the full text
-      return [{
-        id: 1,
-        start: 0,
-        end: 30, // Arbitrary end time if not known
-        text: text,
-        speaker: "Agent", // Default to Agent
-        confidence: 0.9
-      }];
-    }
-    
-    // Simple algorithm to alternate speakers
-    return segments.map((segment, index) => {
-      // Simple alternating pattern for agent/customer
-      const speakerIndex = index % numberOfSpeakers;
-      const speaker = speakerIndex === 0 ? "Agent" : "Customer";
-      
-      return {
-        id: segment.id,
-        start: segment.start,
-        end: segment.end,
-        text: segment.text,
-        speaker,
-        confidence: segment.confidence
-      };
-    });
-  }
-  
-  // Clear caches to free memory
-  public clearCaches(): void {
-    this.cachedSentiments.clear();
-    this.cachedKeywords.clear();
-    this.cachedScores.clear();
-  }
+import { CallTranscript } from './CallTranscriptService';
+import { supabase } from '@/integrations/supabase/client';
+import { useCallback, useEffect, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { errorHandler } from './ErrorHandlingService';
+import { animationUtils } from '@/utils/animationUtils';
+import { useDebounce } from '@/hooks/useDebounce';
+
+interface TranscriptSegment {
+  start: number;
+  end: number;
+  speaker: string;
+  text: string;
 }
 
-// Create a singleton instance to be used throughout the app
-export const transcriptAnalysisService = new TranscriptAnalysisService();
+export interface TranscriptAnalysisResult {
+  id: string;
+  keywords: string[];
+  entities: string[];
+  sentiment: 'positive' | 'neutral' | 'negative';
+  summary: string;
+  key_moments: {
+    timestamp: number;
+    text: string;
+    type: 'question' | 'objection' | 'interest' | 'action_item';
+  }[];
+}
+
+export interface AnalysisOptions {
+  transcriptId?: string;
+  generateSummary?: boolean;
+  detectKeyMoments?: boolean;
+  calculateMetrics?: boolean;
+}
+
+// Mock function to simulate analysis, replace with actual ML processing
+const analyzeText = (text: string): Partial<TranscriptAnalysisResult> => {
+  // Placeholder for actual NLP analysis
+  return {
+    keywords: ['pricing', 'features', 'support', 'timeline'],
+    entities: ['product X', 'company Y'],
+    sentiment: Math.random() > 0.7 ? 'positive' : Math.random() > 0.4 ? 'neutral' : 'negative',
+    summary: 'This is a summary of the conversation discussing product features and pricing.',
+    key_moments: [
+      {
+        timestamp: 120,
+        text: 'What features are included in the premium plan?',
+        type: 'question',
+      },
+    ],
+  } as Partial<TranscriptAnalysisResult>;
+};
+
+export const useTranscriptAnalysis = (options?: AnalysisOptions) => {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<Partial<TranscriptAnalysisResult> | null>(null);
+  const [transcript, setTranscript] = useState<CallTranscript | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  const debouncedOptions = useDebounce(options, 300);
+
+  const calculateSpeakingTime = useCallback((segments?: TranscriptSegment[] | null) => {
+    if (!segments || !Array.isArray(segments) || segments.length === 0) {
+      return { agent: 0, customer: 0, total: 0 };
+    }
+
+    let agentTime = 0;
+    let customerTime = 0;
+
+    segments.forEach((segment) => {
+      if (segment.speaker === 'agent') {
+        agentTime += segment.end - segment.start;
+      } else if (segment.speaker === 'customer') {
+        customerTime += segment.end - segment.start;
+      }
+    });
+
+    return {
+      agent: agentTime,
+      customer: customerTime,
+      total: agentTime + customerTime,
+    };
+  }, []);
+
+  const analyzeTranscript = useCallback(
+    async (transcriptId?: string) => {
+      if (!transcriptId) {
+        return;
+      }
+
+      setIsAnalyzing(true);
+      setError(null);
+
+      try {
+        const { data, error } = await supabase
+          .from('call_transcripts')
+          .select('*')
+          .eq('id', transcriptId)
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        if (!data) {
+          throw new Error('Transcript not found');
+        }
+
+        setTranscript(data);
+
+        // Perform analysis on the transcript text
+        const analysisResults = analyzeText(data.text);
+        
+        // Update with analysis results
+        setAnalysisResult({
+          id: data.id,
+          ...analysisResults,
+        });
+
+        toast({
+          title: 'Analysis Complete',
+          description: 'Transcript has been analyzed successfully.',
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'An unknown error occurred';
+        setError(message);
+        errorHandler.handleError(
+          {
+            message: 'Analysis failed',
+            technical: message,
+            severity: 'error',
+            code: 'ANALYSIS_ERROR',
+          },
+          'TranscriptAnalysis'
+        );
+
+        toast({
+          title: 'Analysis Failed',
+          description: message,
+          variant: 'destructive',
+        });
+      } finally {
+        setIsAnalyzing(false);
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    if (debouncedOptions?.transcriptId) {
+      analyzeTranscript(debouncedOptions.transcriptId);
+    }
+  }, [debouncedOptions, analyzeTranscript]);
+
+  return {
+    isAnalyzing,
+    analysisResult,
+    transcript,
+    error,
+    analyzeTranscript,
+    calculateSpeakingTime,
+  };
+};
