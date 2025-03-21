@@ -9,7 +9,10 @@ import {
   Headphones, 
   Brain, 
   Mic, 
-  PieChart
+  PieChart,
+  Users,
+  GitCompare,
+  MessageSquare
 } from 'lucide-react';
 
 interface SideBarProps {
@@ -31,6 +34,9 @@ const SideBar: React.FC<SideBarProps> = ({ setSidebarOpen }) => {
     { path: '/call-activity', label: 'Call Activity', icon: <Headphones className="w-5 h-5" /> },
     { path: '/ai-coaching', label: 'AI Coaching', icon: <Brain className="w-5 h-5" /> },
     { path: '/transcribe', label: 'Transcribe', icon: <Mic className="w-5 h-5" /> },
+    { path: '/team', label: 'Team', icon: <Users className="w-5 h-5" /> },
+    { path: '/call-comparison', label: 'Call Comparison', icon: <GitCompare className="w-5 h-5" /> },
+    { path: '/messaging', label: 'Messaging', icon: <MessageSquare className="w-5 h-5" /> },
     { path: '/settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
