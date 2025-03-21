@@ -1,3 +1,4 @@
+
 import React, { useState, createContext } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
@@ -12,6 +13,7 @@ import AICoaching from './pages/AICoaching';
 import Transcribe from './pages/Transcribe';
 import { Toaster } from 'sonner';
 import ConnectionMonitor from './components/ui/ConnectionMonitor';
+import Analytics from './pages/Analytics';
 
 export const ThemeContext = createContext({
   isDarkMode: false,
@@ -46,6 +48,7 @@ function App() {
                 <Route path="/call/:id" element={<CallPage />} />
                 <Route path="/ai-coaching" element={<AICoaching />} />
                 <Route path="/transcribe" element={<Transcribe />} />
+                <Route path="/analytics" element={<Analytics />} />
               </Routes>
             </QueryProvider>
           </AuthProvider>

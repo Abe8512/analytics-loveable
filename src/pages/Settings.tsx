@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,6 +83,10 @@ const Settings = () => {
                 <Shield className="h-4 w-4" />
                 <span>Security</span>
               </TabsTrigger>
+              <TabsTrigger value="database" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                <span>Database</span>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="api-keys">
@@ -112,5 +117,69 @@ const Settings = () => {
                             <FormLabel>OpenAI API Key</FormLabel>
                             <FormControl>
                               <Input type="password" placeholder="sk-..." {...field} />
-                           
+                            </FormControl>
+                            <FormDescription>
+                              Your API key is stored locally and never sent to our servers.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button type="submit">Save API Key</Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
+            <TabsContent value="account">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Account Settings</CardTitle>
+                  <CardDescription>
+                    Manage your account information and preferences
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Account settings will be implemented in a future update.
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="database">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Database Status</CardTitle>
+                  <CardDescription>
+                    View the status of your database connection and tables
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <DatabaseStatusDashboard />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="integrations">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Connection Status</CardTitle>
+                  <CardDescription>
+                    View detailed information about your connection status
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ConnectionDiagnostics />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default Settings;
