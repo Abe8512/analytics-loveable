@@ -25,7 +25,8 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import CallAnalysisSection from "@/components/Dashboard/CallAnalysisSection";
 import { motion } from "framer-motion";
-import { Brain, Headphones, Mic, BarChart2 } from "lucide-react";
+import { Brain, Headphones, Mic, BarChart2, Sparkles } from "lucide-react";
+import GlowingCard from "@/components/ui/GlowingCard";
 
 const Index = () => {
   const { isDark } = useTheme();
@@ -147,7 +148,10 @@ const Index = () => {
         onValueChange={handleLiveMetricsTab}
       >
         <div className="sticky top-0 z-10 pb-2 pt-1">
-          <TabsList className="bg-background/80 dark:bg-dark-purple/80 backdrop-blur-md w-full p-1 rounded-lg">
+          <TabsList className={cn(
+            "bg-background/80 backdrop-blur-md w-full p-1 rounded-lg",
+            isDark ? "border border-white/5" : "border border-gray-200/80"
+          )}>
             <TabsTrigger value="dashboard" className="flex items-center gap-1.5">
               <BarChart2 className="h-4 w-4" />
               Dashboard
@@ -159,7 +163,7 @@ const Index = () => {
             <TabsTrigger value="livemetrics" className="flex items-center gap-1.5">
               <Mic className="h-4 w-4" />
               Live Analysis
-              {isRecording && <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>}
+              {isRecording && <span className="flex h-2 w-2 rounded-full bg-ai-rose animate-pulse"></span>}
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-1.5">
               <Headphones className="h-4 w-4" />
@@ -200,28 +204,42 @@ const Index = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.2 }}
             >
-              <Card className={cn(
-                "overflow-hidden",
-                isDark ? "bg-dark-purple/50 border-white/10" : "bg-gray-50/50 border-gray-200"
-              )}>
+              <GlowingCard 
+                variant="glass" 
+                gradient="blue"
+                className="overflow-hidden"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-ai-blue" />
+                    <span>Keyword Trends</span>
+                  </h3>
+                </div>
                 <CardContent className="p-0">
                   <KeywordTrendsChart />
                 </CardContent>
-              </Card>
+              </GlowingCard>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.3 }}
             >
-              <Card className={cn(
-                "overflow-hidden",
-                isDark ? "bg-dark-purple/50 border-white/10" : "bg-gray-50/50 border-gray-200"
-              )}>
+              <GlowingCard 
+                variant="glass" 
+                gradient="purple"
+                className="overflow-hidden"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-ai-purple" />
+                    <span>Sentiment Analysis</span>
+                  </h3>
+                </div>
                 <CardContent className="p-0">
                   <SentimentTrendsChart />
                 </CardContent>
-              </Card>
+              </GlowingCard>
             </motion.div>
           </div>
         </TabsContent>
