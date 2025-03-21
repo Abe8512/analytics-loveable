@@ -1,35 +1,34 @@
-import React, { useContext, useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+
+import React, { useCallback, useState, useEffect } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import PerformanceMetrics from "../components/Dashboard/PerformanceMetrics";
 import CallsOverview from "../components/Dashboard/CallsOverview";
 import AIInsights from "../components/Dashboard/AIInsights";
-import { ThemeContext } from "@/App";
-import BulkUploadButton from "../components/BulkUpload/BulkUploadButton";
-import BulkUploadModal from "../components/BulkUpload/BulkUploadModal";
-import WhisperButton from "../components/Whisper/WhisperButton";
 import LiveMetricsDisplay from "../components/CallAnalysis/LiveMetricsDisplay";
 import PastCallsList from "../components/CallAnalysis/PastCallsList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCallMetricsStore } from "@/store/useCallMetricsStore";
 import KeywordTrendsChart from "../components/CallAnalysis/KeywordTrendsChart";
 import { SentimentTrendsChart } from "../components/CallAnalysis/SentimentTrendsChart";
-import { DateRangeFilter } from "../components/CallAnalysis/DateRangeFilter";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { useCallTranscripts } from "@/services/CallTranscriptService";
 import ContentLoader from "@/components/ui/ContentLoader";
 import { useEventListener } from "@/services/EventsService";
 import { animationUtils } from "@/utils/animationUtils";
-import CallAnalysisSection from "@/components/Dashboard/CallAnalysisSection";
 import TeamPerformanceOverview from "@/components/CallActivity/TeamPerformanceOverview";
 import { useRealTimeTeamMetrics } from "@/services/RealTimeMetricsService";
-import { Brain, Sparkles, ChevronRight, MicOff, Mic, Headphones } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { generateMockTeamMetrics, USE_MOCK_DATA } from "@/services/MockDataService";
+import BulkUploadModal from "../components/BulkUpload/BulkUploadModal";
+import DashboardHeader from "@/components/Dashboard/DashboardHeader";
+import AdvancedSalesMetrics from "@/components/Dashboard/AdvancedSalesMetrics";
+import { useTheme } from "@/hooks/use-theme";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import CallAnalysisSection from "@/components/Dashboard/CallAnalysisSection";
+import { motion } from "framer-motion";
+import { Brain, Headphones, Mic, BarChart2 } from "lucide-react";
 
 const Index = () => {
-  const { isDarkMode } = useContext(ThemeContext);
-  const navigate = useNavigate();
+  const { isDark } = useTheme();
   const { filters, updateDateRange } = useSharedFilters();
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [showLiveMetrics, setShowLiveMetrics] = useState(false);
@@ -120,84 +119,57 @@ const Index = () => {
 
   return (
     <DashboardLayout>
-      <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <div>
-          <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-800'} mb-1 flex items-center gap-2`}>
-            <span className="text-gradient-blue">AI</span> Sales Call Analyzer
-            <Sparkles className="h-6 w-6 text-neon-purple animate-pulse-slow" />
-          </h1>
-          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Gain real-time insights and improve your sales performance
-          </p>
-        </div>
-        
-        <div className="flex flex-wrap gap-3 items-center">
-          <DateRangeFilter 
-            dateRange={filters.dateRange} 
-            setDateRange={updateDateRange}
-          />
-          <WhisperButton recordingId="latest" />
-          <BulkUploadButton onClick={() => setIsBulkUploadOpen(true)} />
-          <BulkUploadModal 
-            isOpen={isBulkUploadOpen} 
-            onClose={handleBulkUploadClose} 
-          />
-        </div>
-      </div>
-
-      <TeamPerformanceOverview 
-        teamMetrics={teamMetrics} 
-        teamMetricsLoading={teamMetricsLoading}
-        callsLength={transcripts?.length || 0}
+      <DashboardHeader 
+        onBulkUploadOpen={() => setIsBulkUploadOpen(true)} 
+        refreshData={throttledFetchTranscripts}
       />
-
-      <div className="mb-6">
-        <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center`}>
-          <Brain className="mr-2 h-5 w-5 text-neon-purple" />
-          Key Performance Indicators
-        </h2>
-        <PerformanceMetrics />
-      </div>
+      
+      <BulkUploadModal 
+        isOpen={isBulkUploadOpen} 
+        onClose={handleBulkUploadClose} 
+      />
+      
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <TeamPerformanceOverview 
+          teamMetrics={teamMetrics} 
+          teamMetricsLoading={teamMetricsLoading}
+          callsLength={transcripts?.length || 0}
+        />
+      </motion.div>
       
       <Tabs 
         defaultValue="dashboard" 
-        className="w-full mb-6"
+        className="w-full my-6"
         onValueChange={handleLiveMetricsTab}
       >
-        <TabsList className="mb-4 flex overflow-x-auto bg-background/90 dark:bg-dark-purple/90 backdrop-blur-sm p-1 rounded-lg">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="livemetrics" className="flex items-center gap-1">
-            <Mic className="h-3.5 w-3.5" />
-            Live Metrics
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-1">
-            <Headphones className="h-3.5 w-3.5" />
-            Call History
-          </TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-        </TabsList>
+        <div className="sticky top-0 z-10 pb-2 pt-1">
+          <TabsList className="bg-background/80 dark:bg-dark-purple/80 backdrop-blur-md w-full p-1 rounded-lg">
+            <TabsTrigger value="dashboard" className="flex items-center gap-1.5">
+              <BarChart2 className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="advanced" className="flex items-center gap-1.5">
+              <Brain className="h-4 w-4" />
+              Advanced Metrics
+            </TabsTrigger>
+            <TabsTrigger value="livemetrics" className="flex items-center gap-1.5">
+              <Mic className="h-4 w-4" />
+              Live Analysis
+              {isRecording && <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>}
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-1.5">
+              <Headphones className="h-4 w-4" />
+              Call History
+            </TabsTrigger>
+          </TabsList>
+        </div>
         
-        <TabsContent value="dashboard">
-          <div className="mb-6 flex justify-center">
-            <Button 
-              className="bg-gradient-to-r from-neon-purple to-neon-blue text-white hover:from-neon-purple/90 hover:to-neon-blue/90 transition-all duration-300"
-              onClick={() => handleLiveMetricsTab('livemetrics')}
-            >
-              {isRecording ? (
-                <>
-                  <MicOff className="mr-2 h-4 w-4" />
-                  Stop Recording
-                </>
-              ) : (
-                <>
-                  <Mic className="mr-2 h-4 w-4" />
-                  Start Live Recording
-                </>
-              )}
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+        <TabsContent value="dashboard" className="space-y-6 mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
               <ContentLoader 
                 isLoading={transcriptsLoading && !USE_MOCK_DATA} 
@@ -221,33 +193,51 @@ const Index = () => {
           </div>
           
           <CallAnalysisSection isLoading={transcriptsLoading && !USE_MOCK_DATA} />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+            >
+              <Card className={cn(
+                "overflow-hidden",
+                isDark ? "bg-dark-purple/50 border-white/10" : "bg-gray-50/50 border-gray-200"
+              )}>
+                <CardContent className="p-0">
+                  <KeywordTrendsChart />
+                </CardContent>
+              </Card>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.3 }}
+            >
+              <Card className={cn(
+                "overflow-hidden",
+                isDark ? "bg-dark-purple/50 border-white/10" : "bg-gray-50/50 border-gray-200"
+              )}>
+                <CardContent className="p-0">
+                  <SentimentTrendsChart />
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
         </TabsContent>
         
-        <TabsContent value="livemetrics">
+        <TabsContent value="advanced" className="space-y-6 mt-2">
+          <AdvancedSalesMetrics />
+        </TabsContent>
+        
+        <TabsContent value="livemetrics" className="mt-2">
           <LiveMetricsDisplay isCallActive={showLiveMetrics} />
         </TabsContent>
         
-        <TabsContent value="history">
+        <TabsContent value="history" className="mt-2">
           <PastCallsList />
         </TabsContent>
-        
-        <TabsContent value="trends">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <KeywordTrendsChart />
-            <SentimentTrendsChart />
-          </div>
-        </TabsContent>
       </Tabs>
-      
-      <div className="flex justify-between items-center mt-2 mb-2">
-        <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
-          Recent Call Analysis
-        </h2>
-        <Button variant="ghost" className="text-neon-purple hover:text-neon-purple/80 px-2" onClick={() => navigate('/transcripts')}>
-          View All
-          <ChevronRight className="ml-1 h-4 w-4" />
-        </Button>
-      </div>
     </DashboardLayout>
   );
 };
