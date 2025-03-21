@@ -7,6 +7,7 @@ import DashboardHeader from '../components/Dashboard/DashboardHeader';
 import CallAnalysisSection from '../components/Dashboard/CallAnalysisSection';
 import AIInsights from '../components/Dashboard/AIInsights';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -27,18 +28,47 @@ const Dashboard = () => {
   
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8 max-w-7xl mx-auto">
         <DashboardHeader 
           onBulkUploadOpen={handleBulkUploadOpen} 
           refreshData={refreshData} 
           isDashboardScreen={true} 
         />
-        <PerformanceMetrics />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <CallAnalysisSection isLoading={isLoading} />
-          <div className="space-y-6">
-            <AIInsights />
-            <CallsOverview />
+        
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <PerformanceMetrics />
+        </motion.div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <motion.div 
+            className="lg:col-span-7"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+          >
+            <CallAnalysisSection isLoading={isLoading} />
+          </motion.div>
+          
+          <div className="lg:col-span-5 space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+            >
+              <AIInsights />
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+            >
+              <CallsOverview />
+            </motion.div>
           </div>
         </div>
       </div>

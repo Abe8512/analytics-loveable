@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { 
   BarChart2, Filter, Calendar, Download, RefreshCw, 
-  Zap, Mic, Settings, Search, MessageSquareText, BrainCircuit
+  Zap, Mic, Settings, Search, MessageSquareText, BrainCircuit,
+  Command
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateRangeFilter } from "@/components/CallAnalysis/DateRangeFilter";
@@ -95,18 +96,18 @@ const DashboardHeader = ({
   
   return (
     <div className={cn(
-      "relative mb-6 pb-4 border-b",
+      "relative mb-6 pb-5 border-b",
       isDark ? "border-white/10" : "border-gray-200"
     )}>
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col md:flex-row justify-between gap-5">
+        <div className="flex items-center gap-4">
           <div className={cn(
-            "relative flex items-center justify-center w-12 h-12 rounded-xl",
-            "bg-gradient-to-br from-neon-purple to-neon-blue"
+            "relative flex items-center justify-center w-14 h-14 rounded-xl",
+            "bg-gradient-to-br from-ai-indigo via-ai-purple to-ai-blue shadow-md"
           )}>
-            <BarChart2 className="h-6 w-6 text-white" />
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-neon-green rounded-full flex items-center justify-center">
-              <Zap className="h-3 w-3 text-white" />
+            <BarChart2 className="h-7 w-7 text-white" />
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-ai-teal rounded-full flex items-center justify-center shadow-sm">
+              <Zap className="h-3.5 w-3.5 text-white" />
             </div>
           </div>
           
@@ -117,7 +118,7 @@ const DashboardHeader = ({
             )}>
               {isDashboardScreen ? (
                 <>
-                  <span className="text-gradient-blue">AI</span> Sales Dashboard
+                  <span className="bg-gradient-to-r from-ai-indigo to-ai-blue bg-clip-text text-transparent">AI</span> Sales Dashboard
                 </>
               ) : "Performance Analytics"}
             </h1>
@@ -140,12 +141,17 @@ const DashboardHeader = ({
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center mr-1 text-xs text-muted-foreground">
+            <Command className="h-3.5 w-3.5 mr-1 opacity-70" /> 
+            <span className="hidden sm:inline-block">Press</span> <kbd className="ml-1 px-1.5 py-0.5 rounded bg-muted border border-border">K</kbd>
+          </div>
+          
           <AnimatePresence initial={false}>
             {isSearchOpen ? (
               <motion.form 
                 initial={{ width: 40, opacity: 0 }}
-                animate={{ width: 200, opacity: 1 }}
+                animate={{ width: 220, opacity: 1 }}
                 exit={{ width: 40, opacity: 0 }}
                 className="relative"
                 onSubmit={handleSearchSubmit}
@@ -154,11 +160,11 @@ const DashboardHeader = ({
                   placeholder="Search dashboard..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-9 w-full"
+                  className="pl-9 h-10 w-full focus-visible:ring-ai-blue/40"
                   autoFocus
                   onBlur={() => !searchQuery && setIsSearchOpen(false)}
                 />
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               </motion.form>
             ) : (
               <motion.div
@@ -169,7 +175,7 @@ const DashboardHeader = ({
                 <Button 
                   variant="outline" 
                   size="icon" 
-                  className="h-9 w-9"
+                  className="h-10 w-10"
                   onClick={() => setIsSearchOpen(true)}
                 >
                   <Search className="h-4 w-4" />
@@ -181,21 +187,21 @@ const DashboardHeader = ({
           <DateRangeFilter 
             dateRange={filters.dateRange} 
             setDateRange={updateDateRange}
-            className="min-w-[240px]"
+            className="min-w-[250px]"
           />
           
           <Button 
             variant={isRecording ? "destructive" : "default"}
             size="sm"
             className={cn(
-              "gap-2",
-              !isRecording && "bg-gradient-to-r from-neon-purple to-neon-blue hover:from-neon-purple/90 hover:to-neon-blue/90"
+              "h-10 gap-2 shadow-sm",
+              !isRecording && "bg-gradient-to-r from-ai-purple to-ai-blue hover:from-ai-purple/90 hover:to-ai-blue/90"
             )}
             onClick={handleRecordingToggle}
           >
             {isRecording ? (
               <>
-                <span className="flex h-2 w-2 rounded-full bg-white animate-pulse"></span>
+                <span className="flex h-2.5 w-2.5 rounded-full bg-white animate-pulse"></span>
                 Stop Recording
               </>
             ) : (
@@ -208,11 +214,11 @@ const DashboardHeader = ({
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9">
+              <Button variant="outline" size="icon" className="h-10 w-10">
                 <Filter className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-60">
               <DropdownMenuLabel>Filter Options</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/call-activity')}>
@@ -242,7 +248,7 @@ const DashboardHeader = ({
           <Button 
             variant="outline" 
             size="icon" 
-            className="h-9 w-9"
+            className="h-10 w-10"
             onClick={handleRefresh}
           >
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
@@ -250,12 +256,17 @@ const DashboardHeader = ({
           
           <BulkUploadButton onClick={onBulkUploadOpen} />
           
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => {
-            toast({
-              title: "Report Downloaded",
-              description: "Your dashboard report has been downloaded"
-            });
-          }}>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-10 w-10" 
+            onClick={() => {
+              toast({
+                title: "Report Downloaded",
+                description: "Your dashboard report has been downloaded"
+              });
+            }}
+          >
             <Download className="h-4 w-4" />
           </Button>
         </div>

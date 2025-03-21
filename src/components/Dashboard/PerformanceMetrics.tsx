@@ -10,6 +10,7 @@ import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { Skeleton } from "../ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { generateMockChartData, generateMockKPIData, USE_MOCK_DATA } from "@/services/MockDataService";
+import { cn } from "@/lib/utils";
 
 interface MetricCardProps {
   title: string;
@@ -30,25 +31,31 @@ const MetricCard = ({ title, value, change, gradient = "blue", suffix = "", chil
       gradient={gradient} 
       className="h-full transition-all duration-300 hover:scale-[1.02] cursor-pointer backdrop-blur-sm" 
       onClick={onClick}
+      variant="bordered"
     >
       <div className="flex flex-col h-full">
         <div className="flex justify-between items-start mb-4">
           <h3 className="text-sm font-medium text-gray-400">{title}</h3>
           {!isLoading && (
-            <div className={`flex items-center text-xs font-medium px-2 py-1 rounded-full ${change >= 0 ? "bg-neon-green/20 text-neon-green" : "bg-neon-red/20 text-neon-red"}`}>
+            <div className={cn(
+              "flex items-center text-xs font-medium px-2.5 py-1 rounded-full", 
+              change >= 0 
+                ? "bg-neon-green/15 text-neon-green" 
+                : "bg-neon-red/15 text-neon-red"
+            )}>
               {change >= 0 ? <TrendingUp size={12} className="mr-1" /> : <TrendingDown size={12} className="mr-1" />}
               {Math.abs(change)}%
             </div>
           )}
         </div>
         
-        <div className="mb-3">
+        <div className="mb-4">
           {isLoading ? (
             <Skeleton className="h-8 w-24" />
           ) : (
             <AnimatedNumber 
               value={displayValue} 
-              className="text-2xl font-bold text-white"
+              className="text-2xl font-bold"
               suffix={suffix}
             />
           )}
@@ -121,9 +128,9 @@ const PerformanceMetrics = () => {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white dark:bg-dark-purple p-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
-          <p className="font-medium">{`${label}`}</p>
-          <p className="text-neon-purple">{`${payload[0].name}: ${payload[0].value}`}</p>
+        <div className="bg-white dark:bg-dark-purple p-2.5 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+          <p className="font-medium text-sm">{`${label}`}</p>
+          <p className="text-neon-purple text-sm">{`${payload[0].name}: ${payload[0].value}`}</p>
         </div>
       );
     }
@@ -131,7 +138,7 @@ const PerformanceMetrics = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
       <MetricCard 
         title="Performance Score" 
         value={displayData.performanceScore}
@@ -151,7 +158,7 @@ const PerformanceMetrics = () => {
               type="monotone" 
               dataKey="score" 
               stroke="#00F0FF" 
-              strokeWidth={2} 
+              strokeWidth={2.5} 
               dot={false}
               activeDot={{ r: 4, strokeWidth: 0, fill: "#00F0FF" }}
             />
@@ -177,7 +184,7 @@ const PerformanceMetrics = () => {
             <Bar 
               dataKey="calls" 
               fill="#8B5CF6" 
-              radius={[2, 2, 0, 0]} 
+              radius={[3, 3, 0, 0]} 
             />
           </BarChart>
         </ResponsiveContainer>
@@ -209,7 +216,7 @@ const PerformanceMetrics = () => {
               type="monotone" 
               dataKey="rate" 
               stroke="#06D6A0" 
-              strokeWidth={2}
+              strokeWidth={2.5}
               fillOpacity={1} 
               fill="url(#colorRate)" 
               activeDot={{ r: 4, strokeWidth: 0, fill: "#06D6A0" }}
