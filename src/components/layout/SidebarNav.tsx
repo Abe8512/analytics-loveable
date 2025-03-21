@@ -20,8 +20,8 @@ import {
 import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
-import { Sheet, SheetContent, SheetOverlay } from "@/components/ui/sheet";
+import { motion } from "framer-motion";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SidebarItemProps {
@@ -105,14 +105,14 @@ const SidebarItem = ({
   );
 };
 
-interface SidebarProps {
+interface SidebarNavProps {
   isOpen?: boolean;
   setIsOpen?: (open: boolean) => void;
   collapsed?: boolean;
   setSidebarOpen?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false, setSidebarOpen }: SidebarProps) => {
+const SidebarNav = ({ isOpen = false, setIsOpen = () => {}, collapsed = false, setSidebarOpen }: SidebarNavProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -258,4 +258,4 @@ const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false, setS
   );
 };
 
-export default Sidebar;
+export default SidebarNav;
