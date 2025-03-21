@@ -131,13 +131,13 @@ export const analyzeQuestions = (text: string): {
   const discoveryMarkers = [
     'what challenges', 'how do you currently', 'tell me about your', 
     'what process', 'how would you describe', 'what are your goals',
-    'what are you looking for', 'how do you see', 'what's important to you'
+    'what are you looking for', 'how do you see', 'what\'s important to you'
   ];
   
   const painPointMarkers = [
     'what frustrates', 'biggest challenge', 'what issues', 
     'pain points', 'most difficult', 'what problems', 
-    'what's not working', 'what concerns'
+    'what\'s not working', 'what concerns'
   ];
   
   // Find all sentences ending with question marks
