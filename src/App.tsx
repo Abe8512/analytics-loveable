@@ -7,8 +7,6 @@ import CallPage from './pages/CallPage';
 import Auth from './pages/Auth';
 import { AuthProvider } from './contexts/AuthContext';
 import { QueryProvider } from './contexts/QueryContext';
-import TopBar from './components/layout/TopBar';
-import SideBar from './components/layout/SideBar';
 import AICoaching from './pages/AICoaching';
 import Transcribe from './pages/Transcribe';
 import { Toaster } from 'sonner';
