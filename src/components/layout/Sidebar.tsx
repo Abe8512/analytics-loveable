@@ -1,4 +1,3 @@
-
 import React, { useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -21,7 +20,7 @@ import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetOverlay } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SidebarItemProps {
@@ -224,7 +223,6 @@ const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false }: Si
         <SheetContent 
           side="left" 
           className="p-0 w-[280px] sm:max-w-xs"
-          overlayClassName="backdrop-blur-sm bg-black/30"
         >
           {sidebarContent}
         </SheetContent>
