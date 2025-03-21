@@ -162,3 +162,98 @@ export const useTranscriptAnalysis = (options?: AnalysisOptions) => {
     calculateSpeakingTime,
   };
 };
+
+// Add a class implementation of TranscriptAnalysisService
+export class TranscriptAnalysisService {
+  // Split transcript by speaker
+  public splitBySpeaker(text: string, segments: any[], numSpeakers: number): TranscriptSegment[] {
+    if (!segments || !Array.isArray(segments) || segments.length === 0) {
+      return [];
+    }
+    
+    // Simple algorithm to assign speakers based on alternating patterns
+    return segments.map((segment, index) => {
+      const speakerIndex = index % numSpeakers;
+      const speaker = speakerIndex === 0 ? 'agent' : 'customer';
+      
+      return {
+        start: segment.start || 0,
+        end: segment.end || 0, 
+        speaker,
+        text: segment.text || ''
+      };
+    });
+  }
+  
+  // Analyze sentiment with basic rules
+  public analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
+    if (!text) return 'neutral';
+    
+    const positiveWords = ['great', 'excellent', 'good', 'happy', 'pleased', 'thank', 'appreciate'];
+    const negativeWords = ['bad', 'issue', 'problem', 'unhappy', 'disappointed', 'sorry', 'fail'];
+    
+    const lowerText = text.toLowerCase();
+    let positiveScore = 0;
+    let negativeScore = 0;
+    
+    positiveWords.forEach(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      const matches = lowerText.match(regex);
+      if (matches) positiveScore += matches.length;
+    });
+    
+    negativeWords.forEach(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      const matches = lowerText.match(regex);
+      if (matches) negativeScore += matches.length;
+    });
+    
+    if (positiveScore > negativeScore + 2) return 'positive';
+    if (negativeScore > positiveScore + 1) return 'negative';
+    return 'neutral';
+  }
+  
+  // Extract keywords with basic approach
+  public extractKeywords(text: string): string[] {
+    if (!text) return [];
+    
+    const stopWords = ['the', 'and', 'a', 'to', 'of', 'is', 'in', 'that', 'it', 'with', 'for', 'as', 'was', 'on'];
+    const words = text.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
+    
+    // Count word frequency
+    const wordCounts: Record<string, number> = {};
+    words.forEach(word => {
+      if (!stopWords.includes(word)) {
+        wordCounts[word] = (wordCounts[word] || 0) + 1;
+      }
+    });
+    
+    // Sort by frequency
+    return Object.entries(wordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(entry => entry[0]);
+  }
+  
+  // Generate a basic call score
+  public generateCallScore(text: string, sentiment: string): number {
+    if (!text) return 50;
+    
+    let baseScore = 50;
+    
+    // Adjust based on sentiment
+    if (sentiment === 'positive') baseScore += 20;
+    if (sentiment === 'negative') baseScore -= 15;
+    
+    // Adjust based on text length (assuming longer calls are more detailed)
+    const wordCount = text.split(/\s+/).length;
+    if (wordCount > 500) baseScore += 10;
+    if (wordCount < 100) baseScore -= 10;
+    
+    // Ensure score is within bounds
+    return Math.max(0, Math.min(100, baseScore));
+  }
+}
+
+// Export an instance to be used across the application
+export const transcriptAnalysisService = new TranscriptAnalysisService();
