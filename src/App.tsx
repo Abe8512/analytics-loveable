@@ -1,113 +1,57 @@
-
-import { useState, createContext, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import './App.css';
-import { Toaster } from '@/components/ui/sonner';
-import Index from './pages/Index';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import NotFound from './pages/NotFound';
-import Transcripts from './pages/Transcripts';
-import AICoaching from './pages/AICoaching';
-import Team from './pages/Team';
+import React, { useState, createContext } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
-import CallComparison from './pages/CallComparison';
-import CallActivity from './pages/CallActivity';
-import Performance from './pages/Performance';
-import ProtectedRoute from './components/auth/ProtectedRoute';
+import CallPage from './pages/CallPage';
+import Auth from './pages/Auth';
 import { AuthProvider } from './contexts/AuthContext';
-import { SharedFilterProvider } from './contexts/SharedFilterContext';
+import { QueryProvider } from './contexts/QueryContext';
+import TopBar from './components/layout/TopBar';
+import SideBar from './components/layout/SideBar';
+import AICoaching from './pages/AICoaching';
+import Transcribe from './pages/Transcribe';
+import { Toaster } from 'sonner';
+import ConnectionMonitor from './components/ui/ConnectionMonitor';
 
-// Create Theme Context
 export const ThemeContext = createContext({
   isDarkMode: false,
-  toggleTheme: () => {},
-});
-
-// Create QueryClient
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-    },
-  },
+  toggleDarkMode: () => {},
 });
 
 function App() {
-  const [isDarkMode, setIsDarkMode] = useState(
-    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
+  const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('theme') === 'dark');
 
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
+  const toggleDarkMode = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    localStorage.setItem('theme', newTheme ? 'dark' : 'light');
   };
-
+  
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
-        <AuthProvider>
-          <SharedFilterProvider>
-            <Router>
+    <ThemeContext.Provider value={{ isDarkMode, toggleDarkMode }}>
+      <div className={isDarkMode ? 'dark' : 'light'}>
+        <BrowserRouter>
+          <AuthProvider>
+            <QueryProvider>
+              {/* ConnectionMonitor for offline detection and notifications */}
+              <ConnectionMonitor />
+              
+              {/* Sonner Toast provider */}
+              <Toaster position="top-right" />
+              
               <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/" element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                } />
-                <Route path="/transcripts" element={
-                  <ProtectedRoute>
-                    <Transcripts />
-                  </ProtectedRoute>
-                } />
-                <Route path="/ai-coaching" element={
-                  <ProtectedRoute>
-                    <AICoaching />
-                  </ProtectedRoute>
-                } />
-                <Route path="/team" element={
-                  <ProtectedRoute>
-                    <Team />
-                  </ProtectedRoute>
-                } />
-                <Route path="/settings" element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                } />
-                <Route path="/call-comparison" element={
-                  <ProtectedRoute>
-                    <CallComparison />
-                  </ProtectedRoute>
-                } />
-                <Route path="/call-activity" element={
-                  <ProtectedRoute>
-                    <CallActivity />
-                  </ProtectedRoute>
-                } />
-                <Route path="/performance" element={
-                  <ProtectedRoute>
-                    <Performance />
-                  </ProtectedRoute>
-                } />
-                <Route path="*" element={<NotFound />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/call/:id" element={<CallPage />} />
+                <Route path="/ai-coaching" element={<AICoaching />} />
+                <Route path="/transcribe" element={<Transcribe />} />
               </Routes>
-              <Toaster />
-            </Router>
-          </SharedFilterProvider>
-        </AuthProvider>
-      </ThemeContext.Provider>
-    </QueryClientProvider>
+            </QueryProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </div>
+    </ThemeContext.Provider>
   );
 }
 
