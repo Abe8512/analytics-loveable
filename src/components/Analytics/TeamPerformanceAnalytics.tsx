@@ -1,5 +1,4 @@
-
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TeamMetrics, RepMetrics } from "@/services/RealTimeMetricsService";
@@ -25,6 +24,7 @@ import {
 import GlowingCard from "../ui/GlowingCard";
 import { cn } from "@/lib/utils";
 import AnimatedNumber from '../ui/AnimatedNumber';
+import ContentLoader from '../ui/ContentLoader';
 
 interface TeamPerformanceAnalyticsProps {
   teamMetrics: TeamMetrics;
@@ -32,11 +32,65 @@ interface TeamPerformanceAnalyticsProps {
   isLoading: boolean;
 }
 
-const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({ 
+const SuccessRateChart = memo(({ data }: { data: any[] }) => (
+  <ResponsiveContainer width="100%" height={300}>
+    <BarChart
+      data={data}
+      margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
+    >
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis 
+        dataKey="name" 
+        angle={-45} 
+        textAnchor="end" 
+        height={70} 
+        tick={{ fontSize: 12 }}
+      />
+      <YAxis 
+        label={{ 
+          value: "Success Rate (%)", 
+          angle: -90, 
+          position: "insideLeft",
+          style: { textAnchor: 'middle' } 
+        }} 
+      />
+      <Tooltip />
+      <Bar name="Success Rate" dataKey="successRate" fill="#8B5CF6" radius={[4, 4, 0, 0]}>
+        {data.map((entry, index) => (
+          <Cell 
+            key={`cell-${index}`} 
+            fill={entry.successRate > 70 ? "#8B5CF6" : 
+                  entry.successRate > 50 ? "#A78BFA" : "#C4B5FD"} 
+          />
+        ))}
+      </Bar>
+    </BarChart>
+  </ResponsiveContainer>
+));
+SuccessRateChart.displayName = "SuccessRateChart";
+
+const CustomTooltip = memo(({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-800 p-3 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+        <p className="font-medium text-foreground">{label || payload[0].name}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} style={{ color: entry.color || entry.fill }} className="text-sm">
+            {`${entry.name}: ${entry.value}${entry.name === 'Success Rate' ? '%' : ''}`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+});
+CustomTooltip.displayName = "CustomTooltip";
+
+const TeamPerformanceAnalytics = React.memo(({ 
   teamMetrics, 
   repMetrics, 
   isLoading 
-}) => {
+}: TeamPerformanceAnalyticsProps) => {
   const sortedRepsByPerformance = useMemo(() => {
     return [...repMetrics].sort((a, b) => b.successRate - a.successRate);
   }, [repMetrics]);
@@ -48,9 +102,9 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
   const performanceData = useMemo(() => {
     return repMetrics.map(rep => ({
       name: rep.name,
-      successRate: rep.successRate,
-      sentiment: Math.round(rep.sentiment * 100),
-      callVolume: rep.callVolume
+      successRate: Math.floor(rep.successRate),
+      sentiment: Math.floor(rep.sentiment * 100),
+      callVolume: Math.floor(rep.callVolume)
     }));
   }, [repMetrics]);
 
@@ -77,31 +131,13 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
       .sort((a, b) => b.callVolume - a.callVolume)
       .slice(0, 5)
       .map(rep => ({
-        name: rep.name.split(' ')[0], // Use first name only to save space
-        calls: rep.callVolume
+        name: rep.name.split(' ')[0],
+        calls: Math.floor(rep.callVolume)
       }));
   }, [repMetrics]);
 
-  // Custom tooltip for charts
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white dark:bg-gray-800 p-3 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
-          <p className="font-medium text-foreground">{label || payload[0].name}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} style={{ color: entry.color || entry.fill }} className="text-sm">
-              {`${entry.name}: ${entry.value}${entry.name === 'Success Rate' ? '%' : ''}`}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="space-y-6">
-      {/* Team Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <GlowingCard gradient="blue" variant="bordered" className="h-full">
           <div className="flex flex-col h-full">
@@ -111,17 +147,16 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
                 <Users className="h-4 w-4 text-blue-500" />
               </div>
             </div>
-            {isLoading ? (
-              <Skeleton className="h-12 w-24" />
-            ) : (
+            <ContentLoader isLoading={isLoading} height={80} skeletonCount={1} delay={500}>
               <div className="mb-2">
                 <AnimatedNumber 
                   value={repMetrics.length} 
                   className="text-3xl font-bold text-foreground"
+                  duration={800}
                 />
                 <p className="text-sm text-muted-foreground">Active team members</p>
               </div>
-            )}
+            </ContentLoader>
           </div>
         </GlowingCard>
 
@@ -133,21 +168,20 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
                 <Award className="h-4 w-4 text-purple-500" />
               </div>
             </div>
-            {isLoading ? (
-              <Skeleton className="h-12 w-24" />
-            ) : (
+            <ContentLoader isLoading={isLoading} height={80} skeletonCount={1} delay={500}>
               <div className="mb-2">
                 <AnimatedNumber 
-                  value={Math.round(
+                  value={Math.floor(
                     repMetrics.reduce((sum, rep) => sum + rep.successRate, 0) / 
                     (repMetrics.length || 1)
                   )} 
                   className="text-3xl font-bold text-foreground"
                   suffix="%"
+                  duration={800}
                 />
                 <p className="text-sm text-muted-foreground">Team average</p>
               </div>
-            )}
+            </ContentLoader>
           </div>
         </GlowingCard>
 
@@ -159,26 +193,24 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
                 <TrendingUp className="h-4 w-4 text-green-500" />
               </div>
             </div>
-            {isLoading ? (
-              <Skeleton className="h-12 w-24" />
-            ) : (
+            <ContentLoader isLoading={isLoading} height={80} skeletonCount={1} delay={500}>
               <div className="mb-2">
                 <AnimatedNumber 
-                  value={Math.round(
+                  value={Math.floor(
                     repMetrics.reduce((sum, rep) => sum + rep.sentiment, 0) / 
                     (repMetrics.length || 1) * 100
                   )} 
                   className="text-3xl font-bold text-foreground"
                   suffix="%"
+                  duration={800}
                 />
                 <p className="text-sm text-muted-foreground">Positive customer interactions</p>
               </div>
-            )}
+            </ContentLoader>
           </div>
         </GlowingCard>
       </div>
 
-      {/* Top Performers Section */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
@@ -188,53 +220,53 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
           <CardDescription>Team members with the highest success rates</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          <ContentLoader isLoading={isLoading} height={300} skeletonCount={3} delay={500}>
             <div className="space-y-4">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {topPerformers.map((rep, index) => (
-                <div key={index} className="flex items-center justify-between bg-muted/40 p-4 rounded-lg">
-                  <div className="flex items-center">
-                    <div className={cn(
-                      "flex items-center justify-center h-10 w-10 rounded-full mr-4 text-white font-bold",
-                      index === 0 ? "bg-yellow-500" : 
-                      index === 1 ? "bg-slate-400" : 
-                      "bg-amber-700"
-                    )}>
-                      {index + 1}
+              {topPerformers.length > 0 ? (
+                topPerformers.map((rep, index) => (
+                  <div key={index} className="flex items-center justify-between bg-muted/40 p-4 rounded-lg">
+                    <div className="flex items-center">
+                      <div className={cn(
+                        "flex items-center justify-center h-10 w-10 rounded-full mr-4 text-white font-bold",
+                        index === 0 ? "bg-yellow-500" : 
+                        index === 1 ? "bg-slate-400" : 
+                        "bg-amber-700"
+                      )}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-foreground">{rep.name}</h4>
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Phone className="h-3 w-3 mr-1" /> {Math.floor(rep.callVolume)} calls
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-foreground">{rep.name}</h4>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Phone className="h-3 w-3 mr-1" /> {rep.callVolume} calls
+                    <div className="text-right">
+                      <div className="text-xl font-bold text-foreground">
+                        <AnimatedNumber value={Math.floor(rep.successRate)} suffix="%" duration={800} />
+                      </div>
+                      <div className={cn(
+                        "text-sm",
+                        rep.sentiment > 0.7 ? "text-green-500" : 
+                        rep.sentiment > 0.4 ? "text-yellow-500" : 
+                        "text-red-500"
+                      )}>
+                        <AnimatedNumber value={Math.floor(rep.sentiment * 100)} suffix="%" duration={800} /> sentiment
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-foreground">{rep.successRate}%</div>
-                    <div className={cn(
-                      "text-sm",
-                      rep.sentiment > 0.7 ? "text-green-500" : 
-                      rep.sentiment > 0.4 ? "text-yellow-500" : 
-                      "text-red-500"
-                    )}>
-                      {Math.round(rep.sentiment * 100)}% sentiment
-                    </div>
-                  </div>
+                ))
+              ) : (
+                <div className="flex justify-center items-center h-40">
+                  <p className="text-muted-foreground">No performance data available</p>
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          </ContentLoader>
         </CardContent>
       </Card>
 
-      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Success Rate Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -246,47 +278,18 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-[300px] w-full" />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={performanceData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={70} 
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis 
-                    label={{ 
-                      value: "Success Rate (%)", 
-                      angle: -90, 
-                      position: "insideLeft",
-                      style: { textAnchor: 'middle' } 
-                    }} 
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar name="Success Rate" dataKey="successRate" fill="#8B5CF6" radius={[4, 4, 0, 0]}>
-                    {performanceData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.successRate > 70 ? "#8B5CF6" : 
-                              entry.successRate > 50 ? "#A78BFA" : "#C4B5FD"} 
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            <ContentLoader isLoading={isLoading} height={300} delay={500}>
+              {performanceData.length > 0 ? (
+                <SuccessRateChart data={performanceData} />
+              ) : (
+                <div className="flex justify-center items-center h-[300px]">
+                  <p className="text-muted-foreground">No performance data available</p>
+                </div>
+              )}
+            </ContentLoader>
           </CardContent>
         </Card>
 
-        {/* Call Volume Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -298,33 +301,38 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-[300px] w-full" />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={callVolumeByRep}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis 
-                    label={{ 
-                      value: "Number of Calls", 
-                      angle: -90, 
-                      position: "insideLeft",
-                      style: { textAnchor: 'middle' } 
-                    }} 
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar name="Calls" dataKey="calls" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            <ContentLoader isLoading={isLoading} height={300} delay={500}>
+              {callVolumeByRep.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={callVolumeByRep}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis 
+                      label={{ 
+                        value: "Number of Calls", 
+                        angle: -90, 
+                        position: "insideLeft",
+                        style: { textAnchor: 'middle' } 
+                      }} 
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar name="Calls" dataKey="calls" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex justify-center items-center h-[300px]">
+                  <p className="text-muted-foreground">No call volume data available</p>
+                </div>
+              )}
+            </ContentLoader>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Sentiment Distribution Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -336,33 +344,38 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-[300px] w-full" />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={sentimentDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={true}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {sentimentDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
+            <ContentLoader isLoading={isLoading} height={300} delay={500}>
+              {sentimentDistribution.some(item => item.value > 0) ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={sentimentDistribution}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => 
+                        percent > 0 ? `${name}: ${(percent * 100).toFixed(0)}%` : ''
+                      }
+                    >
+                      {sentimentDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex justify-center items-center h-[300px]">
+                  <p className="text-muted-foreground">No sentiment data available</p>
+                </div>
+              )}
+            </ContentLoader>
           </CardContent>
         </Card>
 
-        {/* Performance and Sentiment Combined Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -374,69 +387,74 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-[300px] w-full" />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart
-                  data={performanceData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={70} 
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis 
-                    yAxisId="left"
-                    label={{ 
-                      value: "Success Rate (%)", 
-                      angle: -90, 
-                      position: "insideLeft",
-                      style: { textAnchor: 'middle' } 
-                    }} 
-                  />
-                  <YAxis 
-                    yAxisId="right" 
-                    orientation="right"
-                    label={{ 
-                      value: "Sentiment Score (%)", 
-                      angle: 90, 
-                      position: "insideRight", 
-                      style: { textAnchor: 'middle' } 
-                    }} 
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Line 
-                    yAxisId="left"
-                    type="monotone" 
-                    name="Success Rate" 
-                    dataKey="successRate" 
-                    stroke="#8B5CF6" 
-                    strokeWidth={2}
-                    activeDot={{ r: 8 }}
-                  />
-                  <Line 
-                    yAxisId="right"
-                    type="monotone" 
-                    name="Sentiment" 
-                    dataKey="sentiment" 
-                    stroke="#06D6A0" 
-                    strokeWidth={2}
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+            <ContentLoader isLoading={isLoading} height={300} delay={500}>
+              {performanceData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart
+                    data={performanceData}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={70} 
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      label={{ 
+                        value: "Success Rate (%)", 
+                        angle: -90, 
+                        position: "insideLeft",
+                        style: { textAnchor: 'middle' } 
+                      }} 
+                    />
+                    <YAxis 
+                      yAxisId="right" 
+                      orientation="right"
+                      label={{ 
+                        value: "Sentiment Score (%)", 
+                        angle: 90, 
+                        position: "insideRight", 
+                        style: { textAnchor: 'middle' } 
+                      }} 
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Line 
+                      yAxisId="left"
+                      type="monotone" 
+                      name="Success Rate" 
+                      dataKey="successRate" 
+                      stroke="#8B5CF6" 
+                      strokeWidth={2}
+                      activeDot={{ r: 8 }}
+                      isAnimationActive={false}
+                    />
+                    <Line 
+                      yAxisId="right"
+                      type="monotone" 
+                      name="Sentiment" 
+                      dataKey="sentiment" 
+                      stroke="#06D6A0" 
+                      strokeWidth={2}
+                      activeDot={{ r: 8 }}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex justify-center items-center h-[300px]">
+                  <p className="text-muted-foreground">No correlation data available</p>
+                </div>
+              )}
+            </ContentLoader>
           </CardContent>
         </Card>
       </div>
 
-      {/* Team Insights */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
@@ -448,9 +466,7 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-[200px] w-full" />
-          ) : (
+          <ContentLoader isLoading={isLoading} height={200} delay={500}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-100 dark:border-blue-900">
                 <h3 className="font-medium text-blue-700 dark:text-blue-400 mb-2">Top Performer</h3>
@@ -497,11 +513,13 @@ const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> = ({
                 </p>
               </div>
             </div>
-          )}
+          </ContentLoader>
         </CardContent>
       </Card>
     </div>
   );
-};
+});
+
+TeamPerformanceAnalytics.displayName = "TeamPerformanceAnalytics";
 
 export default TeamPerformanceAnalytics;

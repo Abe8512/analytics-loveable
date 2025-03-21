@@ -8,10 +8,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
  * @param minLoadingTime Minimum time to show loading state in ms
  * @returns Stabilized loading state
  */
-export const useStableLoadingState = (isLoading: boolean, minLoadingTime: number = 100): boolean => {
+export const useStableLoadingState = (isLoading: boolean, minLoadingTime: number = 300): boolean => {
   const [stableLoading, setStableLoading] = useState(isLoading);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+  const isInitialLoadRef = useRef<boolean>(true);
   
   // Clear timeout on unmount
   const clearLoadingTimeout = useCallback(() => {
@@ -22,6 +23,14 @@ export const useStableLoadingState = (isLoading: boolean, minLoadingTime: number
   }, []);
   
   useEffect(() => {
+    // First-time loading, immediately show loading state
+    if (isInitialLoadRef.current && isLoading) {
+      setStableLoading(true);
+      isInitialLoadRef.current = false;
+      startTimeRef.current = Date.now();
+      return;
+    }
+    
     // If moving to loading state
     if (isLoading && !stableLoading) {
       setStableLoading(true);
@@ -33,11 +42,14 @@ export const useStableLoadingState = (isLoading: boolean, minLoadingTime: number
       const elapsedTime = Date.now() - startTimeRef.current;
       const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
       
-      // Only show loading state for minimum time to prevent flickers
+      // Ensure minimum loading time to prevent fast flickers
+      // Loading state needs to be shown for at least minLoadingTime ms
       clearLoadingTimeout();
+      
+      // Use a slightly longer timeout for more stable UI
       timeoutRef.current = setTimeout(() => {
         setStableLoading(false);
-      }, remainingTime);
+      }, remainingTime + 50); // Add extra buffer time for smoother transitions
     }
     
     return clearLoadingTimeout;

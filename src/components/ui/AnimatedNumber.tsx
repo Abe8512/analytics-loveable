@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
+import { animationUtils } from "@/utils/animationUtils";
 
 interface AnimatedNumberProps {
   value: number;
@@ -13,37 +14,52 @@ interface AnimatedNumberProps {
 
 const AnimatedNumber = memo(({
   value,
-  duration = 1200, // Increased duration for smoother animations
+  duration = 1500, // Increased duration for smoother animations
   className,
   prefix = "",
   suffix = "",
   formatter = (val) => val.toString(),
 }: AnimatedNumberProps) => {
-  const [displayValue, setDisplayValue] = useState(value);
+  // Use floor to ensure consistent display without decimal jitter
+  const targetValue = Math.floor(value);
+  const [displayValue, setDisplayValue] = useState(targetValue);
   const animationFrameRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(Date.now());
   const startTimeRef = useRef<number>(0);
   const startValueRef = useRef<number>(0);
+  const lastValueRef = useRef<number>(targetValue);
   
   useEffect(() => {
-    // Debounce value changes to prevent rapid updates
-    const now = Date.now();
-    if (now - lastUpdateTimeRef.current < 600) { // Increased debounce time
-      return; // Skip animation if changes are too frequent
-    }
-    
-    lastUpdateTimeRef.current = now;
-    
-    // If the value change is tiny, don't animate
-    if (Math.abs(value - displayValue) < 1.0) { // Increased threshold
-      setDisplayValue(value);
+    // Skip animation entirely for initial render to avoid flicker
+    if (lastValueRef.current === 0 && targetValue !== 0) {
+      setDisplayValue(targetValue);
+      lastValueRef.current = targetValue;
       return;
     }
     
+    // Skip tiny changes (less than 2 units difference)
+    if (Math.abs(targetValue - lastValueRef.current) < 2) {
+      setDisplayValue(targetValue);
+      lastValueRef.current = targetValue;
+      return;
+    }
+    
+    // Debounce value changes to prevent rapid updates
+    const now = Date.now();
+    if (now - lastUpdateTimeRef.current < 800) { // Significantly increased debounce time
+      // If changes are happening too quickly, just jump to the final value
+      if (Math.abs(targetValue - lastValueRef.current) > 20) {
+        setDisplayValue(targetValue);
+        lastValueRef.current = targetValue;
+      }
+      return;
+    }
+    
+    lastUpdateTimeRef.current = now;
+    lastValueRef.current = targetValue;
+    
     startTimeRef.current = Date.now();
     startValueRef.current = displayValue;
-    const endValue = value;
-    const difference = endValue - startValueRef.current;
     
     const updateValue = () => {
       const now = Date.now();
@@ -51,12 +67,14 @@ const AnimatedNumber = memo(({
       
       if (elapsedTime < duration) {
         // Use easeOutQuart for smoother animation
-        const progress = 1 - Math.pow(1 - elapsedTime / duration, 4);
-        const newValue = startValueRef.current + (difference * progress);
-        setDisplayValue(newValue);
+        const progress = animationUtils.easeOutCubic(elapsedTime / duration);
+        const newValue = startValueRef.current + ((targetValue - startValueRef.current) * progress);
+        
+        // Stabilize by using Math.floor to prevent decimal wobbling
+        setDisplayValue(Math.floor(newValue));
         animationFrameRef.current = requestAnimationFrame(updateValue);
       } else {
-        setDisplayValue(endValue);
+        setDisplayValue(targetValue);
         animationFrameRef.current = null;
       }
     };
@@ -72,14 +90,12 @@ const AnimatedNumber = memo(({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [value, duration, displayValue]);
+  }, [targetValue, duration, displayValue]);
   
-  // Format the value to ensure consistent display length
-  const formattedValue = Math.floor(displayValue * 100) / 100;
-  
+  // Render with hardware acceleration to improve animation performance
   return (
-    <span className={cn("font-medium hardware-accelerated", className)}>
-      {prefix}{formatter(formattedValue)}{suffix}
+    <span className={cn("font-medium transform-gpu", className)}>
+      {prefix}{formatter(displayValue)}{suffix}
     </span>
   );
 });

@@ -25,13 +25,33 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
   avgTalkRatio: { agent: 55, customer: 45 }
 };
 
+// Default rep metrics for when data is loading or unavailable
+const DEFAULT_REP_METRICS: RepMetrics[] = [
+  {
+    id: "1",
+    name: "John Doe",
+    callVolume: 25,
+    successRate: 65,
+    sentiment: 0.78,
+    insights: ["Asks good discovery questions", "Could improve closing technique"]
+  },
+  {
+    id: "2",
+    name: "Jane Smith",
+    callVolume: 32,
+    successRate: 72,
+    sentiment: 0.82,
+    insights: ["Excellent at handling objections", "Clear product explanations"]
+  }
+];
+
 /**
  * Optimized hook for real-time team metrics with improved performance
  */
 export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
   // Add a longer delay to loading state transitions to prevent flickering
-  const stableLoading = useStableLoadingState(isLoading, 300); // Increased delay for UI stability
+  const stableLoading = useStableLoadingState(isLoading, 500); // Increased delay for UI stability
   
   // Stabilize metrics with memoization to prevent UI jitter
   const stableMetrics = useMemo(() => {
@@ -79,26 +99,6 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
   return [stableMetrics, stableLoading];
 };
 
-// Default rep metrics for when data is loading or unavailable
-const DEFAULT_REP_METRICS: RepMetrics[] = [
-  {
-    id: "1",
-    name: "John Doe",
-    callVolume: 25,
-    successRate: 65,
-    sentiment: 0.78,
-    insights: ["Asks good discovery questions", "Could improve closing technique"]
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    callVolume: 32,
-    successRate: 72,
-    sentiment: 0.82,
-    insights: ["Excellent at handling objections", "Clear product explanations"]
-  }
-];
-
 /**
  * Optimized hook for real-time rep metrics with improved performance
  */
@@ -113,21 +113,33 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
   // Access the error property safely
   const error = 'error' in repMetricsResponse ? repMetricsResponse.error : undefined;
   
-  const stableLoading = useStableLoadingState(isLoading, 300); // Increased from 100ms to 300ms for stability
+  // Significantly increased loading delay to prevent UI flickering
+  const stableLoading = useStableLoadingState(isLoading, 500); 
   
   // Use default metrics when loading or no data available
   const stableMetrics = useMemo(() => {
+    // If no metrics or loading, return defaults with stabilized values
     if (!metrics || metrics.length === 0) {
-      return DEFAULT_REP_METRICS;
+      return DEFAULT_REP_METRICS.map(rep => ({
+        ...rep,
+        // Ensure all numeric values are integers to prevent decimal jitter
+        successRate: Math.floor(rep.successRate),
+        sentiment: Math.floor(rep.sentiment * 100) / 100,
+        callVolume: Math.floor(rep.callVolume)
+      }));
     }
     
+    // For actual metrics, ensure all values are stabilized with Math.floor
     return metrics.map(rep => ({
       ...rep,
       // Floor percentage values for stability instead of rounding
       successRate: Math.floor(rep.successRate),
       sentiment: Math.floor(rep.sentiment * 100) / 100,
       // Ensure call volume is stable
-      callVolume: Math.floor(rep.callVolume)
+      callVolume: Math.floor(rep.callVolume),
+      // Ensure insights array is never empty
+      insights: rep.insights && rep.insights.length > 0 ? 
+        rep.insights : ["No insights available"]
     }));
   }, [metrics]);
   
