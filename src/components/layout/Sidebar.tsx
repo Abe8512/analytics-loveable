@@ -1,3 +1,4 @@
+
 import React, { useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -108,9 +109,10 @@ interface SidebarProps {
   isOpen?: boolean;
   setIsOpen?: (open: boolean) => void;
   collapsed?: boolean;
+  setSidebarOpen?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false }: SidebarProps) => {
+const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false, setSidebarOpen }: SidebarProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -165,7 +167,10 @@ const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false }: Si
               variant="ghost" 
               size="icon" 
               className="ml-auto -mr-2" 
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                setIsOpen(false);
+                if (setSidebarOpen) setSidebarOpen(false);
+              }}
             >
               <X className="h-5 w-5" />
             </Button>
@@ -195,7 +200,12 @@ const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false }: Si
               path={item.path}
               active={path === item.path}
               collapsed={collapsed}
-              onClick={isMobile ? () => setIsOpen(false) : undefined}
+              onClick={() => {
+                if (isMobile) {
+                  setIsOpen(false);
+                  if (setSidebarOpen) setSidebarOpen(false);
+                }
+              }}
             />
           ))}
         </ul>
@@ -211,7 +221,12 @@ const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false }: Si
           path="/settings"
           active={path === "/settings"}
           collapsed={collapsed}
-          onClick={isMobile ? () => setIsOpen(false) : undefined}
+          onClick={() => {
+            if (isMobile) {
+              setIsOpen(false);
+              if (setSidebarOpen) setSidebarOpen(false);
+            }
+          }}
         />
       </div>
     </div>
@@ -219,7 +234,10 @@ const Sidebar = ({ isOpen = false, setIsOpen = () => {}, collapsed = false }: Si
   
   if (isMobile) {
     return (
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <Sheet open={isOpen} onOpenChange={(open) => {
+        setIsOpen(open);
+        if (setSidebarOpen) setSidebarOpen(open);
+      }}>
         <SheetContent 
           side="left" 
           className="p-0 w-[280px] sm:max-w-xs"

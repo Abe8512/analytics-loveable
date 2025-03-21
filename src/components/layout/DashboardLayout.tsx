@@ -1,6 +1,6 @@
 
 import React, { useContext, useState, useMemo } from "react";
-import SideBar from "./SideBar"; // Use the casing that matches the actual file
+import Sidebar from "./Sidebar"; // Fixed casing to match the component
 import TopBar from "./TopBar";
 import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
@@ -33,9 +33,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   return (
     <div className={layoutClasses}>
-      <SideBar setSidebarOpen={setSidebarOpen} />
+      <Sidebar setSidebarOpen={setSidebarOpen} />
       <div className="flex flex-col flex-1 relative">
-        <TopBar /> {/* Remove the setSidebarOpen prop since it doesn't exist on TopBar */}
+        <TopBar />
         
         {/* Matrix code rain effect in dark mode */}
         {isDarkMode && (
