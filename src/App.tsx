@@ -12,6 +12,7 @@ import Transcribe from './pages/Transcribe';
 import { Toaster } from 'sonner';
 import ConnectionMonitor from './components/ui/ConnectionMonitor';
 import Analytics from './pages/Analytics';
+import { SharedFilterProvider } from './contexts/SharedFilterContext';
 
 export const ThemeContext = createContext({
   isDarkMode: false,
@@ -33,21 +34,23 @@ function App() {
         <BrowserRouter>
           <AuthProvider>
             <QueryProvider>
-              {/* ConnectionMonitor for offline detection and notifications */}
-              <ConnectionMonitor />
-              
-              {/* Sonner Toast provider */}
-              <Toaster position="top-right" />
-              
-              <Routes>
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/call/:id" element={<CallPage />} />
-                <Route path="/ai-coaching" element={<AICoaching />} />
-                <Route path="/transcribe" element={<Transcribe />} />
-                <Route path="/analytics" element={<Analytics />} />
-              </Routes>
+              <SharedFilterProvider>
+                {/* ConnectionMonitor for offline detection and notifications */}
+                <ConnectionMonitor />
+                
+                {/* Sonner Toast provider */}
+                <Toaster position="top-right" />
+                
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/call/:id" element={<CallPage />} />
+                  <Route path="/ai-coaching" element={<AICoaching />} />
+                  <Route path="/transcribe" element={<Transcribe />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                </Routes>
+              </SharedFilterProvider>
             </QueryProvider>
           </AuthProvider>
         </BrowserRouter>

@@ -1,3 +1,4 @@
+
 import React, { useMemo } from "react";
 import { LineChart, Line, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Tooltip } from "recharts";
 import { TrendingUp, TrendingDown, BarChart3, LineChart as LineChartIcon, AreaChart as AreaChartIcon } from "lucide-react";
@@ -65,8 +66,16 @@ const MetricCard = ({ title, value, change, gradient = "blue", suffix = "", chil
 
 const PerformanceMetrics = () => {
   const navigate = useNavigate();
-  const { filters } = useSharedFilters();
   const { toast } = useToast();
+  
+  // Try to use filters, but handle the case when they're not available
+  let filters = {};
+  try {
+    const { filters: contextFilters } = useSharedFilters();
+    filters = contextFilters || {};
+  } catch (error) {
+    console.warn('SharedFilters not available, using default empty filters');
+  }
   
   const [metrics, isLoading] = useRealTimeTeamMetrics(filters);
   
