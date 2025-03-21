@@ -15,14 +15,18 @@ import {
   MessageSquare
 } from 'lucide-react';
 
-// Redirect to the new Sidebar implementation
-// This file exists only for backward compatibility
+// Import the actual component implementation
 import Sidebar from './Sidebar';
 
 interface SideBarProps {
   setSidebarOpen?: React.Dispatch<React.SetStateAction<boolean>>;
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
+  collapsed?: boolean;
 }
 
+// Redirect to the new Sidebar implementation
+// This file exists only for backward compatibility
 const SideBar: React.FC<SideBarProps> = (props) => {
   return <Sidebar {...props} />;
 };

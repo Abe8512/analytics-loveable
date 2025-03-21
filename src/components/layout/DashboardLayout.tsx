@@ -1,6 +1,5 @@
-
 import React, { useContext, useState, useMemo } from "react";
-import Sidebar from "./Sidebar"; // Fixed casing to match the component
+import SideBar from "./SideBar"; // Fixed casing to match the actual file name
 import TopBar from "./TopBar";
 import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
@@ -33,7 +32,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   return (
     <div className={layoutClasses}>
-      <Sidebar setSidebarOpen={setSidebarOpen} />
+      <SideBar setSidebarOpen={setSidebarOpen} />
       <div className="flex flex-col flex-1 relative">
         <TopBar />
         
