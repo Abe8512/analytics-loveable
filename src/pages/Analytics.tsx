@@ -40,6 +40,38 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// Define types for the comparison metrics
+interface ComparisonMetric {
+  [key: string]: number;
+}
+
+interface MetricsType {
+  qualityMetrics: {
+    name: string;
+    score: number;
+    maxScore: number;
+    category: string;
+  }[];
+  outcomeStats: {
+    outcome: string;
+    count: number;
+    percentage: number;
+  }[];
+  timeMetrics: {
+    avgDuration: number;
+    totalCallTime: number;
+    timeOfDayDistribution: Record<string, number>;
+  };
+  topKeywords: {
+    keyword: string;
+    count: number;
+  }[];
+  comparisonMetrics: {
+    vsLastPeriod: ComparisonMetric;
+    vsTeamAverage: ComparisonMetric;
+  };
+}
+
 const Analytics = () => {
   const { filters, updateDateRange } = useSharedFilters();
   const { toast } = useToast();
@@ -47,7 +79,7 @@ const Analytics = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [transcripts, setTranscripts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [metrics, setMetrics] = useState(null);
+  const [metrics, setMetrics] = useState<MetricsType | null>(null);
   const [distributionData, setDistributionData] = useState([]);
   const [hourlyDistribution, setHourlyDistribution] = useState([]);
   const [sentimentTrends, setSentimentTrends] = useState([]);
@@ -144,6 +176,7 @@ const Analytics = () => {
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6 p-4 md:p-6">
+        {/* Header section */}
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center bg-gradient-to-r from-blue-900/20 to-purple-900/20 dark:from-blue-900/30 dark:to-purple-900/30 p-4 md:p-6 rounded-lg shadow-md">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-primary">Analytics Dashboard</h1>
@@ -572,27 +605,35 @@ const Analytics = () => {
                         <div>
                           <h4 className="text-sm font-medium text-muted-foreground mb-2">vs Last Period</h4>
                           <div className="space-y-3">
-                            {Object.entries(metrics.comparisonMetrics.vsLastPeriod).map(([key, value], index) => (
-                              <div key={index} className="flex items-center justify-between">
-                                <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                                <span className={`${value >= 0 ? 'text-green-500' : 'text-red-500'} font-medium`}>
-                                  {value >= 0 ? '+' : ''}{value}%
-                                </span>
-                              </div>
-                            ))}
+                            {Object.entries(metrics.comparisonMetrics.vsLastPeriod).map(([key, value], index) => {
+                              // Ensure value is treated as a number
+                              const numericValue = Number(value);
+                              return (
+                                <div key={index} className="flex items-center justify-between">
+                                  <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                  <span className={`${numericValue >= 0 ? 'text-green-500' : 'text-red-500'} font-medium`}>
+                                    {numericValue >= 0 ? '+' : ''}{numericValue}%
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                         <div>
                           <h4 className="text-sm font-medium text-muted-foreground mb-2">vs Team Average</h4>
                           <div className="space-y-3">
-                            {Object.entries(metrics.comparisonMetrics.vsTeamAverage).map(([key, value], index) => (
-                              <div key={index} className="flex items-center justify-between">
-                                <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                                <span className={`${value >= 0 ? 'text-green-500' : 'text-red-500'} font-medium`}>
-                                  {value >= 0 ? '+' : ''}{value}%
-                                </span>
-                              </div>
-                            ))}
+                            {Object.entries(metrics.comparisonMetrics.vsTeamAverage).map(([key, value], index) => {
+                              // Ensure value is treated as a number
+                              const numericValue = Number(value);
+                              return (
+                                <div key={index} className="flex items-center justify-between">
+                                  <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                  <span className={`${numericValue >= 0 ? 'text-green-500' : 'text-red-500'} font-medium`}>
+                                    {numericValue >= 0 ? '+' : ''}{numericValue}%
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
