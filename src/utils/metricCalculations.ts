@@ -103,6 +103,30 @@ export const calculatePerformanceScore = (params: {
   return Math.round(score);
 };
 
+// Add validation function to fix the error in RealTimeMetricsService.ts
+export const validateMetricConsistency = (metrics: any) => {
+  // Ensure metrics object exists
+  if (!metrics) return false;
+  
+  // Check for essential metrics fields
+  const requiredFields = ['performanceScore', 'conversionRate', 'totalCalls'];
+  const hasAllRequiredFields = requiredFields.every(field => 
+    metrics[field] !== undefined && !isNaN(Number(metrics[field]))
+  );
+  
+  // Check for talk ratio consistency
+  const hasTalkRatio = metrics.avgTalkRatio && 
+    typeof metrics.avgTalkRatio.agent === 'number' && 
+    typeof metrics.avgTalkRatio.customer === 'number' &&
+    metrics.avgTalkRatio.agent + metrics.avgTalkRatio.customer === 100;
+    
+  // Check sentiment values are in valid range
+  const validSentiment = metrics.avgSentiment === undefined || 
+    (metrics.avgSentiment >= 0 && metrics.avgSentiment <= 1);
+    
+  return hasAllRequiredFields && hasTalkRatio && validSentiment;
+};
+
 /**
  * Analyze question patterns in transcript text
  * @param text Transcript text to analyze
@@ -481,6 +505,330 @@ export const analyzeClosingTechniques = (transcript: string): {
   };
 };
 
+// Add new advanced metrics functions here
+
+/**
+ * Analyze filler words usage in transcript
+ * @param transcript Full transcript text
+ * @returns Analysis of filler words usage
+ */
+export const analyzeFillerWords = (transcript: string): {
+  totalCount: number;
+  frequency: Record<string, number>;
+  densityScore: number; // 0-100, lower is better
+  mostFrequent: string[];
+} => {
+  if (!transcript) return { totalCount: 0, frequency: {}, densityScore: 0, mostFrequent: [] };
+  
+  const fillerWords = [
+    'um', 'uh', 'like', 'you know', 'sort of', 'kind of', 'i mean',
+    'actually', 'basically', 'literally', 'so', 'anyway', 'right'
+  ];
+  
+  const wordCount = transcript.split(/\s+/).length;
+  const frequency: Record<string, number> = {};
+  let totalCount = 0;
+  
+  // Count each filler word occurrence
+  fillerWords.forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    const matches = transcript.match(regex) || [];
+    const count = matches.length;
+    
+    if (count > 0) {
+      frequency[word] = count;
+      totalCount += count;
+    }
+  });
+  
+  // Calculate density score (lower is better)
+  // 5% or more filler words is considered poor (score: 100)
+  // 0% filler words is ideal (score: 0)
+  const densityScore = Math.min(100, Math.round((totalCount / wordCount) * 2000));
+  
+  // Get the most frequent filler words
+  const sortedFillers = Object.entries(frequency)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([word]) => word);
+  
+  return {
+    totalCount,
+    frequency,
+    densityScore,
+    mostFrequent: sortedFillers
+  };
+};
+
+/**
+ * Analyze talking speed in words per minute
+ * @param transcript Full transcript text
+ * @param durationSeconds Total duration in seconds
+ * @returns Analysis of talking speed
+ */
+export const analyzeTalkingSpeed = (transcript: string, durationSeconds: number): {
+  wordsPerMinute: number;
+  qualityScore: number; // 0-100
+  recommendation: string;
+} => {
+  if (!transcript || !durationSeconds) {
+    return { wordsPerMinute: 0, qualityScore: 0, recommendation: 'No data available' };
+  }
+  
+  // Count words (excluding punctuation)
+  const words = transcript.split(/\s+/).filter(word => word.length > 0);
+  const wordCount = words.length;
+  
+  // Calculate words per minute
+  const minutes = durationSeconds / 60;
+  const wpm = Math.round(wordCount / minutes);
+  
+  // Evaluate the pace (ideal range: 120-160 wpm for sales calls)
+  let qualityScore = 0;
+  let recommendation = '';
+  
+  if (wpm < 100) {
+    qualityScore = Math.round((wpm / 100) * 70); // Scale up to 70 at 100 wpm
+    recommendation = 'Speech is too slow. Try to be more energetic to engage the customer.';
+  } else if (wpm < 120) {
+    qualityScore = 70 + Math.round(((wpm - 100) / 20) * 15); // Scale from 70 to 85
+    recommendation = 'Speech is slightly slow but understandable. Consider a slightly faster pace.';
+  } else if (wpm <= 160) {
+    qualityScore = 85 + Math.round(((160 - Math.abs(wpm - 140)) / 20) * 15); // Peak at 140 wpm
+    recommendation = 'Excellent speaking pace. Well-balanced between clarity and engagement.';
+  } else if (wpm <= 180) {
+    qualityScore = 85 - Math.round(((wpm - 160) / 20) * 15); // Scale down from 85 to 70
+    recommendation = 'Speech is slightly rushed. Consider slowing down for better clarity.';
+  } else {
+    qualityScore = Math.max(0, 70 - Math.round((wpm - 180) / 10)); // Decrease from 70 to 0
+    recommendation = 'Speech is too fast. Significantly reduce your pace for customer comprehension.';
+  }
+  
+  return {
+    wordsPerMinute: wpm,
+    qualityScore,
+    recommendation
+  };
+};
+
+/**
+ * Analyze call energy and enthusiasm from transcript and audio features
+ * @param params Object containing transcript and optional audio features
+ * @returns Energy analysis
+ */
+export const analyzeCallEnergy = (params: {
+  transcript: string;
+  audioFeatures?: {
+    volumeVariation?: number; // 0-1, higher means more dynamic range
+    pitchVariation?: number; // 0-1, higher means more variable pitch
+    speakingRateVariation?: number; // 0-1, higher means more variable pace
+  }
+}): {
+  energyScore: number; // 0-100
+  enthusiasmLevel: 'low' | 'moderate' | 'high';
+  variabilityScore: number; // 0-100
+  insights: string[];
+} => {
+  const { transcript, audioFeatures } = params;
+  
+  if (!transcript) {
+    return { 
+      energyScore: 0, 
+      enthusiasmLevel: 'low', 
+      variabilityScore: 0,
+      insights: ['No transcript data available for energy analysis']
+    };
+  }
+  
+  // Energy words and phrases in transcript
+  const energyMarkers = [
+    'excited', 'amazing', 'fantastic', 'excellent', 'great',
+    'love', 'perfect', 'absolutely', 'definitely', 'wonderful',
+    'thrilled', 'delighted', 'incredible', 'brilliant', 'awesome'
+  ];
+  
+  // Look for punctuation that indicates energy
+  const exclamationCount = (transcript.match(/!/g) || []).length;
+  const questionCount = (transcript.match(/\?/g) || []).length;
+  
+  // Calculate base energy score from text
+  let energyWordCount = 0;
+  energyMarkers.forEach(marker => {
+    const regex = new RegExp(`\\b${marker}\\b`, 'gi');
+    const matches = transcript.match(regex) || [];
+    energyWordCount += matches.length;
+  });
+  
+  // Word count for normalization
+  const wordCount = transcript.split(/\s+/).length;
+  
+  // Base text energy score (0-60 points)
+  const textEnergyScore = Math.min(60, Math.round((energyWordCount / wordCount) * 1000) + (exclamationCount * 3));
+  
+  // Audio feature energy score (0-40 points)
+  let audioEnergyScore = 0;
+  if (audioFeatures) {
+    const { volumeVariation = 0, pitchVariation = 0, speakingRateVariation = 0 } = audioFeatures;
+    audioEnergyScore = Math.round(
+      (volumeVariation * 15) + 
+      (pitchVariation * 15) + 
+      (speakingRateVariation * 10)
+    );
+  } else {
+    // If no audio features, estimate from text (less accurate)
+    audioEnergyScore = Math.min(30, questionCount * 2 + exclamationCount * 3);
+  }
+  
+  // Combined energy score
+  const energyScore = Math.min(100, textEnergyScore + audioEnergyScore);
+  
+  // Determine enthusiasm level
+  let enthusiasmLevel: 'low' | 'moderate' | 'high' = 'moderate';
+  if (energyScore < 40) enthusiasmLevel = 'low';
+  else if (energyScore > 70) enthusiasmLevel = 'high';
+  
+  // Calculate variability score
+  const variabilityScore = audioFeatures ? 
+    Math.round((audioFeatures.volumeVariation + audioFeatures.pitchVariation + audioFeatures.speakingRateVariation) * 33) : 
+    Math.min(100, questionCount + exclamationCount * 2);
+  
+  // Generate insights
+  const insights: string[] = [];
+  
+  if (energyScore < 40) {
+    insights.push('Low energy detected. Try to sound more enthusiastic about your product/service.');
+    insights.push('Consider varying your tone and speaking pace to engage the customer better.');
+  } else if (energyScore < 70) {
+    insights.push('Moderate energy level. Good baseline, but could be enhanced in key moments.');
+    if (variabilityScore < 50) {
+      insights.push('Try introducing more vocal variety to emphasize important points.');
+    }
+  } else {
+    insights.push('Excellent energy level! Your enthusiasm comes through clearly.');
+    if (variabilityScore > 80) {
+      insights.push('Great vocal dynamics - you effectively use tone and pace to emphasize key points.');
+    }
+  }
+  
+  return {
+    energyScore,
+    enthusiasmLevel,
+    variabilityScore,
+    insights
+  };
+};
+
+/**
+ * Analyze value proposition delivery in sales calls
+ * @param transcript Full transcript text
+ * @returns Analysis of value proposition effectiveness
+ */
+export const analyzeValueProposition = (transcript: string): {
+  clarity: number; // 0-100
+  customization: number; // 0-100
+  repetition: number; // Number of times value points mentioned
+  keyValuePoints: string[];
+  suggestions: string[];
+} => {
+  if (!transcript) {
+    return { 
+      clarity: 0, 
+      customization: 0, 
+      repetition: 0, 
+      keyValuePoints: [],
+      suggestions: ['No transcript available for value proposition analysis']
+    };
+  }
+  
+  // Value proposition markers
+  const valueMarkers = [
+    'benefit', 'value', 'advantage', 'saves', 'reduces', 'improves',
+    'increases', 'enhances', 'better than', 'unique', 'exclusive',
+    'special', 'tailored', 'customized', 'designed for', 'specifically for',
+    'roi', 'return on investment', 'profitable', 'cost-effective'
+  ];
+  
+  // Customer-specific markers (indicating personalization)
+  const customizationMarkers = [
+    'for your', 'in your case', 'your team', 'your company', 'your industry',
+    'your situation', 'your needs', 'your requirements', 'your goals',
+    'specifically for you', 'customize for', 'tailor for', 'adjust to',
+    'based on what you said', 'from our discussion'
+  ];
+  
+  // Extract sentences containing value propositions
+  const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const valuePropositions: string[] = [];
+  
+  let customizationScore = 0;
+  const mentionedValues: Record<string, number> = {};
+  
+  // Analyze each sentence
+  sentences.forEach(sentence => {
+    const lowerSentence = sentence.toLowerCase();
+    
+    // Check for value markers
+    for (const marker of valueMarkers) {
+      if (lowerSentence.includes(marker)) {
+        valuePropositions.push(sentence.trim());
+        
+        // Track how many times each value point is mentioned
+        mentionedValues[marker] = (mentionedValues[marker] || 0) + 1;
+        break; // Avoid counting same sentence multiple times
+      }
+    }
+    
+    // Check for customization markers
+    for (const marker of customizationMarkers) {
+      if (lowerSentence.includes(marker)) {
+        customizationScore++;
+        break; // Avoid counting same sentence multiple times
+      }
+    }
+  });
+  
+  // Calculate clarity score based on uniqueness and specificity of value props
+  const uniqueValueProps = new Set(valuePropositions).size;
+  const clarityScore = Math.min(100, Math.round((uniqueValueProps / 5) * 40) + (valuePropositions.length > 0 ? 60 : 0));
+  
+  // Calculate adjusted customization score (max 100)
+  const adjustedCustomizationScore = Math.min(100, Math.round((customizationScore / uniqueValueProps) * 100));
+  
+  // Create key value points by extracting most significant phrases
+  const keyValuePoints = valuePropositions.slice(0, 5).map(vp => {
+    // Simplify to extract core value statement (limit to 10 words)
+    const simplified = vp.split(/\s+/).slice(0, 10).join(' ') + (vp.split(/\s+/).length > 10 ? '...' : '');
+    return simplified;
+  });
+  
+  // Generate suggestions
+  const suggestions: string[] = [];
+  
+  if (clarityScore < 50) {
+    suggestions.push('Your value proposition needs more clarity. Be more specific about how your product/service delivers value.');
+  }
+  
+  if (adjustedCustomizationScore < 60) {
+    suggestions.push('Personalize your value statements more by connecting features directly to the customer\'s specific needs.');
+  }
+  
+  if (Object.keys(mentionedValues).length < 3) {
+    suggestions.push('Mention more diverse benefits of your product/service throughout the call.');
+  }
+  
+  if (suggestions.length === 0) {
+    suggestions.push('Excellent value proposition delivery! Continue reinforcing key points consistently.');
+  }
+  
+  return {
+    clarity: clarityScore,
+    customization: adjustedCustomizationScore,
+    repetition: Object.values(mentionedValues).reduce((sum, count) => sum + count, 0),
+    keyValuePoints,
+    suggestions
+  };
+};
+
 export default {
   calculateTalkRatio,
   calculateConversionRate,
@@ -489,5 +837,10 @@ export default {
   analyzeSilence,
   analyzeObjectionHandling,
   calculatePainPointScore,
-  analyzeClosingTechniques
+  analyzeClosingTechniques,
+  analyzeFillerWords,
+  analyzeTalkingSpeed,
+  analyzeCallEnergy,
+  analyzeValueProposition,
+  validateMetricConsistency
 };
