@@ -1,6 +1,5 @@
-
 import { supabase, generateAnonymousUserId } from "@/integrations/supabase/client";
-import { transcriptAnalysisService } from "./TranscriptAnalysisService";
+import { TranscriptAnalysisService, transcriptAnalysisService } from './TranscriptAnalysisService';
 import { WhisperTranscriptionResponse } from "@/services/WhisperService";
 import { v4 as uuidv4 } from 'uuid';
 import type { Database } from '@/integrations/supabase/types';
