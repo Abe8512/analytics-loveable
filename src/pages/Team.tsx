@@ -1,8 +1,5 @@
-
 import React, { useState } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import { useContext } from "react";
-import { ThemeContext } from "@/App";
 import { 
   Table, 
   TableBody, 
@@ -21,7 +18,6 @@ import TeamPerformanceComparison from "@/components/Team/TeamPerformanceComparis
 import TeamMemberCard from "@/components/Team/TeamMemberCard";
 import AddTeamMemberModal from "@/components/Team/AddTeamMemberModal";
 
-// Mock data for team members
 const initialTeamMembers = [
   {
     id: 1,
@@ -76,7 +72,6 @@ const initialTeamMembers = [
 ];
 
 const Team = () => {
-  const { isDarkMode } = useContext(ThemeContext);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   
@@ -106,10 +101,10 @@ const Team = () => {
   return (
     <DashboardLayout>
       <div className="mb-8">
-        <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-800'} mb-1`}>
+        <h1 className="text-3xl font-bold text-foreground mb-1">
           Team Management
         </h1>
-        <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+        <p className="text-muted-foreground">
           Manage your sales team and monitor performance
         </p>
       </div>
@@ -124,16 +119,16 @@ const Team = () => {
         <TabsContent value="overview" className="mt-6">
           <div className="flex justify-between items-center mb-6">
             <div className="relative w-72">
-              <Search className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search team members..."
-                className={`pl-10 h-10 ${isDarkMode ? 'bg-white/5' : 'bg-white'}`}
+                className="pl-10 h-10 bg-background"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <Button 
-              className="bg-neon-purple hover:bg-neon-purple/80" 
+              className="bg-neon-purple hover:bg-neon-purple/80 text-white" 
               onClick={() => setShowAddMemberModal(true)}
             >
               <UserPlus className="h-4 w-4 mr-2" />
@@ -151,7 +146,7 @@ const Team = () => {
         <TabsContent value="performance" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Team Performance Comparison</CardTitle>
+              <CardTitle className="text-foreground">Team Performance Comparison</CardTitle>
               <CardDescription>Compare performance metrics across team members</CardDescription>
             </CardHeader>
             <CardContent>
@@ -163,7 +158,7 @@ const Team = () => {
         <TabsContent value="leaderboard" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Sales Leaderboard</CardTitle>
+              <CardTitle className="text-foreground">Sales Leaderboard</CardTitle>
               <CardDescription>Ranked by overall performance score</CardDescription>
             </CardHeader>
             <CardContent>
@@ -191,7 +186,7 @@ const Team = () => {
                         <TableCell>{member.name}</TableCell>
                         <TableCell>
                           <div className="flex items-center">
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mr-2">
                               <div 
                                 className="bg-neon-purple h-2.5 rounded-full" 
                                 style={{width: `${member.performance}%`}}

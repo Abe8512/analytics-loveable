@@ -61,11 +61,11 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center">
+            <CardTitle className="flex items-center text-foreground">
               Team Performance Overview
               <Zap className="h-5 w-5 ml-2 text-neon-purple" />
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-muted-foreground">
               Real-time metrics from all calls and recordings
             </CardDescription>
           </div>
@@ -82,7 +82,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Calls</p>
-                    <h3 className="text-2xl font-bold mt-1">
+                    <h3 className="text-2xl font-bold mt-1 text-foreground">
                       <AnimatedNumber value={totalCalls} duration={800} />
                     </h3>
                   </div>
@@ -100,7 +100,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg Sentiment</p>
-                    <h3 className="text-2xl font-bold mt-1">
+                    <h3 className="text-2xl font-bold mt-1 text-foreground">
                       <AnimatedNumber value={sentiment} duration={800} suffix="%" />
                     </h3>
                   </div>
@@ -118,7 +118,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Talk Ratio</p>
-                    <h3 className="text-2xl font-bold mt-1">{talkRatio}</h3>
+                    <h3 className="text-2xl font-bold mt-1 text-foreground">{talkRatio}</h3>
                   </div>
                   <div className="p-3 rounded-full bg-neon-blue/10 dark:bg-neon-blue/20">
                     <Clock className="h-5 w-5 text-neon-blue" />
@@ -146,7 +146,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
                         </Badge>
                       ))
                     ) : (
-                      <p className="text-sm">No keywords recorded</p>
+                      <p className="text-sm text-muted-foreground">No keywords recorded</p>
                     )}
                   </div>
                 </div>

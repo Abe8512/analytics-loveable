@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,12 +9,14 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Download, FileDown, Settings, CalendarRange, 
   BarChart as BarChartIcon, PieChart, LineChart as LineChartIcon, 
-  RefreshCw, Filter
+  RefreshCw, Filter, Users, Award, TrendingUp
 } from "lucide-react";
 import KeywordTrendsChart from "@/components/CallAnalysis/KeywordTrendsChart";
 import { SentimentTrendsChart } from "@/components/CallAnalysis/SentimentTrendsChart";
 import PerformanceMetrics from "@/components/Dashboard/PerformanceMetrics";
 import KeyMetricsTable from "@/components/Performance/KeyMetricsTable";
+import TeamPerformanceOverview from "@/components/CallActivity/TeamPerformanceOverview";
+import { useRealTimeTeamMetrics, useRealTimeRepMetrics } from "@/services/RealTimeMetricsService";
 import {
   getMetrics,
   getCallDistributionData,
@@ -39,8 +40,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import TeamPerformanceAnalytics from "@/components/Analytics/TeamPerformanceAnalytics";
 
-// Define types for the comparison metrics
 interface ComparisonMetric {
   [key: string]: number;
 }
@@ -85,13 +86,14 @@ const Analytics = () => {
   const [sentimentTrends, setSentimentTrends] = useState([]);
   const [scoreTrends, setScoreTrends] = useState([]);
   const [keywordComparison, setKeywordComparison] = useState([]);
+  
+  const [teamMetrics, teamMetricsLoading] = useRealTimeTeamMetrics(filters);
+  const [repMetrics, repMetricsLoading] = useRealTimeRepMetrics();
 
-  // Fetch data for analytics
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch transcripts with filter
         let query = supabase.from('call_transcripts').select('*');
         
         if (filters.dateRange?.from) {
@@ -110,12 +112,10 @@ const Analytics = () => {
         
         setTranscripts(data || []);
         
-        // Calculate metrics
         if (data && data.length > 0) {
           const calculatedMetrics = getMetrics(data);
           setMetrics(calculatedMetrics);
           
-          // Calculate additional data for charts
           setDistributionData(getCallDistributionData(data));
           setHourlyDistribution(getCallDistributionByHour(data));
           setSentimentTrends(getSentimentTrendData(data));
@@ -143,7 +143,6 @@ const Analytics = () => {
       description: "Your analytics data is being prepared for download"
     });
     
-    // In a real implementation, this would generate and download the export
     setTimeout(() => {
       toast({
         title: "Export Complete",
@@ -155,7 +154,6 @@ const Analytics = () => {
   const refreshData = () => {
     setIsLoading(true);
     
-    // Re-fetch data
     setTimeout(() => {
       toast({
         title: "Data Refreshed",
@@ -165,7 +163,6 @@ const Analytics = () => {
     }, 1000);
   };
 
-  // Custom colors for charts
   const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FF8042'];
   const SENTIMENT_COLORS = {
     positive: '#10B981',
@@ -176,10 +173,9 @@ const Analytics = () => {
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6 p-4 md:p-6">
-        {/* Header section */}
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center bg-gradient-to-r from-blue-900/20 to-purple-900/20 dark:from-blue-900/30 dark:to-purple-900/30 p-4 md:p-6 rounded-lg shadow-md">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-primary">Analytics Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Analytics Dashboard</h1>
             <p className="text-muted-foreground mt-1">
               Comprehensive metrics and insights from your call data
             </p>
@@ -246,19 +242,21 @@ const Analytics = () => {
           </div>
         </div>
         
-        {/* Performance Metrics Cards Row */}
         <PerformanceMetrics />
         
         <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 w-full h-auto flex flex-wrap justify-start overflow-x-auto">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="team-performance">
+              <Users className="h-4 w-4 mr-1" />
+              Team Performance
+            </TabsTrigger>
             <TabsTrigger value="trends">Trend Analysis</TabsTrigger>
             <TabsTrigger value="keywords">Keyword Analysis</TabsTrigger>
             <TabsTrigger value="calls">Call Distribution</TabsTrigger>
             <TabsTrigger value="metrics">Detailed Metrics</TabsTrigger>
           </TabsList>
           
-          {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <KeywordTrendsChart />
@@ -270,10 +268,16 @@ const Analytics = () => {
             </div>
           </TabsContent>
           
-          {/* Trend Analysis Tab */}
+          <TabsContent value="team-performance" className="space-y-6">
+            <TeamPerformanceAnalytics 
+              teamMetrics={teamMetrics} 
+              repMetrics={repMetrics} 
+              isLoading={teamMetricsLoading || repMetricsLoading} 
+            />
+          </TabsContent>
+          
           <TabsContent value="trends" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Sentiment Over Time Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Sentiment Trends Over Time</CardTitle>
@@ -323,7 +327,6 @@ const Analytics = () => {
                 </CardContent>
               </Card>
               
-              {/* Call Score Trends Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Call Quality Score Trends</CardTitle>
@@ -361,10 +364,8 @@ const Analytics = () => {
             </div>
           </TabsContent>
           
-          {/* Keyword Analysis Tab */}
           <TabsContent value="keywords" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Keyword Comparison Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Keywords by Sentiment</CardTitle>
@@ -399,7 +400,6 @@ const Analytics = () => {
                 </CardContent>
               </Card>
               
-              {/* Topic Distribution Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Topic Distribution</CardTitle>
@@ -443,10 +443,8 @@ const Analytics = () => {
             </div>
           </TabsContent>
           
-          {/* Call Distribution Tab */}
           <TabsContent value="calls" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Daily Call Distribution Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Daily Call Distribution</CardTitle>
@@ -476,7 +474,6 @@ const Analytics = () => {
                 </CardContent>
               </Card>
               
-              {/* Hourly Call Distribution Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Hourly Call Distribution</CardTitle>
@@ -508,7 +505,6 @@ const Analytics = () => {
             </div>
           </TabsContent>
           
-          {/* Detailed Metrics Tab */}
           <TabsContent value="metrics" className="space-y-6">
             <Card>
               <CardHeader>
@@ -547,7 +543,6 @@ const Analytics = () => {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Outcome Stats */}
                       <div>
                         <h3 className="text-lg font-medium mb-4">Call Outcomes</h3>
                         <div className="space-y-4">
@@ -569,7 +564,6 @@ const Analytics = () => {
                         </div>
                       </div>
                       
-                      {/* Time Metrics */}
                       <div>
                         <h3 className="text-lg font-medium mb-4">Time Metrics</h3>
                         <div className="space-y-4">
@@ -598,7 +592,6 @@ const Analytics = () => {
                       </div>
                     </div>
                     
-                    {/* Comparison Metrics */}
                     <div>
                       <h3 className="text-lg font-medium mb-4">Performance Comparison</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -606,7 +599,6 @@ const Analytics = () => {
                           <h4 className="text-sm font-medium text-muted-foreground mb-2">vs Last Period</h4>
                           <div className="space-y-3">
                             {Object.entries(metrics.comparisonMetrics.vsLastPeriod).map(([key, value], index) => {
-                              // Ensure value is treated as a number
                               const numericValue = Number(value);
                               return (
                                 <div key={index} className="flex items-center justify-between">
@@ -623,7 +615,6 @@ const Analytics = () => {
                           <h4 className="text-sm font-medium text-muted-foreground mb-2">vs Team Average</h4>
                           <div className="space-y-3">
                             {Object.entries(metrics.comparisonMetrics.vsTeamAverage).map(([key, value], index) => {
-                              // Ensure value is treated as a number
                               const numericValue = Number(value);
                               return (
                                 <div key={index} className="flex items-center justify-between">

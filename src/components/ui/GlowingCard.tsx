@@ -55,7 +55,7 @@ const GlowingCard = ({
   
   const variantClasses = {
     default: cn(
-      "rounded-xl p-5",
+      "rounded-xl p-5 text-foreground",
       isDarkMode 
         ? "bg-surface-dark/80 border border-white/5" 
         : "bg-white border border-gray-200/80",
@@ -63,7 +63,7 @@ const GlowingCard = ({
       isDarkMode && hoverEffect && "hover:bg-surface-dark-hover hover:border-white/10"
     ),
     bordered: cn(
-      "rounded-xl p-5",
+      "rounded-xl p-5 text-foreground",
       isDarkMode 
         ? `bg-surface-dark/80 ${gradientClasses[gradient]}` 
         : `${gradientClasses[gradient]}`,
@@ -71,7 +71,7 @@ const GlowingCard = ({
       isDarkMode && hoverEffect && "hover:bg-surface-dark-hover"
     ),
     filled: cn(
-      "rounded-xl p-5",
+      "rounded-xl p-5 text-foreground",
       isDarkMode 
         ? cn("border border-white/5", gradientBgs[gradient]) 
         : cn("border border-gray-200/80", gradientBgs[gradient]),
@@ -79,7 +79,7 @@ const GlowingCard = ({
       isDarkMode && hoverEffect && "hover:bg-surface-dark-hover hover:border-white/10"
     ),
     glass: cn(
-      "rounded-xl p-5 glassmorphism",
+      "rounded-xl p-5 glassmorphism text-foreground",
       isDarkMode 
         ? "border-white/5" 
         : "border-gray-200/80",
@@ -87,7 +87,7 @@ const GlowingCard = ({
       isDarkMode && hoverEffect && "hover:border-white/10 hover:-translate-y-1"
     ),
     futuristic: cn(
-      "rounded-xl p-5 relative overflow-hidden",
+      "rounded-xl p-5 relative overflow-hidden text-foreground",
       isDarkMode 
         ? "bg-surface-dark/80 border border-white/5" 
         : "bg-white border border-gray-200/80",
