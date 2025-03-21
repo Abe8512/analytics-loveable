@@ -13,7 +13,7 @@ interface AnimatedNumberProps {
 
 const AnimatedNumber = memo(({
   value,
-  duration = 1000, // Reduced duration for faster animations
+  duration = 1200, // Increased duration for smoother animations
   className,
   prefix = "",
   suffix = "",
@@ -28,14 +28,14 @@ const AnimatedNumber = memo(({
   useEffect(() => {
     // Debounce value changes to prevent rapid updates
     const now = Date.now();
-    if (now - lastUpdateTimeRef.current < 200) {
+    if (now - lastUpdateTimeRef.current < 600) { // Increased debounce time
       return; // Skip animation if changes are too frequent
     }
     
     lastUpdateTimeRef.current = now;
     
     // If the value change is tiny, don't animate
-    if (Math.abs(value - displayValue) < 0.5) {
+    if (Math.abs(value - displayValue) < 1.0) { // Increased threshold
       setDisplayValue(value);
       return;
     }
@@ -50,8 +50,8 @@ const AnimatedNumber = memo(({
       const elapsedTime = now - startTimeRef.current;
       
       if (elapsedTime < duration) {
-        // Use easeOutCubic for smoother animation
-        const progress = 1 - Math.pow(1 - elapsedTime / duration, 3);
+        // Use easeOutQuart for smoother animation
+        const progress = 1 - Math.pow(1 - elapsedTime / duration, 4);
         const newValue = startValueRef.current + (difference * progress);
         setDisplayValue(newValue);
         animationFrameRef.current = requestAnimationFrame(updateValue);
@@ -74,9 +74,12 @@ const AnimatedNumber = memo(({
     };
   }, [value, duration, displayValue]);
   
+  // Format the value to ensure consistent display length
+  const formattedValue = Math.floor(displayValue * 100) / 100;
+  
   return (
     <span className={cn("font-medium hardware-accelerated", className)}>
-      {prefix}{formatter(Math.round(displayValue * 100) / 100)}{suffix}
+      {prefix}{formatter(formattedValue)}{suffix}
     </span>
   );
 });

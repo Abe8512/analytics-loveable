@@ -30,8 +30,8 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
  */
 export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
-  // Add short delay to loading state transitions to prevent flickering
-  const stableLoading = useStableLoadingState(isLoading, 100); // Reduced delay for faster UI updates
+  // Add a longer delay to loading state transitions to prevent flickering
+  const stableLoading = useStableLoadingState(isLoading, 300); // Increased delay for UI stability
   
   // Stabilize metrics with memoization to prevent UI jitter
   const stableMetrics = useMemo(() => {
@@ -39,27 +39,27 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
     return {
       ...DEFAULT_TEAM_METRICS, // First spread defaults to ensure all properties have values
       ...(metrics || {}), // Then override with actual metrics if available
-      // Ensure performance score has a value
+      // Ensure performance score has a value and is stabilized
       performanceScore: metrics?.performanceScore !== undefined ? 
-        Math.round(metrics.performanceScore) : DEFAULT_TEAM_METRICS.performanceScore,
-      // Ensure conversion rate has a value  
+        Math.floor(metrics.performanceScore) : DEFAULT_TEAM_METRICS.performanceScore,
+      // Ensure conversion rate has a value and is stabilized  
       conversionRate: metrics?.conversionRate !== undefined ? 
-        Math.round(metrics.conversionRate) : DEFAULT_TEAM_METRICS.conversionRate,
-      // Ensure total calls has a value
+        Math.floor(metrics.conversionRate) : DEFAULT_TEAM_METRICS.conversionRate,
+      // Ensure total calls has a value and is stabilized
       totalCalls: metrics?.totalCalls !== undefined ? 
-        Math.round(metrics.totalCalls) : DEFAULT_TEAM_METRICS.totalCalls,
-      // Ensure talk ratio always has values
+        Math.floor(metrics.totalCalls) : DEFAULT_TEAM_METRICS.totalCalls,
+      // Ensure talk ratio always has values and is stabilized
       avgTalkRatio: {
         agent: metrics?.avgTalkRatio?.agent !== undefined ? 
-          Math.round(metrics.avgTalkRatio.agent) : DEFAULT_TEAM_METRICS.avgTalkRatio.agent,
+          Math.floor(metrics.avgTalkRatio.agent) : DEFAULT_TEAM_METRICS.avgTalkRatio.agent,
         customer: metrics?.avgTalkRatio?.customer !== undefined ? 
-          Math.round(metrics.avgTalkRatio.customer) : DEFAULT_TEAM_METRICS.avgTalkRatio.customer
+          Math.floor(metrics.avgTalkRatio.customer) : DEFAULT_TEAM_METRICS.avgTalkRatio.customer
       },
       // Ensure we have valid defaults for other properties
       topKeywords: metrics?.topKeywords?.length ? 
         metrics.topKeywords : DEFAULT_TEAM_METRICS.topKeywords,
       avgSentiment: metrics?.avgSentiment !== undefined ? 
-        metrics.avgSentiment : DEFAULT_TEAM_METRICS.avgSentiment
+        Math.floor(metrics.avgSentiment * 100) / 100 : DEFAULT_TEAM_METRICS.avgSentiment
     };
   }, [metrics]);
   
@@ -113,7 +113,7 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
   // Access the error property safely
   const error = 'error' in repMetricsResponse ? repMetricsResponse.error : undefined;
   
-  const stableLoading = useStableLoadingState(isLoading, 100); // Reduced from 300ms to 100ms
+  const stableLoading = useStableLoadingState(isLoading, 300); // Increased from 100ms to 300ms for stability
   
   // Use default metrics when loading or no data available
   const stableMetrics = useMemo(() => {
@@ -123,9 +123,11 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
     
     return metrics.map(rep => ({
       ...rep,
-      // Round percentage values for stability
-      successRate: Math.round(rep.successRate),
-      sentiment: Math.round(rep.sentiment * 100) / 100
+      // Floor percentage values for stability instead of rounding
+      successRate: Math.floor(rep.successRate),
+      sentiment: Math.floor(rep.sentiment * 100) / 100,
+      // Ensure call volume is stable
+      callVolume: Math.floor(rep.callVolume)
     }));
   }, [metrics]);
   

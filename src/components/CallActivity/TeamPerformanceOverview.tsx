@@ -30,20 +30,20 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
     return teamMetrics;
   }, [teamMetrics, mockMetrics]);
   
-  // Calculate derived values from either real or mock metrics
+  // Calculate derived values from either real or mock metrics with stabilization
   const totalCalls = useMemo(() => {
     const baseCount = displayMetrics?.totalCalls !== undefined ? displayMetrics.totalCalls : 42;
-    return Math.round(baseCount + (callsLength || 0));
+    return Math.floor(baseCount + (callsLength || 0));
   }, [displayMetrics?.totalCalls, callsLength]);
   
   const sentiment = useMemo(() => {
     const sentimentValue = displayMetrics?.avgSentiment !== undefined ? displayMetrics.avgSentiment : 0.68;
-    return Math.round(sentimentValue * 100);
+    return Math.floor(sentimentValue * 100);
   }, [displayMetrics?.avgSentiment]);
   
   const talkRatio = useMemo(() => {
-    const agent = Math.round(displayMetrics?.avgTalkRatio?.agent !== undefined ? displayMetrics.avgTalkRatio.agent : 55);
-    const customer = Math.round(displayMetrics?.avgTalkRatio?.customer !== undefined ? displayMetrics.avgTalkRatio.customer : 45);
+    const agent = Math.floor(displayMetrics?.avgTalkRatio?.agent !== undefined ? displayMetrics.avgTalkRatio.agent : 55);
+    const customer = Math.floor(displayMetrics?.avgTalkRatio?.customer !== undefined ? displayMetrics.avgTalkRatio.customer : 45);
     return `${agent}:${customer}`;
   }, [displayMetrics?.avgTalkRatio?.agent, displayMetrics?.avgTalkRatio?.customer]);
   
@@ -55,6 +55,9 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
   
   // Determine if we should show loading state
   const showLoading = teamMetricsLoading && !USE_MOCK_DATA;
+  
+  // Use fixed height to prevent layout shifts
+  const metricCardHeight = "h-[120px]";
   
   return (
     <Card className="mb-6 overflow-hidden border-0 shadow-md dark:shadow-none dark:border-white/10 bg-white/80 dark:bg-dark-purple/80 backdrop-blur-sm">
@@ -77,13 +80,13 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <Card className="bg-purple-50 dark:bg-purple-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
-            <CardContent className="p-6">
+            <CardContent className={`p-6 ${metricCardHeight}`}>
               <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Calls</p>
                     <h3 className="text-2xl font-bold mt-1 text-foreground">
-                      <AnimatedNumber value={totalCalls} duration={800} />
+                      <AnimatedNumber value={totalCalls} duration={1200} />
                     </h3>
                   </div>
                   <div className="p-3 rounded-full bg-neon-purple/10 dark:bg-neon-purple/20">
@@ -95,13 +98,13 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
           </Card>
           
           <Card className="bg-green-50 dark:bg-green-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
-            <CardContent className="p-6">
+            <CardContent className={`p-6 ${metricCardHeight}`}>
               <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg Sentiment</p>
                     <h3 className="text-2xl font-bold mt-1 text-foreground">
-                      <AnimatedNumber value={sentiment} duration={800} suffix="%" />
+                      <AnimatedNumber value={sentiment} duration={1200} suffix="%" />
                     </h3>
                   </div>
                   <div className="p-3 rounded-full bg-neon-green/10 dark:bg-neon-green/20">
@@ -113,7 +116,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
           </Card>
           
           <Card className="bg-blue-50 dark:bg-blue-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
-            <CardContent className="p-6">
+            <CardContent className={`p-6 ${metricCardHeight}`}>
               <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex items-center justify-between">
                   <div>
@@ -129,7 +132,7 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
           </Card>
           
           <Card className="bg-amber-50 dark:bg-amber-950/20 border-0 shadow-md dark:shadow-none dark:border-white/10">
-            <CardContent className="p-6">
+            <CardContent className={`p-6 ${metricCardHeight}`}>
               <ContentLoader isLoading={showLoading} height={80}>
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between">

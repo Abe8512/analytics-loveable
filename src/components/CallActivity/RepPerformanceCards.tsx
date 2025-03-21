@@ -17,6 +17,9 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
   // Use stable metrics with memoization
   const stableMetrics = useMemo(() => repMetrics, [repMetrics]);
   
+  // Pre-calculate card heights for stability
+  const fixedCardHeight = "min-h-[380px]";
+  
   return (
     <Card className="mb-6">
       <CardHeader>
@@ -30,7 +33,7 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stableMetrics.length > 0 ? (
               stableMetrics.map(rep => (
-                <Card key={rep.id} className="overflow-hidden">
+                <Card key={rep.id} className={`overflow-hidden ${fixedCardHeight}`}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg">{rep.name}</CardTitle>
                   </CardHeader>
@@ -38,7 +41,7 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Call Volume</span>
-                        <span className="font-medium">{Math.round(rep.callVolume)}</span>
+                        <span className="font-medium w-12 text-right">{Math.floor(rep.callVolume)}</span>
                       </div>
                       <Progress 
                         value={rep.callVolume / 2} 
@@ -49,7 +52,7 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Success Rate</span>
-                        <span className="font-medium">{Math.round(rep.successRate)}%</span>
+                        <span className="font-medium w-12 text-right">{Math.floor(rep.successRate)}%</span>
                       </div>
                       <Progress 
                         value={rep.successRate} 
@@ -60,7 +63,7 @@ const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Customer Sentiment</span>
-                        <span className="font-medium">{Math.round(rep.sentiment * 100)}%</span>
+                        <span className="font-medium w-12 text-right">{Math.floor(rep.sentiment * 100)}%</span>
                       </div>
                       <Progress 
                         value={rep.sentiment * 100} 
