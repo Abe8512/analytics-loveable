@@ -1,5 +1,5 @@
 import React, { useContext, useState, useMemo } from "react";
-import SideBar from "./SideBar"; // Fixed casing to match the actual file name
+import SideBar from "./SideBar"; // Using the compatibility wrapper
 import TopBar from "./TopBar";
 import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Optimize classes with useMemo to prevent recalculation on every render
   const layoutClasses = useMemo(() => 
     cn("flex min-h-screen transition-colors duration-300", 
       isDarkMode ? 'bg-surface-darker' : 'bg-gray-50'),
@@ -36,7 +35,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       <div className="flex flex-col flex-1 relative">
         <TopBar />
         
-        {/* Matrix code rain effect in dark mode */}
         {isDarkMode && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.03] z-0">
             <div className="matrix-rain-container">
@@ -75,7 +73,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </main>
       </div>
       
-      {/* Floating decorative elements in dark mode */}
       {isDarkMode && (
         <>
           <div className="fixed bottom-10 right-10 w-32 h-32 bg-ai-purple/5 rounded-full blur-3xl pointer-events-none" />
