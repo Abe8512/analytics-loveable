@@ -9,27 +9,60 @@ import AIInsights from '../components/Dashboard/AIInsights';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
+import { useBulkUploadService } from '@/services/BulkUploadService';
+import { getOpenAIKey } from '@/services/WhisperService';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const bulkUploadService = useBulkUploadService();
   
   const handleBulkUploadOpen = useCallback(() => {
+    // Check if OpenAI API key is set when opening bulk upload modal
+    const apiKey = getOpenAIKey();
+    if (!apiKey) {
+      toast.warning("API Key Missing", {
+        description: "Consider adding your OpenAI API key in Settings for better transcription results.",
+        duration: 5000,
+      });
+    }
+    
     setIsBulkUploadOpen(true);
   }, []);
   
   const handleBulkUploadClose = useCallback(() => {
     setIsBulkUploadOpen(false);
-  }, []);
+    
+    // Refresh data after closing the modal if we have uploads
+    if (bulkUploadService.files.length > 0) {
+      setIsLoading(true);
+      bulkUploadService.refreshTranscripts({ force: true })
+        .then(() => {
+          setIsLoading(false);
+          if (bulkUploadService.files.some(f => f.status === 'complete')) {
+            toast.success('Dashboard data refreshed with new transcripts');
+          }
+        })
+        .catch(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [bulkUploadService]);
   
   const refreshData = useCallback(() => {
     setIsLoading(true);
-    // Simulate data refresh
-    setTimeout(() => {
-      setIsLoading(false);
-      toast('Dashboard data refreshed');
-    }, 1000);
-  }, []);
+    
+    // Use the bulk upload service to refresh transcripts
+    bulkUploadService.refreshTranscripts({ force: true })
+      .then(() => {
+        setIsLoading(false);
+        toast('Dashboard data refreshed');
+      })
+      .catch(() => {
+        setIsLoading(false);
+        toast.error('Failed to refresh data');
+      });
+  }, [bulkUploadService]);
   
   return (
     <DashboardLayout>

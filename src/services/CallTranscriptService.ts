@@ -33,7 +33,7 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     setLoading(true);
     
     try {
-      // We'll first try to get data from Supabase
+      // Try to get data from Supabase
       let query = supabase
         .from('call_transcripts')
         .select('*', { count: 'exact' });
@@ -63,30 +63,42 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       }
       
       if (data && data.length > 0) {
+        console.log(`Fetched ${data.length} transcripts from database`);
         setTranscripts(data as CallTranscript[]);
         setTotalCount(count || data.length);
         setLoading(false);
         return data as CallTranscript[];
       }
       
-      // If no data in database or error, fall back to local storage
-      console.log('Falling back to local storage for transcripts');
+      // If no data in database, fall back to local storage
+      console.log('No data in database, falling back to local storage');
       const localTranscripts = getStoredTranscriptions();
       
       if (localTranscripts.length === 0) {
-        // Generate sample data if nothing is available
-        const sampleTranscripts = generateSampleTranscripts();
-        setTranscripts(sampleTranscripts as unknown as CallTranscript[]);
-        setTotalCount(sampleTranscripts.length);
+        console.log('No transcripts available in local storage');
+        setTranscripts([]);
+        setTotalCount(0);
         setLoading(false);
-        return sampleTranscripts as unknown as CallTranscript[];
+        return [];
       }
       
-      setTranscripts(localTranscripts as unknown as CallTranscript[]);
-      setTotalCount(localTranscripts.length);
-      setLoading(false);
-      return localTranscripts as unknown as CallTranscript[];
+      // Convert localStorage format to CallTranscript format
+      const formattedTranscripts = localTranscripts.map(t => ({
+        id: t.id,
+        text: t.text,
+        created_at: t.date,
+        duration: t.duration || 0,
+        sentiment: t.sentiment as "positive" | "neutral" | "negative",
+        call_score: t.call_score || 50,
+        keywords: t.keywords || [],
+        filename: t.filename || "Unknown",
+        transcript_segments: t.transcript_segments 
+      })) as CallTranscript[];
       
+      setTranscripts(formattedTranscripts);
+      setTotalCount(formattedTranscripts.length);
+      setLoading(false);
+      return formattedTranscripts;
     } catch (err) {
       console.error('Error in fetchTranscripts:', err);
       setError(err as Error);
@@ -123,41 +135,3 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     fetchTranscripts
   };
 };
-
-function generateSampleTranscripts(): StoredTranscription[] {
-  const now = new Date();
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const twoDaysAgo = new Date(now);
-  twoDaysAgo.setDate(now.getDate() - 2);
-  
-  return [
-    {
-      id: '1',
-      text: "Hi, this is John from sales. I'm calling to follow up on our previous conversation about our software solution. Could you tell me more about your current needs?",
-      date: now.toISOString(),
-      sentiment: 'positive',
-      duration: 124,
-      call_score: 85,
-      keywords: ['software', 'needs', 'solution']
-    },
-    {
-      id: '2',
-      text: "Hello, I'm calling about the issue you reported yesterday. I understand it's been frustrating. Let me see how I can help resolve this problem quickly for you.",
-      date: yesterday.toISOString(),
-      sentiment: 'neutral',
-      duration: 183,
-      call_score: 72,
-      keywords: ['issue', 'problem', 'help']
-    },
-    {
-      id: '3',
-      text: "I'm disappointed with the service quality. We've had repeated issues with the product and the support has been inadequate. I'd like to speak with a manager.",
-      date: twoDaysAgo.toISOString(),
-      sentiment: 'negative',
-      duration: 215,
-      call_score: 45,
-      keywords: ['disappointed', 'issues', 'inadequate']
-    }
-  ];
-}

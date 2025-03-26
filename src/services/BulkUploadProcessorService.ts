@@ -76,14 +76,23 @@ export class BulkUploadProcessorService {
       const useLocalWhisper = this.whisperService.getUseLocalWhisper();
       console.log(`Using ${useLocalWhisper ? 'local' : 'API'} Whisper for transcription`);
 
+      // Check for API key if using OpenAI API
+      if (!useLocalWhisper) {
+        const apiKey = this.whisperService.getOpenAIKey();
+        if (!apiKey) {
+          throw new Error("OpenAI API key is missing. Please add it in the Settings page.");
+        }
+      }
+
+      // Real transcription - no mock data
       const result = await this.whisperService.transcribeAudio(file);
 
-      if (!result) {
-        throw new Error("Transcription failed. Please check your API key.");
+      if (!result || !result.text) {
+        throw new Error("Transcription failed. Please check your audio file or API key.");
       }
       
       // Phase 2: Process transcription
-      console.log('Processing transcription...');
+      console.log('Processing transcription result:', result);
       updateStatus('processing', 50, result.text, undefined);
       
       // Process and save transcript data
@@ -129,7 +138,11 @@ export class BulkUploadProcessorService {
       );
       
       if (error) {
-        throw new Error(`Failed to save transcript: ${error.message}`);
+        throw new Error(`Failed to save transcript: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      
+      if (!id) {
+        throw new Error("Failed to generate transcript ID");
       }
       
       // Update status to indicate processing trends
@@ -165,9 +178,6 @@ export class BulkUploadProcessorService {
         filename: file.name,
         duration: await databaseService.calculateAudioDuration(file)
       });
-      
-      // Notify using toast - this can cause UI clutter with multiple files
-      // so we'll leave it to the parent component to show the completion toast
     } catch (error) {
       errorHandler.handleError(error, 'BulkUploadProcessorService.processTranscriptData');
       throw error;

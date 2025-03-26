@@ -56,6 +56,15 @@ export const useBulkUploadService = () => {
       return;
     }
     
+    // Check for API key if not using local Whisper
+    if (!whisperService.getUseLocalWhisper() && !whisperService.getOpenAIKey()) {
+      toast.error("OpenAI API Key Missing", {
+        description: "Please add your OpenAI API key in Settings before processing files."
+      });
+      releaseProcessingLock();
+      return;
+    }
+    
     console.log(`Starting to process ${files.length} files`);
     
     try {
@@ -72,6 +81,15 @@ export const useBulkUploadService = () => {
       );
       
       console.log(`Found ${queuedFiles.length} files to process`);
+      
+      if (queuedFiles.length === 0) {
+        toast.info("No files to process", {
+          description: "All files have already been processed or are currently processing."
+        });
+        setProcessing(false);
+        releaseProcessingLock();
+        return;
+      }
       
       for (let i = 0; i < queuedFiles.length; i++) {
         const file = queuedFiles[i];

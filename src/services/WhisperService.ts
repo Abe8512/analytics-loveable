@@ -187,44 +187,109 @@ export const useWhisperService = () => {
     const id = uuidv4();
     const now = new Date();
     
-    // Generate a simple sentiment based on text content
-    let sentiment = "neutral";
     const lowerText = text.toLowerCase();
-    if (lowerText.includes("great") || lowerText.includes("excellent") || lowerText.includes("happy")) {
+    let sentiment = "neutral";
+    
+    // Basic sentiment analysis
+    if (lowerText.includes("great") || lowerText.includes("excellent") || lowerText.includes("happy") || 
+        lowerText.includes("thank") || lowerText.includes("appreciate")) {
       sentiment = "positive";
-    } else if (lowerText.includes("bad") || lowerText.includes("issue") || lowerText.includes("problem")) {
+    } else if (lowerText.includes("bad") || lowerText.includes("issue") || lowerText.includes("problem") || 
+               lowerText.includes("not working") || lowerText.includes("error") || lowerText.includes("disappoint")) {
       sentiment = "negative";
     }
     
-    // Extract simple keywords
-    const keywords = ["sales", "product", "price", "feature", "support"].filter(
-      keyword => lowerText.includes(keyword)
-    );
+    // Real keyword extraction
+    const commonWords = new Set(["a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "about", "is", "are", "was", "were"]);
+    const wordCounts: Record<string, number> = {};
     
-    // Calculate a simple call score (0-100)
-    const callScore = Math.floor(Math.random() * 30) + 70; // Random score between 70-100 for demo
+    // Count word frequencies for keywords
+    lowerText.split(/\s+/).forEach(word => {
+      const cleanWord = word.replace(/[.,!?;:()"'-]/g, '');
+      if (cleanWord && cleanWord.length > 3 && !commonWords.has(cleanWord)) {
+        wordCounts[cleanWord] = (wordCounts[cleanWord] || 0) + 1;
+      }
+    });
+    
+    // Convert to array and sort by frequency
+    const keywords = Object.entries(wordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([word]) => word);
+    
+    // Calculate a call score (0-100) based on text analysis
+    let callScore = 70; // Base score
+    if (sentiment === "positive") {
+      callScore += 15;
+    } else if (sentiment === "negative") {
+      callScore -= 15;
+    }
+    
+    // Content length factor (longer transcripts generally contain more information)
+    callScore += Math.min(Math.floor(text.length / 100), 10);
+    
+    // Ensure score is within bounds
+    callScore = Math.max(0, Math.min(100, callScore));
+    
+    // Segment the text into speaker turns
+    const sentenceRegex = /[.!?]+/;
+    const sentences = text.split(sentenceRegex).filter(s => s.trim().length > 0);
+    
+    // Create transcript segments
+    const transcript_segments = sentences.map((sentence, i) => {
+      const duration = sentence.length / 20; // Rough estimate: ~20 chars per second of speech
+      return {
+        id: i + 1,
+        start: i === 0 ? 0 : sentences.slice(0, i).reduce((acc, s) => acc + s.length / 20, 0),
+        end: sentences.slice(0, i + 1).reduce((acc, s) => acc + s.length / 20, 0),
+        text: sentence.trim() + (sentence.trim().match(sentenceRegex) ? '' : '.'),
+        speaker: i % 2 === 0 ? "Agent" : "Customer"
+      };
+    });
+    
+    // Calculate total duration
+    const duration = audioFile ? 
+      await calculateAudioDuration(audioFile) : 
+      transcript_segments.length > 0 ? 
+        transcript_segments[transcript_segments.length - 1].end : 60;
     
     const newTranscription: StoredTranscription = {
       id,
       text,
       date: now.toISOString(),
-      duration: audioFile ? 120 : 60, // Mock duration
+      duration,
       sentiment,
       keywords,
       filename: filename || (audioFile ? audioFile.name : "Recording"),
-      call_score: callScore, 
-      transcript_segments: text.split('. ').map((sentence, i) => ({
-        id: i + 1,
-        start: i * 10,
-        end: (i + 1) * 10,
-        text: sentence + '.',
-        speaker: i % 2 === 0 ? "Agent" : "Customer"
-      }))
+      call_score: callScore,
+      transcript_segments
     };
     
     addTranscription(newTranscription);
     
     return newTranscription;
+  };
+  
+  // Calculate audio duration from audio file
+  const calculateAudioDuration = (audioFile: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const audioUrl = URL.createObjectURL(audioFile);
+      const audio = new Audio(audioUrl);
+      
+      audio.addEventListener('loadedmetadata', () => {
+        const duration = audio.duration;
+        URL.revokeObjectURL(audioUrl);
+        resolve(Math.round(duration));
+      });
+      
+      // Fallback if metadata doesn't load properly
+      audio.addEventListener('error', () => {
+        URL.revokeObjectURL(audioUrl);
+        // Estimate duration based on file size
+        const estimatedSeconds = Math.round(audioFile.size / 32000);
+        resolve(estimatedSeconds > 0 ? estimatedSeconds : 60);
+      });
+    });
   };
   
   // Start realtime transcription
@@ -241,40 +306,51 @@ export const useWhisperService = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let fullTranscript = "";
       
-      const mockTranscriptionUpdate = () => {
-        const sentences = [
-          "Hello, this is a sales call.",
-          "I'm interested in your product.",
-          "Can you tell me more about the pricing?",
-          "We offer competitive pricing based on your needs.",
-          "What features are included?",
-          "Our product includes all the features you need.",
-          "How does it compare to competitors?",
-          "We offer better value and more features.",
-        ];
+      // Real implementation using browser's SpeechRecognition
+      const SpeechRecognition = getSpeechRecognition();
+      if (!SpeechRecognition) {
+        onError("Speech recognition not supported in this browser");
+        return null;
+      }
+      
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
         
-        // Add a new sentence every 3 seconds
-        let currentIndex = 0;
-        
-        const intervalId = setInterval(() => {
-          if (currentIndex < sentences.length) {
-            fullTranscript += " " + sentences[currentIndex];
-            onTranscriptUpdate(fullTranscript.trim());
-            currentIndex++;
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript + ' ';
           } else {
-            clearInterval(intervalId);
+            interimTranscript += event.results[i][0].transcript;
           }
-        }, 3000);
+        }
         
-        return {
-          stop: () => {
-            clearInterval(intervalId);
-            stream.getTracks().forEach(track => track.stop());
-          }
-        };
+        if (finalTranscript) {
+          fullTranscript += finalTranscript;
+          onTranscriptUpdate(fullTranscript.trim());
+        }
+        
+        if (interimTranscript) {
+          onTranscriptUpdate(fullTranscript.trim() + ' ' + interimTranscript);
+        }
       };
       
-      return mockTranscriptionUpdate();
+      recognition.onerror = (event: any) => {
+        onError(`Speech recognition error: ${event.error}`);
+      };
+      
+      recognition.start();
+      
+      return {
+        stop: () => {
+          recognition.stop();
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
     } catch (error) {
       console.error("Error starting recording:", error);
       onError("Failed to access microphone");
@@ -284,52 +360,141 @@ export const useWhisperService = () => {
   
   const transcribeAudio = async (file: File): Promise<WhisperTranscriptionResponse> => {
     try {
+      setIsTranscribing(true);
+      
       if (useLocalWhisper) {
-        // For local Whisper, we use a mock implementation for now
-        return await mockTranscription(file);
+        // Real implementation for local Whisper using HuggingFace transformers
+        try {
+          // First, try to load the transformers package
+          const { pipeline } = await import('@huggingface/transformers');
+          console.log("Loading ASR model...");
+          
+          // Create a toast notification
+          toast.info("Loading Whisper model...", {
+            duration: 5000,
+          });
+          
+          // Create automatic speech recognition pipeline
+          const transcriber = await pipeline(
+            "automatic-speech-recognition",
+            "openai/whisper-small",
+            { quantized: true }
+          );
+          
+          // Convert file to a format that the model can use
+          const fileUrl = URL.createObjectURL(file);
+          
+          // Transcribe audio
+          toast.info("Transcribing audio...", {
+            duration: 5000,
+          });
+          
+          const output = await transcriber(fileUrl, {
+            chunk_length_s: 30,
+            stride_length_s: 5,
+            language: "english",
+            task: "transcribe",
+          });
+          
+          // Clean up
+          URL.revokeObjectURL(fileUrl);
+          
+          // Create segments
+          const text = output.text || "";
+          const sentences = text.split(/(?<=[.!?])\s+/);
+          const segments = sentences.map((sentence, i) => {
+            // Estimate 5 words per second for timing
+            const wordCount = sentence.split(/\s+/).length;
+            const duration = wordCount / 5;
+            const start = i === 0 ? 0 : 
+              sentences.slice(0, i).reduce((total, s) => total + s.split(/\s+/).length / 5, 0);
+            
+            return {
+              id: i + 1,
+              start,
+              end: start + duration,
+              text: sentence,
+              speaker: i % 2 === 0 ? "agent" : "customer"
+            };
+          });
+          
+          return {
+            text,
+            segments,
+            language: "en",
+            duration: segments.length > 0 ? segments[segments.length - 1].end : 0
+          };
+        } catch (error) {
+          console.error('Error using local Whisper model:', error);
+          errorHandler.handleError(error, 'WhisperService.transcribeAudio.localWhisper');
+          throw new Error('Local transcription failed. Please check console for details.');
+        }
       } else {
-        // For API-based Whisper, we'd normally call the OpenAI API
-        // Check if API key exists
-        const apiKey = localStorage.getItem("openai_api_key");
+        // Use OpenAI API
+        const apiKey = getOpenAIKey();
         
         if (!apiKey) {
           throw new Error("OpenAI API key is missing. Please add it in the Settings page.");
         }
         
-        // Since we can't actually call the API in this demo, we'll use mock data
-        return await mockTranscription(file);
+        // We'll use FormData to send the file to OpenAI API
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('model', 'whisper-1');
+        formData.append('response_format', 'verbose_json');
+        
+        // If number of speakers is greater than 1, enable diarization
+        if (numSpeakers > 1) {
+          formData.append('prompt', 'This is a conversation between a sales agent and a customer.');
+        }
+        
+        try {
+          // Call OpenAI API
+          const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: formData
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+          }
+          
+          const result = await response.json();
+          
+          // Process the response
+          return {
+            text: result.text,
+            segments: result.segments?.map((segment: any) => ({
+              id: segment.id,
+              start: segment.start,
+              end: segment.end,
+              text: segment.text,
+              speaker: segment.speaker || (segment.id % 2 === 0 ? "agent" : "customer")
+            })),
+            language: result.language,
+            duration: result.duration
+          };
+        } catch (error) {
+          console.error('Error calling OpenAI API:', error);
+          errorHandler.handleError(error, 'WhisperService.transcribeAudio.openaiAPI');
+          throw error;
+        }
       }
     } catch (error) {
       console.error('Transcription error:', error);
       errorHandler.handleError(error, 'WhisperService.transcribeAudio');
       throw error;
+    } finally {
+      setIsTranscribing(false);
     }
   };
   
-  const mockTranscription = async (file: File): Promise<WhisperTranscriptionResponse> => {
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Generate demo text with file name mentioned
-    const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
-    const demoText = `This is a demo transcription for file "${fileName}". Hello, thank you for calling our company. How can I help you today? I'm interested in learning more about your product offerings. Can you tell me about your pricing plans? Of course, we have several pricing tiers designed to meet different customer needs. Our basic plan starts at $29 per month and includes all core features. For enterprise clients, we offer custom solutions with dedicated support.`;
-    
-    // Create mock segments with alternating speakers
-    const segments = demoText.split('. ').map((sentence, i) => ({
-      id: i + 1,
-      start: i * 10,
-      end: (i + 1) * 10,
-      text: sentence + (sentence.endsWith('.') ? '' : '.'),
-      speaker: i % 2 === 0 ? "agent" : "customer"
-    }));
-    
-    // Return mock response
-    return {
-      text: demoText,
-      segments,
-      language: "en",
-      duration: 120 // 2 minutes in seconds
-    };
+  const getOpenAIKey = (): string | null => {
+    return localStorage.getItem('openai_api_key');
   };
   
   const forceRefreshTranscriptions = () => {
@@ -350,6 +515,7 @@ export const useWhisperService = () => {
     transcribeAudio,
     getUseLocalWhisper: () => useLocalWhisper,
     getNumSpeakers: () => numSpeakers,
+    getOpenAIKey,
     forceRefreshTranscriptions,
     getStoredTranscriptions: () => {
       try {
