@@ -7,10 +7,8 @@ import {
   type RepMetricsData as RepMetrics,
   type DataFilters
 } from "./SharedDataService";
-import { validateMetricConsistency } from "@/utils/metricCalculations";
-import { animationUtils } from "@/utils/animationUtils";
 import { useStableLoadingState } from "@/hooks/useStableLoadingState";
-import { errorHandler, withErrorHandling } from "./ErrorHandlingService";
+import { errorHandler } from "./ErrorHandlingService";
 
 // Re-export TeamMetrics and RepMetrics for backward compatibility
 export type { TeamMetrics, RepMetrics };
@@ -46,12 +44,41 @@ const DEFAULT_REP_METRICS: RepMetrics[] = [
 ];
 
 /**
+ * Hook for useStableLoadingState if it doesn't exist
+ */
+const useDefaultStableLoadingState = (isLoading: boolean, delay: number = 300) => {
+  const [stableLoading, setStableLoading] = useState(isLoading);
+  
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    
+    if (isLoading) {
+      setStableLoading(true);
+    } else {
+      timer = setTimeout(() => setStableLoading(false), delay);
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoading, delay]);
+  
+  return stableLoading;
+};
+
+// Import useState for the custom hook
+import { useState } from "react";
+
+/**
  * Optimized hook for real-time team metrics with improved performance
  */
 export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
-  // Add a longer delay to loading state transitions to prevent flickering
-  const stableLoading = useStableLoadingState(isLoading, 500); // Increased delay for UI stability
+  
+  // Use our custom hook as a fallback if the imported one isn't available
+  const stableLoading = typeof useStableLoadingState === 'function' 
+    ? useStableLoadingState(isLoading, 500) 
+    : useDefaultStableLoadingState(isLoading, 500);
   
   // Stabilize metrics with memoization to prevent UI jitter
   const stableMetrics = useMemo(() => {
@@ -85,7 +112,7 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
   
   // Log errors for monitoring but don't impact the UI
   useEffect(() => {
-    if (error) {
+    if (error && typeof errorHandler !== 'undefined') {
       console.error("Error loading team metrics:", error);
       errorHandler.handleError({
         message: "Couldn't load team metrics",
@@ -93,6 +120,8 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
         severity: "warning",
         code: "TEAM_METRICS_ERROR"
       }, "TeamMetrics");
+    } else if (error) {
+      console.error("Error loading team metrics:", error);
     }
   }, [error]);
   
@@ -113,8 +142,10 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
   // Access the error property safely
   const error = 'error' in repMetricsResponse ? repMetricsResponse.error : undefined;
   
-  // Significantly increased loading delay to prevent UI flickering
-  const stableLoading = useStableLoadingState(isLoading, 500); 
+  // Use our custom hook as a fallback if the imported one isn't available
+  const stableLoading = typeof useStableLoadingState === 'function' 
+    ? useStableLoadingState(isLoading, 500) 
+    : useDefaultStableLoadingState(isLoading, 500);
   
   // Use default metrics when loading or no data available
   const stableMetrics = useMemo(() => {
@@ -145,13 +176,15 @@ export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean
   
   // Handle errors
   useEffect(() => {
-    if (error) {
+    if (error && typeof errorHandler !== 'undefined') {
       errorHandler.handleError({
         message: "Couldn't load rep metrics",
         technical: error ? (typeof error === 'string' ? error : JSON.stringify(error)) : 'Unknown error',
         severity: "warning",
         code: "REP_METRICS_ERROR"
       }, "RepMetrics");
+    } else if (error) {
+      console.error("Error loading rep metrics:", error);
     }
   }, [error]);
   

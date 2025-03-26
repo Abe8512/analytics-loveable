@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
+import { getManagedUsers as getSharedManagedUsers } from '@/services/SharedDataService';
 
 export interface AuthContextType {
   user: User | null;
@@ -173,14 +174,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // Function to get managed users (first from database, fallback to mock data)
   const getManagedUsers = () => {
-    // This would typically fetch from the database, but for now we return demo data
-    return [
-      { id: "1", name: "Alex Johnson", email: "alex@example.com", role: "sales" },
-      { id: "2", name: "Maria Garcia", email: "maria@example.com", role: "sales" },
-      { id: "3", name: "David Kim", email: "david@example.com", role: "sales" },
-      { id: "4", name: "Sarah Williams", email: "sarah@example.com", role: "sales" },
-      { id: "5", name: "James Taylor", email: "james@example.com", role: "sales" }
-    ];
+    return getSharedManagedUsers();
   };
 
   const value = {

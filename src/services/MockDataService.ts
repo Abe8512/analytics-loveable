@@ -1,219 +1,191 @@
 
-import { TeamMetrics } from "./RealTimeMetricsService";
+import { v4 as uuidv4 } from 'uuid';
+import type { TeamMetricsData, RepMetricsData } from './SharedDataService';
 
-// Mock KPI data generation with enhanced sales metrics
-export const generateMockKPIData = (): {
-  performanceScore: number;
-  totalCalls: number;
-  conversionRate: number;
-  callsChange: number;
-  performanceChange: number;
-  conversionChange: number;
-  avgTalkRatio: { agent: number; customer: number };
-  objectionHandlingScore: number;
-  discoveryQuestionsRate: number;
-  closingTechniquesScore: number;
-  followUpCommitmentRate: number;
-  clientEngagementScore: number;
-  silencePercentage: number;
-  painPointIdentificationScore: number;
-} => {
-  return {
-    performanceScore: Math.floor(Math.random() * 25) + 65, // 65-90
-    totalCalls: Math.floor(Math.random() * 50) + 100, // 100-150
-    conversionRate: Math.floor(Math.random() * 20) + 25, // 25-45
-    callsChange: Math.floor(Math.random() * 10) + 1, // 1-10
-    performanceChange: Math.floor(Math.random() * 15) + 1, // 1-15
-    conversionChange: Math.floor(Math.random() * 12) + 2, // 2-14
-    avgTalkRatio: {
-      agent: Math.floor(Math.random() * 20) + 45, // 45-65
-      customer: Math.floor(Math.random() * 20) + 35, // 35-55
-    },
-    objectionHandlingScore: Math.floor(Math.random() * 30) + 65, // 65-95
-    discoveryQuestionsRate: Math.floor(Math.random() * 25) + 5, // 5-30 questions per hour
-    closingTechniquesScore: Math.floor(Math.random() * 25) + 60, // 60-85
-    followUpCommitmentRate: Math.floor(Math.random() * 40) + 50, // 50-90%
-    clientEngagementScore: Math.floor(Math.random() * 30) + 60, // 60-90
-    silencePercentage: Math.floor(Math.random() * 15) + 5, // 5-20%
-    painPointIdentificationScore: Math.floor(Math.random() * 25) + 65, // 65-90
-  };
-};
+// Flag to control whether mock data should be used
+export const USE_MOCK_DATA = true;
 
-// Extended mock team metrics data
-export const generateMockTeamMetrics = (): TeamMetrics => {
+// Generate mock data for team metrics
+export const generateMockTeamMetrics = (): TeamMetricsData => {
   return {
-    totalCalls: Math.floor(Math.random() * 250) + 150, // 150-400
-    avgSentiment: Math.random() * 0.3 + 0.6, // 0.6-0.9
+    totalCalls: Math.floor(Math.random() * 200) + 80,
+    avgSentiment: +(Math.random() * 0.4 + 0.5).toFixed(2),
     avgTalkRatio: {
-      agent: Math.floor(Math.random() * 20) + 45, // 45-65
-      customer: Math.floor(Math.random() * 20) + 35, // 35-55
+      agent: Math.floor(Math.random() * 15) + 45,
+      customer: Math.floor(Math.random() * 15) + 40,
     },
     topKeywords: [
-      "pricing",
-      "features",
-      "implementation",
-      "timeline",
-      "support",
-      "competitors",
-      "budget",
-      "decision",
-      "concerns",
-      "integration"
+      'pricing',
+      'features',
+      'support',
+      'integration',
+      'implementation',
+      'timeline',
+      'competition',
+      'discount',
     ].sort(() => Math.random() - 0.5).slice(0, 5),
-    performanceScore: Math.floor(Math.random() * 25) + 60, // 60-85
-    conversionRate: Math.floor(Math.random() * 15) + 30, // 30-45
+    performanceScore: Math.floor(Math.random() * 20) + 65,
+    conversionRate: Math.floor(Math.random() * 25) + 35,
   };
 };
 
-// Enhanced chart data generation
-export const generateMockChartData = () => {
-  // Performance data for the line chart
-  const performanceData = [
-    { name: "Mon", score: Math.floor(Math.random() * 15) + 65 },
-    { name: "Tue", score: Math.floor(Math.random() * 15) + 65 },
-    { name: "Wed", score: Math.floor(Math.random() * 15) + 65 },
-    { name: "Thu", score: Math.floor(Math.random() * 15) + 65 },
-    { name: "Fri", score: Math.floor(Math.random() * 15) + 65 },
-    { name: "Sat", score: Math.floor(Math.random() * 15) + 65 },
-    { name: "Sun", score: Math.floor(Math.random() * 15) + 65 }
+// List of possible insights for generating rep data
+const POSSIBLE_INSIGHTS = [
+  'Excellent rapport building',
+  'Good at overcoming objections',
+  'Strong product knowledge',
+  'Could improve closing',
+  'Great at discovery questions',
+  'Needs work on follow-up',
+  'Effective at handling price objections',
+  'Should focus more on benefits vs. features',
+  'Good call control',
+  'Needs improvement in time management',
+  'Strong active listening skills',
+  'Could ask more targeted questions',
+];
+
+// Generate mock data for rep metrics
+export const generateMockRepMetrics = (count: number = 5): RepMetricsData[] => {
+  // Fixed rep names to ensure consistency
+  const repNames = [
+    'Alex Johnson',
+    'Maria Garcia',
+    'David Kim',
+    'Sarah Williams',
+    'James Taylor',
+    'Emily Chen',
+    'Robert Martinez',
+    'Lisa Brown',
+    'Michael Singh',
+    'Jennifer Lopez',
   ];
-  
-  // Call volume data for the bar chart
-  const callVolumeData = [
-    { name: "Mon", calls: Math.floor(Math.random() * 10) + 5 },
-    { name: "Tue", calls: Math.floor(Math.random() * 10) + 5 },
-    { name: "Wed", calls: Math.floor(Math.random() * 10) + 5 },
-    { name: "Thu", calls: Math.floor(Math.random() * 10) + 5 },
-    { name: "Fri", calls: Math.floor(Math.random() * 10) + 5 },
-    { name: "Sat", calls: Math.floor(Math.random() * 10) + 5 },
-    { name: "Sun", calls: Math.floor(Math.random() * 10) + 5 }
-  ];
-  
-  // Conversion rate data for the area chart
-  const conversionData = [
-    { name: "Mon", rate: Math.floor(Math.random() * 15) + 20 },
-    { name: "Tue", rate: Math.floor(Math.random() * 15) + 20 },
-    { name: "Wed", rate: Math.floor(Math.random() * 15) + 20 },
-    { name: "Thu", rate: Math.floor(Math.random() * 15) + 20 },
-    { name: "Fri", rate: Math.floor(Math.random() * 15) + 20 },
-    { name: "Sat", rate: Math.floor(Math.random() * 15) + 20 },
-    { name: "Sun", rate: Math.floor(Math.random() * 15) + 20 }
-  ];
-  
-  // Talk ratio data
-  const talkRatioData = [
-    { name: "Mon", agent: 55, customer: 45 },
-    { name: "Tue", agent: 60, customer: 40 },
-    { name: "Wed", agent: 52, customer: 48 },
-    { name: "Thu", agent: 48, customer: 52 },
-    { name: "Fri", agent: 45, customer: 55 },
-    { name: "Sat", agent: 58, customer: 42 },
-    { name: "Sun", agent: 50, customer: 50 }
-  ];
-  
-  // Objection handling data
-  const objectionHandlingData = [
-    { name: "Mon", score: Math.floor(Math.random() * 15) + 70 },
-    { name: "Tue", score: Math.floor(Math.random() * 15) + 70 },
-    { name: "Wed", score: Math.floor(Math.random() * 15) + 70 },
-    { name: "Thu", score: Math.floor(Math.random() * 15) + 70 },
-    { name: "Fri", score: Math.floor(Math.random() * 15) + 70 },
-    { name: "Sat", score: Math.floor(Math.random() * 15) + 70 },
-    { name: "Sun", score: Math.floor(Math.random() * 15) + 70 }
-  ];
-  
-  // Question frequency data
-  const questionFrequencyData = [
-    { name: "Discovery", value: Math.floor(Math.random() * 30) + 20 },
-    { name: "Pain Points", value: Math.floor(Math.random() * 20) + 15 },
-    { name: "Budget", value: Math.floor(Math.random() * 15) + 10 },
-    { name: "Timeline", value: Math.floor(Math.random() * 15) + 5 },
-    { name: "Decision", value: Math.floor(Math.random() * 10) + 5 }
-  ];
-  
-  // Keyword occurrence data for radar chart
-  const keywordOccurrenceData = [
-    { subject: 'Pricing', A: Math.floor(Math.random() * 50) + 50, fullMark: 100 },
-    { subject: 'Features', A: Math.floor(Math.random() * 50) + 50, fullMark: 100 },
-    { subject: 'Competitors', A: Math.floor(Math.random() * 50) + 30, fullMark: 100 },
-    { subject: 'Implementation', A: Math.floor(Math.random() * 50) + 40, fullMark: 100 },
-    { subject: 'Support', A: Math.floor(Math.random() * 50) + 45, fullMark: 100 },
-    { subject: 'ROI', A: Math.floor(Math.random() * 50) + 35, fullMark: 100 },
-  ];
-  
-  // Silence distribution data
-  const silenceDistributionData = [
-    { name: "0-5s", value: Math.floor(Math.random() * 30) + 40 },
-    { name: "5-10s", value: Math.floor(Math.random() * 20) + 20 },
-    { name: "10-15s", value: Math.floor(Math.random() * 15) + 10 },
-    { name: "15-20s", value: Math.floor(Math.random() * 10) + 5 },
-    { name: "20s+", value: Math.floor(Math.random() * 5) + 2 }
-  ];
-  
-  return {
-    performanceData,
-    callVolumeData,
-    conversionData,
-    talkRatioData,
-    objectionHandlingData,
-    questionFrequencyData,
-    keywordOccurrenceData,
-    silenceDistributionData
-  };
+
+  return Array.from({ length: Math.min(count, repNames.length) }, (_, i) => {
+    // Pick 2-3 random insights
+    const insights = [...POSSIBLE_INSIGHTS]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.floor(Math.random() * 2) + 2);
+
+    return {
+      id: uuidv4(),
+      name: repNames[i],
+      callVolume: Math.floor(Math.random() * 80) + 80,
+      successRate: Math.floor(Math.random() * 25) + 55,
+      sentiment: +(Math.random() * 0.3 + 0.6).toFixed(2),
+      insights,
+    };
+  });
 };
 
-// Generate mock call transcript keywords based on sales methodology
-export const generateMockSalesKeywords = () => {
-  const discoverySets = [
-    ["tell me about", "how do you currently", "what challenges", "walk me through", "describe your process"],
-    ["pain points", "frustrations", "issues", "challenges", "problems"],
-    ["goals", "objectives", "targets", "outcomes", "results"],
-    ["timeline", "deadline", "schedule", "roadmap", "timeframe"],
-    ["budget", "investment", "cost", "pricing", "spending"]
+// Generate mock call transcripts
+export const generateMockTranscripts = (count: number = 10) => {
+  const customers = [
+    'John Smith',
+    'Maria Rodriguez',
+    'David Chen',
+    'Sarah Johnson',
+    'Michael Kim',
+    'Emily Wilson',
+    'Robert Brown',
+    'Jennifer Davis',
+    'William Taylor',
+    'Lisa Martinez',
   ];
-  
-  const objectionSets = [
-    ["too expensive", "over budget", "can't afford", "high price", "costly"],
-    ["need to think", "not ready", "need more time", "too soon", "premature"],
-    ["need to discuss", "talk to team", "check with", "get approval", "run by"],
-    ["competitors", "other options", "alternatives", "shopping around", "comparing"]
-  ];
-  
-  const closingSets = [
-    ["next steps", "move forward", "proceed with", "get started", "implementation"],
-    ["contract", "agreement", "proposal", "paperwork", "sign"],
-    ["timeline", "schedule", "start date", "kickoff", "onboarding"],
-    ["discount", "special offer", "promotion", "deal", "package"]
-  ];
-  
-  // Select random keywords from each category
-  const discoveryKeywords = discoverySets.map(set => set[Math.floor(Math.random() * set.length)]);
-  const objectionKeywords = objectionSets.map(set => set[Math.floor(Math.random() * set.length)]);
-  const closingKeywords = closingSets.map(set => set[Math.floor(Math.random() * set.length)]);
-  
-  return {
-    discovery: discoveryKeywords,
-    objections: objectionKeywords,
-    closing: closingKeywords
-  };
+
+  return Array.from({ length: count }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - Math.floor(Math.random() * 30));
+    
+    const sentiment = Math.random();
+    let sentimentLabel: 'positive' | 'neutral' | 'negative';
+    
+    if (sentiment > 0.6) sentimentLabel = 'positive';
+    else if (sentiment > 0.3) sentimentLabel = 'neutral';
+    else sentimentLabel = 'negative';
+    
+    return {
+      id: uuidv4(),
+      text: 'This is a sample transcript text for demonstration purposes.',
+      created_at: date.toISOString(),
+      user_id: uuidv4(),
+      user_name: 'Demo Sales Rep',
+      customer_name: customers[Math.floor(Math.random() * customers.length)],
+      duration: Math.floor(Math.random() * 1200) + 300, // 5-25 minutes
+      call_score: Math.floor(Math.random() * 40) + 60, // 60-100
+      sentiment: sentimentLabel,
+      keywords: ['pricing', 'features', 'support'].sort(() => Math.random() - 0.5),
+      filename: `call_${i + 1}.mp3`,
+      transcript_segments: [
+        {
+          id: '1',
+          text: 'Hello, how can I help you today?',
+          start: 0,
+          end: 3,
+          speaker: 'Agent',
+        },
+        {
+          id: '2',
+          text: 'Hi, I\'m interested in your product but have some questions about pricing.',
+          start: 3.5,
+          end: 8,
+          speaker: 'Customer',
+        },
+        {
+          id: '3',
+          text: 'I\'d be happy to go over our pricing options with you.',
+          start: 8.5,
+          end: 12,
+          speaker: 'Agent',
+        },
+      ],
+      metadata: {
+        call_type: 'sales',
+        product: 'SaaS Platform',
+        stage: Math.random() > 0.5 ? 'discovery' : 'demo',
+      },
+    };
+  });
 };
 
-// Sales funnel data
-export const generateMockSalesFunnelData = () => {
-  const totalProspects = Math.floor(Math.random() * 500) + 500;
-  const qualifiedLeads = Math.floor(totalProspects * (Math.random() * 0.3 + 0.5)); // 50-80% of prospects
-  const opportunities = Math.floor(qualifiedLeads * (Math.random() * 0.3 + 0.4)); // 40-70% of qualified leads
-  const proposals = Math.floor(opportunities * (Math.random() * 0.3 + 0.4)); // 40-70% of opportunities
-  const closedDeals = Math.floor(proposals * (Math.random() * 0.2 + 0.3)); // 30-50% of proposals
+// Generate a daily call metrics series for charting
+export const generateDailyCallMetrics = (days: number = 30) => {
+  const today = new Date();
+  const result = [];
   
-  return [
-    { name: "Prospects", value: totalProspects },
-    { name: "Qualified Leads", value: qualifiedLeads },
-    { name: "Opportunities", value: opportunities },
-    { name: "Proposals", value: proposals },
-    { name: "Closed Deals", value: closedDeals }
-  ];
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(today.getDate() - i);
+    
+    result.push({
+      date: date.toISOString().split('T')[0],
+      calls: Math.floor(Math.random() * 20) + 5,
+      avgDuration: Math.floor(Math.random() * 300) + 300,
+      avgSentiment: +(Math.random() * 0.4 + 0.5).toFixed(2),
+    });
+  }
+  
+  return result;
 };
 
-// Use this flag to control whether to use mock data or real data
-export const USE_MOCK_DATA = true;
+// Generate keyword trends for charting
+export const generateKeywordTrends = () => {
+  const keywords = [
+    'pricing', 
+    'features', 
+    'support', 
+    'implementation', 
+    'integration',
+    'timeline',
+    'competitors',
+    'demo',
+    'discount',
+    'contract'
+  ];
+  
+  return keywords.map(keyword => ({
+    keyword,
+    count: Math.floor(Math.random() * 50) + 10,
+    sentiment: +(Math.random() * 0.6 + 0.3).toFixed(2),
+  })).sort((a, b) => b.count - a.count);
+};

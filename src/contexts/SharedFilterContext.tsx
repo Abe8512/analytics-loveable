@@ -1,50 +1,71 @@
 
-import React, { createContext, useState, useContext, ReactNode } from "react";
-import { DateRange } from "react-day-picker";
-import { DataFilters } from "@/services/SharedDataService";
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { addDays, subDays, startOfDay, endOfDay } from 'date-fns';
+import type { DataFilters } from '@/services/SharedDataService';
 
 interface SharedFilterContextType {
   filters: DataFilters;
-  updateDateRange: (dateRange: DateRange | undefined) => void;
-  updateRepIds: (repIds: string[]) => void;
-  updateCallTypes: (callTypes: string[]) => void;
-  updateProductLines: (productLines: string[]) => void;
-  clearAllFilters: () => void;
+  updateDateRange: (range: { from: Date; to: Date }) => void;
+  updateRepIds: (ids: string[]) => void;
+  updateSentimentRange: (range: { min: number; max: number }) => void;
+  updateKeywords: (keywords: string[]) => void;
+  updateCustomerId: (id: string | null) => void;
+  resetFilters: () => void;
 }
+
+const defaultFilters: DataFilters = {
+  dateRange: {
+    from: subDays(startOfDay(new Date()), 30), // Last 30 days
+    to: endOfDay(new Date()),
+  },
+  repIds: [],
+  sentimentRange: { min: 0, max: 1 },
+  keywords: [],
+  customerId: undefined,
+};
 
 const SharedFilterContext = createContext<SharedFilterContextType | undefined>(undefined);
 
-export const SharedFilterProvider = ({ children }: { children: ReactNode }) => {
-  const [filters, setFilters] = useState<DataFilters>({
-    dateRange: undefined,
-    repIds: [],
-    callTypes: [],
-    productLines: []
-  });
+export const SharedFilterProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [filters, setFilters] = useState<DataFilters>(defaultFilters);
 
-  const updateDateRange = (dateRange: DateRange | undefined) => {
-    setFilters(prev => ({ ...prev, dateRange }));
+  const updateDateRange = (range: { from: Date; to: Date }) => {
+    setFilters((prev) => ({
+      ...prev,
+      dateRange: range,
+    }));
   };
 
-  const updateRepIds = (repIds: string[]) => {
-    setFilters(prev => ({ ...prev, repIds }));
+  const updateRepIds = (ids: string[]) => {
+    setFilters((prev) => ({
+      ...prev,
+      repIds: ids,
+    }));
   };
 
-  const updateCallTypes = (callTypes: string[]) => {
-    setFilters(prev => ({ ...prev, callTypes }));
+  const updateSentimentRange = (range: { min: number; max: number }) => {
+    setFilters((prev) => ({
+      ...prev,
+      sentimentRange: range,
+    }));
   };
 
-  const updateProductLines = (productLines: string[]) => {
-    setFilters(prev => ({ ...prev, productLines }));
+  const updateKeywords = (keywords: string[]) => {
+    setFilters((prev) => ({
+      ...prev,
+      keywords,
+    }));
   };
 
-  const clearAllFilters = () => {
-    setFilters({
-      dateRange: undefined,
-      repIds: [],
-      callTypes: [],
-      productLines: []
-    });
+  const updateCustomerId = (id: string | null) => {
+    setFilters((prev) => ({
+      ...prev,
+      customerId: id || undefined,
+    }));
+  };
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
   };
 
   return (
@@ -53,9 +74,10 @@ export const SharedFilterProvider = ({ children }: { children: ReactNode }) => {
         filters,
         updateDateRange,
         updateRepIds,
-        updateCallTypes,
-        updateProductLines,
-        clearAllFilters
+        updateSentimentRange,
+        updateKeywords,
+        updateCustomerId,
+        resetFilters,
       }}
     >
       {children}
@@ -65,8 +87,8 @@ export const SharedFilterProvider = ({ children }: { children: ReactNode }) => {
 
 export const useSharedFilters = () => {
   const context = useContext(SharedFilterContext);
-  if (!context) {
-    throw new Error("useSharedFilters must be used within a SharedFilterProvider");
+  if (context === undefined) {
+    throw new Error('useSharedFilters must be used within a SharedFilterProvider');
   }
   return context;
 };
