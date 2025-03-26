@@ -7,10 +7,13 @@ export type EventType =
   | 'transcripts-refreshed'
   | 'bulk-upload-started'
   | 'bulk-upload-completed'
+  | 'bulk-upload-progress'
   | 'team-member-added'
   | 'team-member-removed'
   | 'managed-users-updated'
   | 'call-updated'
+  | 'recording-completed'
+  | 'sentiment-updated'
   | 'connection-restored'
   | 'connection-lost';
 

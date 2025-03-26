@@ -9,9 +9,11 @@ import { AuthProvider } from './contexts/AuthContext';
 import { QueryProvider } from './contexts/QueryContext';
 import AICoaching from './pages/AICoaching';
 import Transcribe from './pages/Transcribe';
+import Transcripts from './pages/Transcripts';
 import { Toaster } from 'sonner';
 import ConnectionMonitor from './components/ui/ConnectionMonitor';
 import Analytics from './pages/Analytics';
+import CallActivity from './pages/CallActivity';
 import { SharedFilterProvider } from './contexts/SharedFilterContext';
 
 export const ThemeContext = createContext({
@@ -49,6 +51,8 @@ function App() {
                   <Route path="/ai-coaching" element={<AICoaching />} />
                   <Route path="/transcribe" element={<Transcribe />} />
                   <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/transcripts" element={<Transcripts />} />
+                  <Route path="/call-activity" element={<CallActivity />} />
                 </Routes>
               </SharedFilterProvider>
             </QueryProvider>

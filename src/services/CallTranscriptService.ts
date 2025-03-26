@@ -2,9 +2,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
 import { CallTranscript } from "@/types/call";
-import { useEventListener } from "@/services/EventsService";
+import { useEventListener } from "@/services/events/hooks";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { StoredTranscription, getStoredTranscriptions } from "@/services/WhisperService";
+import { EventType } from "@/services/events/types";
 
 export interface CallTranscriptFilter {
   dateRange?: { from: Date; to: Date };
@@ -102,13 +103,13 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
   }, [filters.dateRange]);
   
   // Listen for transcript events
-  useEventListener('transcript-created', () => {
+  useEventListener('transcript-created' as EventType, () => {
     fetchTranscripts({
       dateRange: filters.dateRange
     });
   });
   
-  useEventListener('transcripts-updated', () => {
+  useEventListener('transcripts-updated' as EventType, () => {
     fetchTranscripts({
       dateRange: filters.dateRange
     });
