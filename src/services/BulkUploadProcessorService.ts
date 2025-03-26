@@ -33,24 +33,30 @@ export class BulkUploadProcessorService {
     file: File, 
     updateStatus: (status: UploadStatus, progress: number, result?: string, error?: string, transcriptId?: string) => void
   ): Promise<string | null> {
+    console.log(`BulkUploadProcessor: Starting to process file ${file.name}`);
+    
     // If another file is currently being processed, don't allow concurrent processing
     if (this.processingFile) {
-      console.log('Another file is already being processed');
+      console.error('Another file is already being processed');
       updateStatus('error', 0, undefined, "Another file is currently being processed");
       return null;
     }
     
     // Validate file type
     if (!this.isSupportedFormat(file.type)) {
-      console.log(`Unsupported file format: ${file.type}`);
-      updateStatus('error', 0, undefined, `Unsupported file format: ${file.type}. Please upload audio files only.`);
+      const errorMsg = `Unsupported file format: ${file.type}. Please upload audio files only.`;
+      console.error(errorMsg);
+      errorHandler.handleError(new Error(errorMsg), 'BulkUploadProcessorService.processFile.unsupportedFormat');
+      updateStatus('error', 0, undefined, errorMsg);
       return null;
     }
     
     // Check file size
     if (file.size > this.maxFileSize) {
-      console.log(`File too large: ${file.size} bytes (max: ${this.maxFileSize} bytes)`);
-      updateStatus('error', 0, undefined, `File too large. Maximum size is ${Math.round(this.maxFileSize/1024/1024)}MB`);
+      const errorMsg = `File too large: ${Math.round(file.size/1024/1024)}MB. Maximum size is ${Math.round(this.maxFileSize/1024/1024)}MB`;
+      console.error(errorMsg);
+      errorHandler.handleError(new Error(errorMsg), 'BulkUploadProcessorService.processFile.fileTooLarge');
+      updateStatus('error', 0, undefined, errorMsg);
       return null;
     }
     
@@ -70,7 +76,7 @@ export class BulkUploadProcessorService {
       
       // Phase 1: Transcribe the audio file
       console.log('Transcribing audio...');
-      updateStatus('processing', 20, 'Transcribing audio...');
+      updateStatus('processing', 20, 'Transcribing audio...', undefined);
       
       // Check if we're using local Whisper or API
       const useLocalWhisper = this.whisperService.getUseLocalWhisper();
@@ -80,15 +86,25 @@ export class BulkUploadProcessorService {
       if (!useLocalWhisper) {
         const apiKey = this.whisperService.getOpenAIKey();
         if (!apiKey) {
-          throw new Error("OpenAI API key is missing. Please add it in the Settings page.");
+          const error = new Error("OpenAI API key is missing. Please add it in the Settings page.");
+          errorHandler.handleError(error, 'BulkUploadProcessorService.processFile.missingApiKey');
+          updateStatus('error', 0, undefined, error.message);
+          this.processingFile = false;
+          return null;
         }
       }
 
-      // Real transcription - no mock data
+      // Real transcription
+      console.log('Calling whisperService.transcribeAudio with file:', file.name);
       const result = await this.whisperService.transcribeAudio(file);
+      console.log('Transcription completed successfully:', result ? 'Has result' : 'No result');
 
       if (!result || !result.text) {
-        throw new Error("Transcription failed. Please check your audio file or API key.");
+        const errorMsg = "Transcription failed. Please check your audio file or API key.";
+        errorHandler.handleError(new Error(errorMsg), 'BulkUploadProcessorService.processFile.noTranscriptionResult');
+        updateStatus('error', 0, undefined, errorMsg);
+        this.processingFile = false;
+        return null;
       }
       
       // Phase 2: Process transcription
@@ -96,6 +112,7 @@ export class BulkUploadProcessorService {
       updateStatus('processing', 50, result.text, undefined);
       
       // Process and save transcript data
+      console.log('Saving transcript to database');
       await this.processTranscriptData(result, file, updateStatus);
       
       // Calculate processing time
@@ -105,8 +122,8 @@ export class BulkUploadProcessorService {
       return null;
     } catch (error) {
       console.error(`Error processing file ${file.name}:`, error);
-      updateStatus('error', 100, undefined, error instanceof Error ? error.message : "Processing failed");
       errorHandler.handleError(error, 'BulkUploadProcessorService.processFile');
+      updateStatus('error', 100, undefined, error instanceof Error ? error.message : "Processing failed");
       return null;
     } finally {
       // Always release the processing lock when done
@@ -129,6 +146,10 @@ export class BulkUploadProcessorService {
       // Update status to indicate database save
       updateStatus('processing', 70, result.text, undefined, undefined);
       
+      console.log('Saving transcript to database with file:', file.name);
+      console.log('Transcript text length:', result.text?.length || 0);
+      console.log('Assigned user ID:', this.assignedUserId);
+      
       // Save to database
       const { id, error } = await databaseService.saveTranscriptToDatabase(
         result, 
@@ -138,18 +159,25 @@ export class BulkUploadProcessorService {
       );
       
       if (error) {
-        throw new Error(`Failed to save transcript: ${error instanceof Error ? error.message : String(error)}`);
+        const errorMsg = `Failed to save transcript: ${error instanceof Error ? error.message : String(error)}`;
+        errorHandler.handleError(new Error(errorMsg), 'BulkUploadProcessorService.processTranscriptData.saveError');
+        throw new Error(errorMsg);
       }
       
       if (!id) {
-        throw new Error("Failed to generate transcript ID");
+        const errorMsg = "Failed to generate transcript ID";
+        errorHandler.handleError(new Error(errorMsg), 'BulkUploadProcessorService.processTranscriptData.noId');
+        throw new Error(errorMsg);
       }
+      
+      console.log('Successfully saved transcript with ID:', id);
       
       // Update status to indicate processing trends
       updateStatus('processing', 90, result.text, undefined, id);
       
       // Update trends data - use Promise.allSettled to ensure both operations run
       // even if one of them fails, and we capture any errors
+      console.log('Updating keyword and sentiment trends');
       const [keywordResults, sentimentResults] = await Promise.allSettled([
         databaseService.updateKeywordTrends(result),
         databaseService.updateSentimentTrends(result, this.assignedUserId)
@@ -178,7 +206,10 @@ export class BulkUploadProcessorService {
         filename: file.name,
         duration: await databaseService.calculateAudioDuration(file)
       });
+      
+      console.log('Transcript processing completed successfully');
     } catch (error) {
+      console.error('Error processing transcript data:', error);
       errorHandler.handleError(error, 'BulkUploadProcessorService.processTranscriptData');
       throw error;
     }

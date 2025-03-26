@@ -2,8 +2,8 @@
 import { faker } from '@faker-js/faker';
 import { TeamPerformanceMetric } from '@/types/team';
 
-// Flag to enable/disable mock data
-export const USE_MOCK_DATA = true;
+// Flag to disable mock data
+export const USE_MOCK_DATA = false;
 
 // Generate mock KPI data for the dashboard
 export const generateMockKPIData = () => {
@@ -20,6 +20,7 @@ export const generateMockKPIData = () => {
 
 // Generate mock chart data for the dashboard
 export const generateMockChartData = () => {
+  console.warn('Using mock chart data - should be disabled in production');
   return {
     objectionHandlingData: Array.from({ length: 10 }, (_, i) => ({
       name: `Day ${i + 1}`,
@@ -57,6 +58,7 @@ export const generateMockChartData = () => {
 
 // Generate team performance metrics for reports
 export const generateMockTeamMetrics = (count = 5): TeamPerformanceMetric[] => {
+  console.warn('Using mock team metrics - should be disabled in production');
   const metrics: TeamPerformanceMetric[] = [];
   
   for (let i = 0; i < count; i++) {
@@ -81,6 +83,7 @@ export const generateMockTeamMetrics = (count = 5): TeamPerformanceMetric[] => {
 
 // Generate mock sales funnel data
 export const generateMockSalesFunnelData = () => {
+  console.warn('Using mock sales funnel data - should be disabled in production');
   return [
     { name: 'Lead', value: faker.number.int({ min: 80, max: 120 }) },
     { name: 'Discovery', value: faker.number.int({ min: 50, max: 80 }) },
@@ -92,6 +95,7 @@ export const generateMockSalesFunnelData = () => {
 
 // Generate random chart data for components
 export function generateRandomChartData(points = 7) {
+  console.warn('Using random chart data - should be disabled in production');
   return Array.from({ length: points }, (_, i) => ({
     name: `Day ${i + 1}`,
     value: faker.number.int({ min: 10, max: 100 })

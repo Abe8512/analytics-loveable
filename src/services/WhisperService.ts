@@ -361,13 +361,15 @@ export const useWhisperService = () => {
   const transcribeAudio = async (file: File): Promise<WhisperTranscriptionResponse> => {
     try {
       setIsTranscribing(true);
+      console.log(`Starting transcription for file: ${file.name} (${file.size} bytes)`);
       
       if (useLocalWhisper) {
         // Real implementation for local Whisper using HuggingFace transformers
         try {
           // First, try to load the transformers package
+          console.log("Attempting to load transformers package...");
           const { pipeline } = await import('@huggingface/transformers');
-          console.log("Loading ASR model...");
+          console.log("Successfully loaded transformers package, now loading ASR model...");
           
           // Create a toast notification
           toast.info("Loading Whisper model...", {
@@ -377,24 +379,27 @@ export const useWhisperService = () => {
           // Create automatic speech recognition pipeline
           const transcriber = await pipeline(
             "automatic-speech-recognition",
-            "openai/whisper-small",
+            "openai/whisper-small"
             // Remove the 'quantized' option as it's not in the PretrainedModelOptions type
           );
           
           // Convert file to a format that the model can use
           const fileUrl = URL.createObjectURL(file);
+          console.log("Created file URL for transcription:", fileUrl);
           
           // Transcribe audio
           toast.info("Transcribing audio...", {
             duration: 5000,
           });
           
+          console.log("Starting local transcription process...");
           const output = await transcriber(fileUrl, {
             chunk_length_s: 30,
             stride_length_s: 5,
             language: "english",
             task: "transcribe",
           });
+          console.log("Completed local transcription, processing output:", output);
           
           // Clean up
           URL.revokeObjectURL(fileUrl);
@@ -437,14 +442,16 @@ export const useWhisperService = () => {
         } catch (error) {
           console.error('Error using local Whisper model:', error);
           errorHandler.handleError(error, 'WhisperService.transcribeAudio.localWhisper');
-          throw new Error('Local transcription failed. Please check console for details.');
+          throw new Error(`Local transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       } else {
         // Use OpenAI API
         const apiKey = getOpenAIKey();
         
         if (!apiKey) {
-          throw new Error("OpenAI API key is missing. Please add it in the Settings page.");
+          const error = new Error("OpenAI API key is missing. Please add it in the Settings page.");
+          errorHandler.handleError(error, 'WhisperService.transcribeAudio.missingApiKey');
+          throw error;
         }
         
         // We'll use FormData to send the file to OpenAI API
@@ -459,6 +466,7 @@ export const useWhisperService = () => {
         }
         
         try {
+          console.log("Calling OpenAI Whisper API with file:", file.name);
           // Call OpenAI API
           const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
             method: 'POST',
@@ -470,10 +478,14 @@ export const useWhisperService = () => {
           
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+            const errorMessage = `OpenAI API error (${response.status}): ${errorText}`;
+            console.error(errorMessage);
+            errorHandler.handleError(new Error(errorMessage), 'WhisperService.transcribeAudio.openaiAPIResponse');
+            throw new Error(errorMessage);
           }
           
           const result = await response.json();
+          console.log("Received successful response from OpenAI API:", result);
           
           // Process the response
           return {

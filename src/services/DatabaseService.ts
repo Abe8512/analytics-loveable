@@ -4,6 +4,7 @@ import { transcriptAnalysisService } from './TranscriptAnalysisService';
 import { WhisperTranscriptionResponse } from "@/services/WhisperService";
 import { v4 as uuidv4 } from 'uuid';
 import type { Database } from '@/integrations/supabase/types';
+import { errorHandler } from './ErrorHandlingService';
 
 export class DatabaseService {
   // Save transcript to call_transcripts table
@@ -14,6 +15,12 @@ export class DatabaseService {
     numSpeakers: number
   ): Promise<{ id: string; error: any }> {
     try {
+      console.log('DatabaseService: Saving transcript to database:', {
+        filename: file.name,
+        textLength: result.text.length,
+        numSpeakers
+      });
+      
       // Process the transcription into segments by speaker
       const transcriptSegments = numSpeakers > 1 
         ? transcriptAnalysisService.splitBySpeaker(result.text, result.segments, numSpeakers)
@@ -31,6 +38,7 @@ export class DatabaseService {
       // If neither is available, use 'anonymous-{randomId}' to ensure uniqueness
       let finalUserId = userId;
       if (!finalUserId) {
+        console.log('No userId provided, checking auth system');
         const { data: { user } } = await supabase.auth.getUser();
         finalUserId = user?.id || generateAnonymousUserId();
       }
@@ -44,8 +52,20 @@ export class DatabaseService {
       const transcriptId = uuidv4();
       console.log(`Generated transcript ID: ${transcriptId}`);
       
+      // Prepare transcript segments for storage
+      let segmentsForStorage = null;
+      if (transcriptSegments && transcriptSegments.length > 0) {
+        try {
+          segmentsForStorage = JSON.stringify(transcriptSegments);
+        } catch (error) {
+          console.error('Error stringifying transcript segments:', error);
+          errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase.stringifySegments');
+        }
+      }
+      
       // Prepare data with proper typing
-      const transcriptData: Database['public']['Tables']['call_transcripts']['Insert'] = {
+      const transcriptData = {
+        id: transcriptId, // Explicitly set ID to avoid any UUID generation issues
         user_id: finalUserId,
         filename: file.name,
         text: result.text,
@@ -53,9 +73,16 @@ export class DatabaseService {
         call_score: callScore,
         sentiment,
         keywords,
-        transcript_segments: transcriptSegments ? JSON.stringify(transcriptSegments) : null,
+        transcript_segments: segmentsForStorage,
         created_at: timestamp
       };
+      
+      console.log('Transcript data prepared for database insert:', {
+        id: transcriptId,
+        filename: file.name,
+        textLength: result.text.length,
+        segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
+      });
       
       // Insert into database
       const { data, error } = await supabase
@@ -66,47 +93,63 @@ export class DatabaseService {
       
       if (error) {
         console.error('Error inserting transcript into database:', error);
+        errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase.insert');
         return { id: transcriptId, error };
       }
       
       console.log('Successfully inserted transcript:', data);
       
       // Also update the calls table with similar data for real-time metrics
-      const callData: Database['public']['Tables']['calls']['Insert'] = {
-        user_id: finalUserId,
-        duration: duration || 0,
-        sentiment_agent: sentiment === 'positive' ? 0.8 : sentiment === 'negative' ? 0.3 : 0.5,
-        sentiment_customer: sentiment === 'positive' ? 0.7 : sentiment === 'negative' ? 0.2 : 0.5,
-        talk_ratio_agent: 50 + (Math.random() * 20 - 10), // Random value between 40-60
-        talk_ratio_customer: 50 - (Math.random() * 20 - 10), // Random value between 40-60
-        key_phrases: keywords || [],
-        created_at: timestamp // Use the same timestamp for consistency
-      };
-      
-      await this.updateCallsTable(callData);
+      try {
+        await this.updateCallsTable({
+          user_id: finalUserId,
+          duration: duration || 0,
+          sentiment_agent: sentiment === 'positive' ? 0.8 : sentiment === 'negative' ? 0.3 : 0.5,
+          sentiment_customer: sentiment === 'positive' ? 0.7 : sentiment === 'negative' ? 0.2 : 0.5,
+          talk_ratio_agent: 50 + (Math.random() * 20 - 10), // Random value between 40-60
+          talk_ratio_customer: 50 - (Math.random() * 20 - 10), // Random value between 40-60
+          key_phrases: keywords || [],
+          created_at: timestamp // Use the same timestamp for consistency
+        });
+      } catch (callsError) {
+        // Non-critical error, just log it
+        console.error('Error updating calls table, but transcript was saved:', callsError);
+        errorHandler.handleError(callsError, 'DatabaseService.saveTranscriptToDatabase.updateCallsTable');
+      }
       
       return { id: data?.id || transcriptId, error: null };
     } catch (error) {
       console.error('Error saving transcript:', error);
+      errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase');
       return { id: '', error };
     }
   }
   
   // Update calls table for real-time metrics
-  private async updateCallsTable(callData: Database['public']['Tables']['calls']['Insert']): Promise<void> {
+  private async updateCallsTable(callData: any): Promise<void> {
     try {
       console.log('Updating calls table with data:', callData);
+      
+      // Fix the key_phrases format issue
+      const fixedCallData = {
+        ...callData,
+        // Ensure key_phrases is properly formatted for database
+        key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
+      };
+      
       const { error } = await supabase
         .from('calls')
-        .insert(callData);
+        .insert(fixedCallData);
       
       if (error) {
         console.error('Error updating calls table:', error);
+        errorHandler.handleError(error, 'DatabaseService.updateCallsTable');
       } else {
         console.log('Successfully updated calls table');
       }
     } catch (error) {
       console.error('Exception updating calls table:', error);
+      errorHandler.handleError(error, 'DatabaseService.updateCallsTable');
     }
   }
   
@@ -137,11 +180,11 @@ export class DatabaseService {
             .update({ 
               count: (data.count || 1) + 1,
               last_used: new Date().toISOString()
-            } as Database['public']['Tables']['keyword_trends']['Update'])
+            })
             .eq('id', data.id);
         } else {
           // Insert new keyword with proper UUID
-          const trendData: Database['public']['Tables']['keyword_trends']['Insert'] = {
+          const trendData = {
             keyword: keyword as string,
             category,
             count: 1,
@@ -154,6 +197,7 @@ export class DatabaseService {
         }
       } catch (error) {
         console.error(`Error updating keyword trend for ${keyword}:`, error);
+        errorHandler.handleError(error, 'DatabaseService.updateKeywordTrends');
       }
     }
   }
@@ -166,18 +210,24 @@ export class DatabaseService {
     const sentiment = transcriptAnalysisService.analyzeSentiment(result.text);
     
     try {
-      const trendData: Database['public']['Tables']['sentiment_trends']['Insert'] = {
+      const trendData = {
         sentiment_label: sentiment,
         confidence: sentiment === 'positive' ? 0.8 : sentiment === 'negative' ? 0.7 : 0.6,
         user_id: userId,
         recorded_at: new Date().toISOString()
       };
       
-      await supabase
+      const { error } = await supabase
         .from('sentiment_trends')
         .insert(trendData);
+        
+      if (error) {
+        console.error('Error inserting sentiment trend:', error);
+        errorHandler.handleError(error, 'DatabaseService.updateSentimentTrends.insert');
+      }
     } catch (error) {
       console.error('Error updating sentiment trend:', error);
+      errorHandler.handleError(error, 'DatabaseService.updateSentimentTrends');
     }
   }
   

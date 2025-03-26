@@ -38,6 +38,7 @@ export const useBulkUploadService = () => {
   };
   
   const debouncedLoadHistory = debounce(() => {
+    console.log('Loading upload history...');
     loadUploadHistory().catch(error => {
       console.error('Failed to load upload history:', error);
       errorHandler.handleError(error, 'BulkUploadService.loadUploadHistory');
@@ -45,6 +46,10 @@ export const useBulkUploadService = () => {
   }, 300);
   
   const processQueue = async () => {
+    console.log('BulkUploadService: processQueue called');
+    console.log('Files in queue:', files.length);
+    console.log('Current processing state:', isProcessing);
+    
     if (isProcessing || files.length === 0) {
       console.log('Skipping processQueue: already processing or no files');
       return;
@@ -58,6 +63,7 @@ export const useBulkUploadService = () => {
     
     // Check for API key if not using local Whisper
     if (!whisperService.getUseLocalWhisper() && !whisperService.getOpenAIKey()) {
+      console.error('OpenAI API key missing');
       toast.error("OpenAI API Key Missing", {
         description: "Please add your OpenAI API key in Settings before processing files."
       });
@@ -80,7 +86,7 @@ export const useBulkUploadService = () => {
         (file.status === 'error' && file.progress === 0)
       );
       
-      console.log(`Found ${queuedFiles.length} files to process`);
+      console.log(`Found ${queuedFiles.length} files to process in queue`);
       
       if (queuedFiles.length === 0) {
         toast.info("No files to process", {
@@ -99,6 +105,7 @@ export const useBulkUploadService = () => {
           await bulkUploadProcessor.processFile(
             file.file,
             (status, progress, result, error, transcriptId) => {
+              console.log(`File ${file.file.name} status update: ${status}, progress: ${progress}%, result: ${result?.slice(0, 50)}${result?.length > 50 ? '...' : ''}`);
               updateFileStatus(file.id, status, progress, result, error, transcriptId);
             }
           );
@@ -115,10 +122,9 @@ export const useBulkUploadService = () => {
           }
         } catch (error) {
           console.error(`Error processing file ${file.file.name}:`, error);
+          errorHandler.handleError(error, 'BulkUploadService.processFile');
           updateFileStatus(file.id, 'error', 0, undefined, 
             error instanceof Error ? error.message : 'Unknown error during processing');
-          
-          errorHandler.handleError(error, 'BulkUploadService.processFile');
         }
       }
       
@@ -154,6 +160,7 @@ export const useBulkUploadService = () => {
   
   const refreshTranscripts = async (filter?: BulkUploadFilter) => {
     try {
+      console.log('Refreshing transcripts with filter:', filter);
       const transcriptFilter: CallTranscriptFilter = {
         force: filter?.force || false
       };
