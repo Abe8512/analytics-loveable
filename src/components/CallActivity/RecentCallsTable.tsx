@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import ContentLoader from "@/components/ui/ContentLoader";
+import { useCallTranscripts } from "@/services/CallTranscriptService";
+import { useSharedFilters } from "@/contexts/SharedFilterContext";
 
 interface Call {
   id: string;
@@ -19,28 +21,40 @@ interface Call {
 }
 
 interface RecentCallsTableProps {
-  calls: Call[];
-  isAdmin: boolean;
-  isManager: boolean;
-  loading?: boolean;
+  onCallSelect?: (callId: string) => void;
+  selectedCallId?: string | null;
+  isAdmin?: boolean;
+  isManager?: boolean;
 }
 
 const RecentCallsTable: React.FC<RecentCallsTableProps> = ({ 
-  calls, 
-  isAdmin, 
-  isManager,
-  loading = false
+  onCallSelect,
+  selectedCallId,
+  isAdmin = false, 
+  isManager = false
 }) => {
   const navigate = useNavigate();
-  // Maintain stable data to prevent UI jitter during updates
-  const [stableCalls, setStableCalls] = useState<Call[]>([]);
+  const { filters } = useSharedFilters();
+  const { transcripts, loading } = useCallTranscripts();
+  const [calls, setCalls] = useState<Call[]>([]);
   
+  // Convert transcripts to call format
   useEffect(() => {
-    // Only update when calls actually change and not loading
-    if (!loading && calls.length > 0) {
-      setStableCalls(calls);
+    if (transcripts) {
+      const formattedCalls = transcripts.map(transcript => ({
+        id: transcript.id,
+        date: transcript.created_at || new Date().toISOString(),
+        userName: transcript.user_name || 'Unknown Rep',
+        customerName: transcript.customer_name || 'Unknown Customer',
+        duration: transcript.duration || 0,
+        outcome: 'Pending Analysis',
+        sentiment: transcript.sentiment === 'positive' ? 0.8 : 
+                  transcript.sentiment === 'negative' ? 0.3 : 0.6,
+        nextSteps: 'Follow up required'
+      }));
+      setCalls(formattedCalls);
     }
-  }, [calls, loading]);
+  }, [transcripts]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -48,8 +62,14 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
            ' at ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleRowClick = (callId: string) => {
+    if (onCallSelect) {
+      onCallSelect(callId);
+    }
+  };
+
   return (
-    <Card>
+    <Card className={selectedCallId ? 'border-primary' : ''}>
       <CardHeader>
         <CardTitle>Recent Calls</CardTitle>
         <CardDescription>
@@ -71,23 +91,26 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                 <TableHead>Duration</TableHead>
                 <TableHead>Outcome</TableHead>
                 <TableHead>Sentiment</TableHead>
-                <TableHead>Next Steps</TableHead>
                 <TableHead>Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin || isManager ? 8 : 7} className="text-center py-8">
+                  <TableCell colSpan={isAdmin || isManager ? 7 : 6} className="text-center py-8">
                     <div className="flex justify-center items-center">
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
                       <p>Loading call data...</p>
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : stableCalls.length > 0 ? (
-                stableCalls.map((call) => (
-                  <TableRow key={call.id}>
+              ) : calls.length > 0 ? (
+                calls.map((call) => (
+                  <TableRow 
+                    key={call.id}
+                    className={selectedCallId === call.id ? 'bg-accent/40' : 'hover:bg-accent/20'}
+                    onClick={() => handleRowClick(call.id)}
+                  >
                     <TableCell>{formatDate(call.date)}</TableCell>
                     {(isAdmin || isManager) && <TableCell>{String(call.userName || 'Unknown')}</TableCell>}
                     <TableCell>{String(call.customerName || 'Unknown')}</TableCell>
@@ -111,12 +134,14 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                         <span>{Math.round(call.sentiment * 100)}%</span>
                       </div>
                     </TableCell>
-                    <TableCell>{String(call.nextSteps || 'N/A')}</TableCell>
                     <TableCell>
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => navigate(`/transcripts?id=${call.id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/transcripts?id=${call.id}`);
+                        }}
                       >
                         View
                       </Button>
@@ -125,7 +150,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={isAdmin || isManager ? 8 : 7} className="text-center py-8">
+                  <TableCell colSpan={isAdmin || isManager ? 7 : 6} className="text-center py-8">
                     <p className="text-muted-foreground">No calls match the current filters</p>
                     <p className="text-sm mt-1">Try adjusting your filters or date range</p>
                   </TableCell>

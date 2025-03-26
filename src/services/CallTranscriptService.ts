@@ -10,6 +10,7 @@ export interface CallTranscriptFilter {
   dateRange?: { from: Date; to: Date };
   repId?: string;
   sentiment?: string;
+  force?: boolean;
 }
 
 export interface UseCallTranscriptsResult {

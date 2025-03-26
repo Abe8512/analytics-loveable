@@ -1,45 +1,27 @@
-// Event types
+
 export type EventType = 
   | 'transcript-created'
-  | 'transcript-updated'
-  | 'transcript-deleted'
-  | 'transcript-progress'
-  | 'upload-started'
-  | 'upload-progress'
-  | 'upload-completed'
-  | 'upload-error'
-  | 'processing-started'
-  | 'processing-progress'
-  | 'processing-completed' 
-  | 'processing-error'
-  | 'connection-restored'
-  | 'connection-lost'
+  | 'transcriptions-updated'
   | 'bulk-upload-started'
   | 'bulk-upload-completed'
-  | 'recording-completed'
-  | 'transcripts-refreshed';
+  | 'team-member-added'
+  | 'team-member-removed'
+  | 'managed-users-updated'
+  | 'call-updated';
 
-// Event dispatcher type
-export type EventDispatcher = (type: EventType, data?: any) => void;
-
-// Event payload interface
 export interface EventPayload {
-  type: EventType;
-  data?: any;
-  timestamp: number;
+  [key: string]: any;
 }
 
-// Event listener type
-export type EventListener = (event: EventPayload) => void;
+export interface EventListener {
+  id: string;
+  type: EventType;
+  callback: (payload: EventPayload) => void;
+}
 
-// Events store interface
-export interface EventsStore {
-  listeners: Map<EventType, Set<EventListener>>;
-  eventHistory: EventPayload[];
-  
-  // Methods
-  addEventListener: (type: EventType, listener: EventListener) => () => void;
-  removeEventListener: (type: EventType, listener: EventListener) => void;
-  dispatchEvent: (type: EventType, data?: any) => void;
-  clearEventHistory: () => void;
+export interface EventsState {
+  listeners: EventListener[];
+  addListener: (type: EventType, callback: (payload: EventPayload) => void) => string;
+  removeListener: (id: string) => void;
+  dispatchEvent: (type: EventType, payload?: EventPayload) => void;
 }

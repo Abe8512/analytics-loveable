@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RecentCallsTable } from '@/components/CallActivity/RecentCallsTable';
-import { RepPerformanceCards } from '@/components/CallActivity/RepPerformanceCards';
+import RecentCallsTable from '@/components/CallActivity/RecentCallsTable';
+import RepPerformanceCards from '@/components/CallActivity/RepPerformanceCards';
 import { CallOutcomeStats } from '@/components/CallActivity/CallOutcomeStats';
-import { TeamPerformanceOverview } from '@/components/CallActivity/TeamPerformanceOverview';
-import { TeamPerformanceComparison } from '@/components/Team/TeamPerformanceComparison';
+import TeamPerformanceOverview from '@/components/CallActivity/TeamPerformanceOverview';
+import TeamPerformanceComparison from '@/components/Team/TeamPerformanceComparison';
 import LiveCallAnalysis from '@/components/Performance/LiveCallAnalysis';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import DateRangeFilter from '@/components/CallAnalysis/DateRangeFilter';
 import { keywordAnalysisService } from '@/services/KeywordAnalysisService';
 import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
 import CallTranscript from '@/components/CallAnalysis/CallTranscript';
+import PageHeader from '@/components/ui/PageHeader';
 
 const CallActivity = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -38,36 +39,35 @@ const CallActivity = () => {
   return (
     <DashboardLayout>
       <div className="container py-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Call Activity</h1>
-            <p className="text-muted-foreground mt-1">Monitor and analyze sales team call performance</p>
-          </div>
-          
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="gap-2 w-full sm:w-auto"
-              onClick={() => setShowBulkUpload(true)}
-            >
-              <FileUp className="h-4 w-4" />
-              <span className="hidden sm:inline">Bulk Upload</span>
-              <span className="sm:hidden">Upload</span>
-            </Button>
-            
-            <BulkUploadModal 
-              isOpen={showBulkUpload} 
-              onClose={() => setShowBulkUpload(false)} 
-            />
-            
-            <Button variant="default" size="sm" className="gap-2 w-full sm:w-auto">
-              <Phone className="h-4 w-4" />
-              <span className="hidden sm:inline">New Call</span>
-              <span className="sm:hidden">Call</span>
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Call Activity"
+          description="Monitor and analyze sales team call performance"
+          actions={
+            <>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowBulkUpload(true)}
+              >
+                <FileUp className="h-4 w-4" />
+                <span className="hidden sm:inline">Bulk Upload</span>
+                <span className="sm:hidden">Upload</span>
+              </Button>
+              
+              <BulkUploadModal 
+                isOpen={showBulkUpload} 
+                onClose={() => setShowBulkUpload(false)} 
+              />
+              
+              <Button variant="default" size="sm" className="gap-2">
+                <Phone className="h-4 w-4" />
+                <span className="hidden sm:inline">New Call</span>
+                <span className="sm:hidden">Call</span>
+              </Button>
+            </>
+          }
+        />
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className={`md:col-span-${selectedCall ? '2' : '4'}`}>
@@ -141,7 +141,7 @@ const CallActivity = () => {
                     />
                   </div>
                   <div>
-                    <CallOutcomeStats />
+                    <SentimentAnalysisTable />
                   </div>
                 </div>
               </TabsContent>
