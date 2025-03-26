@@ -85,10 +85,10 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // Use upsert to avoid conflicts (no SELECT needed)
+      // Use upsert with no returning to avoid DISTINCT ORDER BY error
       const { error: insertError } = await supabase
         .from('call_transcripts')
-        .upsert(transcriptData, { onConflict: 'id' });
+        .upsert(transcriptData, { onConflict: 'id' })
       
       if (insertError) {
         console.error('Error inserting transcript into database:', insertError);
@@ -112,10 +112,10 @@ export class DatabaseService {
           if (hasKeywords) updatedData.keywords = keywords;
           if (hasKeyPhrases) updatedData.key_phrases = keywords;
           
-          // Use upsert instead of insert+select
+          // Use upsert without returning to avoid DISTINCT ORDER BY error
           const { error: secondError } = await supabase
             .from('call_transcripts')
-            .upsert(updatedData, { onConflict: 'id' });
+            .upsert(updatedData, { onConflict: 'id' })
             
           if (secondError) {
             console.error('Error on second attempt to insert transcript:', secondError);
@@ -188,10 +188,10 @@ export class DatabaseService {
         key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
       };
       
-      // Use upsert instead of insert
+      // Use upsert without returning to avoid DISTINCT ORDER BY error
       const { error } = await supabase
         .from('calls')
-        .upsert(fixedCallData, { onConflict: 'id' });
+        .upsert(fixedCallData, { onConflict: 'id' })
       
       if (error) {
         console.error('Error updating calls table:', error);
@@ -202,18 +202,13 @@ export class DatabaseService {
           console.log('Using direct fetch for insert_call_no_return');
           
           // Direct fetch to the Edge Function with proper error handling and retry logic
-          const supabaseKey = process.env.SUPABASE_KEY || '';
-          
-          // Construct the full URL to the edge function
-          const functionUrl = 'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return';
-          
           const response = await fetch(
-            functionUrl,
+            'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return',
             {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseKey}`
+                'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''}`
               },
               body: JSON.stringify(fixedCallData)
             }
@@ -251,16 +246,21 @@ export class DatabaseService {
     // Add top keywords to trends
     for (const keyword of keywords.slice(0, 5)) {
       try {
-        // Use a simplified approach without SELECT DISTINCT
-        const { data } = await supabase
+        // Use simplified approach - first check if exists
+        const { data, error: checkError } = await supabase
           .from('keyword_trends')
-          .select('*')
+          .select('id')
           .eq('keyword', keyword as string)
           .eq('category', category)
           .maybeSingle();
         
+        if (checkError) {
+          console.error(`Error checking keyword trend for ${keyword}:`, checkError);
+          continue;
+        }
+        
         if (data) {
-          // Use update without select
+          // Use update with explicit id to avoid DISTINCT ORDER BY error
           await supabase
             .from('keyword_trends')
             .update({ 
@@ -303,7 +303,7 @@ export class DatabaseService {
         recorded_at: new Date().toISOString()
       };
       
-      // Use direct insert without select
+      // Use insert without returning to avoid DISTINCT ORDER BY error
       const { error } = await supabase
         .from('sentiment_trends')
         .insert(trendData);

@@ -38,11 +38,36 @@ serve(async (req) => {
       throw new Error('Missing required field: id')
     }
 
+    // Check if the ID is a valid UUID
+    try {
+      // Simple UUID validation using regex
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      if (!uuidRegex.test(callData.id)) {
+        throw new Error(`Invalid UUID format: ${callData.id}`)
+      }
+    } catch (error) {
+      console.error('UUID validation error:', error)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: 'Invalid UUID format',
+          error: error.message 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
     // Process the call data - using UPSERT method to handle both insert and update cases
-    // This avoids the need for SELECT and prevents the DISTINCT ORDER BY error
+    // Using upsert without select to avoid the DISTINCT ORDER BY error
     const { error } = await supabase
       .from('calls')
-      .upsert(callData, { onConflict: 'id' })
+      .upsert(callData, { 
+        onConflict: 'id',
+        ignoreDuplicates: false
+      })
 
     // Log any errors but still return success to the client
     if (error) {
