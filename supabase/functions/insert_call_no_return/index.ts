@@ -60,14 +60,11 @@ serve(async (req) => {
       )
     }
 
-    // Process the call data - using UPSERT method to handle both insert and update cases
-    // Using upsert without returning to avoid the DISTINCT ORDER BY error
-    const { error } = await supabase
-      .from('calls')
-      .upsert(callData, { 
-        onConflict: 'id',
-        ignoreDuplicates: false
-      })
+    // Use the new database function to save the call without returning data
+    // This avoids the DISTINCT ORDER BY error entirely
+    const { data, error } = await supabase.rpc('save_call', {
+      p_data: callData
+    })
 
     // Log any errors but still return success to the client
     if (error) {
@@ -89,7 +86,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Call data inserted successfully'
+        message: 'Call data inserted successfully',
+        id: callData.id
       }),
       { 
         status: 200, 

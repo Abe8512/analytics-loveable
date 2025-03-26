@@ -85,50 +85,29 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // Use upsert with no returning to avoid DISTINCT ORDER BY error
-      const { error: insertError } = await supabase
-        .from('call_transcripts')
-        .upsert(transcriptData, { 
-          onConflict: 'id',
-          ignoreDuplicates: false
-        });
+      // Use our new custom RPC function to avoid DISTINCT ORDER BY error
+      const { data: saveResult, error: saveError } = await supabase.rpc(
+        'save_call_transcript',
+        { p_data: transcriptData }
+      );
       
-      if (insertError) {
-        console.error('Error inserting transcript into database:', insertError);
-        errorHandler.handleError(insertError, 'DatabaseService.saveTranscriptToDatabase.insert');
+      if (saveError) {
+        console.error('Error using save_call_transcript RPC:', saveError);
+        errorHandler.handleError(saveError, 'DatabaseService.saveTranscriptToDatabase.saveRPC');
         
-        // Try a different approach for column validation if needed
-        if (insertError.message && (insertError.message.includes('key_phrases') || insertError.message.includes('column'))) {
-          console.log('Retrying with a more compatible data structure');
-          
-          // Create a more compatible version of the data
-          const { keywords, key_phrases, ...cleanedData } = transcriptData;
-          
-          // Try to determine which field is supported
-          const hasKeywords = await this.checkColumnExists('call_transcripts', 'keywords');
-          const hasKeyPhrases = await this.checkColumnExists('call_transcripts', 'key_phrases');
-          
-          console.log(`Column check: keywords=${hasKeywords}, key_phrases=${hasKeyPhrases}`);
-          
-          // Add back the appropriate field
-          const updatedData: any = { ...cleanedData };
-          if (hasKeywords) updatedData.keywords = keywords;
-          if (hasKeyPhrases) updatedData.key_phrases = keywords;
-          
-          // Use upsert without returning to avoid DISTINCT ORDER BY error
-          const { error: secondError } = await supabase
+        // Fallback to traditional insert without returning
+        try {
+          const { error: fallbackError } = await supabase
             .from('call_transcripts')
-            .upsert(updatedData, { 
-              onConflict: 'id',
-              ignoreDuplicates: false 
-            });
+            .insert(transcriptData);
             
-          if (secondError) {
-            console.error('Error on second attempt to insert transcript:', secondError);
-            return { id: transcriptId, error: secondError };
+          if (fallbackError) {
+            console.error('Fallback insert also failed:', fallbackError);
+            return { id: transcriptId, error: fallbackError };
           }
-        } else {
-          return { id: transcriptId, error: insertError };
+        } catch (fallbackError) {
+          console.error('Exception in fallback insert:', fallbackError);
+          return { id: transcriptId, error: fallbackError };
         }
       }
       
@@ -194,17 +173,15 @@ export class DatabaseService {
         key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
       };
       
-      // Use upsert without returning to avoid DISTINCT ORDER BY error
-      const { error } = await supabase
-        .from('calls')
-        .upsert(fixedCallData, { 
-          onConflict: 'id',
-          ignoreDuplicates: false 
-        });
+      // Use our new RPC function to save the call without returning data
+      const { data: saveResult, error: saveError } = await supabase.rpc(
+        'save_call',
+        { p_data: fixedCallData }
+      );
       
-      if (error) {
-        console.error('Error updating calls table:', error);
-        errorHandler.handleError(error, 'DatabaseService.updateCallsTable');
+      if (saveError) {
+        console.error('Error using save_call RPC:', saveError);
+        errorHandler.handleError(saveError, 'DatabaseService.updateCallsTable.saveRPC');
         
         // Try a fallback approach using the edge function directly
         try {
@@ -233,7 +210,7 @@ export class DatabaseService {
           console.error('Error calling insert_call_no_return edge function:', fetchError);
         }
       } else {
-        console.log('Successfully updated calls table');
+        console.log('Successfully updated calls table using RPC function');
       }
     } catch (error) {
       console.error('Exception updating calls table:', error);
@@ -255,46 +232,69 @@ export class DatabaseService {
     // Add top keywords to trends
     for (const keyword of keywords.slice(0, 5)) {
       try {
-        // Use simplified approach - first check if exists
-        const { data, error: checkError } = await supabase
-          .from('keyword_trends')
-          .select('id, count')
-          .eq('keyword', keyword as string)
-          .eq('category', category)
-          .maybeSingle();
+        // Use our new RPC function to save keyword trends properly
+        const { data, error } = await supabase.rpc(
+          'save_keyword_trend', 
+          { 
+            p_keyword: keyword as string,
+            p_category: category,
+            p_timestamp: new Date().toISOString()
+          }
+        );
         
-        if (checkError) {
-          console.error(`Error checking keyword trend for ${keyword}:`, checkError);
-          continue;
-        }
-        
-        if (data) {
-          // Use update with explicit id to avoid DISTINCT ORDER BY error
-          const { error: updateError } = await supabase
-            .from('keyword_trends')
-            .update({ 
-              count: (data.count || 1) + 1,
-              last_used: new Date().toISOString()
-            })
-            .eq('id', data.id);
+        if (error) {
+          console.error(`Error saving keyword trend for ${keyword}:`, error);
+          errorHandler.handleError(error, 'DatabaseService.updateKeywordTrends.saveRPC');
+          
+          // Fallback to traditional approach
+          try {
+            // First check if exists
+            const { data: existingData, error: checkError } = await supabase
+              .from('keyword_trends')
+              .select('id')
+              .eq('keyword', keyword as string)
+              .eq('category', category)
+              .maybeSingle();
             
-          if (updateError) {
-            console.error(`Error updating keyword trend for ${keyword}:`, updateError);
+            if (checkError) {
+              console.error(`Error checking keyword trend for ${keyword}:`, checkError);
+              continue;
+            }
+            
+            if (existingData) {
+              // Use update without returning
+              const { error: updateError } = await supabase
+                .from('keyword_trends')
+                .update({ 
+                  count: existingData.count + 1,
+                  last_used: new Date().toISOString()
+                })
+                .eq('id', existingData.id)
+                .select();
+                
+              if (updateError) {
+                console.error(`Error updating keyword trend for ${keyword}:`, updateError);
+              }
+            } else {
+              // Use insert without returning
+              const { error: insertError } = await supabase
+                .from('keyword_trends')
+                .insert({
+                  keyword: keyword as string,
+                  category,
+                  count: 1,
+                  last_used: new Date().toISOString()
+                });
+                
+              if (insertError) {
+                console.error(`Error inserting keyword trend for ${keyword}:`, insertError);
+              }
+            }
+          } catch (fallbackError) {
+            console.error(`Fallback approach also failed for ${keyword}:`, fallbackError);
           }
         } else {
-          // Use insert without returning to avoid DISTINCT ORDER BY error
-          const { error: insertError } = await supabase
-            .from('keyword_trends')
-            .insert({
-              keyword: keyword as string,
-              category,
-              count: 1,
-              last_used: new Date().toISOString()
-            });
-            
-          if (insertError) {
-            console.error(`Error inserting keyword trend for ${keyword}:`, insertError);
-          }
+          console.log(`Successfully updated keyword trend for ${keyword}`);
         }
       } catch (error) {
         console.error(`Error updating keyword trend for ${keyword}:`, error);
