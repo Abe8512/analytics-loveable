@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const KeywordTrendsChart: React.FC = () => {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'positive' | 'neutral' | 'negative'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'positive' | 'neutral' | 'negative' | 'general'>('all');
   const { keywordTrends, isLoading } = useKeywordTrends();
   
   // Process data for chart display
@@ -29,11 +29,12 @@ const KeywordTrendsChart: React.FC = () => {
         <CardTitle>Keyword Trends</CardTitle>
         <CardDescription>Most frequent keywords by sentiment category</CardDescription>
         <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as any)}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="positive">Positive</TabsTrigger>
             <TabsTrigger value="neutral">Neutral</TabsTrigger>
             <TabsTrigger value="negative">Negative</TabsTrigger>
+            <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
         </Tabs>
       </CardHeader>
@@ -54,7 +55,8 @@ const KeywordTrendsChart: React.FC = () => {
                 fill={
                   activeCategory === 'positive' ? '#10B981' : 
                   activeCategory === 'negative' ? '#EF4444' : 
-                  activeCategory === 'neutral' ? '#3B82F6' : '#8884d8'
+                  activeCategory === 'neutral' ? '#3B82F6' : 
+                  activeCategory === 'general' ? '#8884d8' : '#8884d8'
                 } 
               />
             </BarChart>

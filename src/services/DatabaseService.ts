@@ -214,8 +214,10 @@ export class DatabaseService {
     const keywords = transcriptAnalysisService.extractKeywords(result.text);
     const sentiment = transcriptAnalysisService.analyzeSentiment(result.text);
     
-    let category: 'positive' | 'neutral' | 'negative' = 'neutral';
+    // Map sentiment to valid category
+    let category: 'positive' | 'neutral' | 'negative' | 'general' = 'general';
     if (sentiment === 'positive') category = 'positive';
+    if (sentiment === 'neutral') category = 'neutral';
     if (sentiment === 'negative') category = 'negative';
     
     // Add top keywords to trends

@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// Update type definition to include 'all'
-export type KeywordCategory = 'all' | 'positive' | 'neutral' | 'negative';
+// Update type definition to include 'all' and 'general'
+export type KeywordCategory = 'all' | 'positive' | 'neutral' | 'negative' | 'general';
 
 export interface KeywordTrend {
   id: string;
@@ -19,6 +19,7 @@ export interface GroupedKeywords {
   positive: KeywordTrend[];
   neutral: KeywordTrend[];
   negative: KeywordTrend[];
+  general: KeywordTrend[];
 }
 
 export function useKeywordTrends() {
@@ -27,7 +28,8 @@ export function useKeywordTrends() {
     all: [],
     positive: [],
     neutral: [],
-    negative: []
+    negative: [],
+    general: []
   });
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
@@ -56,7 +58,8 @@ export function useKeywordTrends() {
         all: [],
         positive: [],
         neutral: [],
-        negative: []
+        negative: [],
+        general: []
       };
       
       if (data) {
@@ -67,8 +70,9 @@ export function useKeywordTrends() {
           // Skip items with null or invalid data
           if (!item || !item.keyword || !item.category) return;
           
-          const category = item.category as Exclude<KeywordCategory, 'all'>;
-          if (category === 'positive' || category === 'neutral' || category === 'negative') {
+          // Make sure category is valid
+          const category = (item.category as KeywordCategory);
+          if (category === 'positive' || category === 'neutral' || category === 'negative' || category === 'general') {
             const keywordItem: KeywordTrend = {
               id: item.id,
               keyword: item.keyword,
@@ -78,7 +82,12 @@ export function useKeywordTrends() {
             };
             
             // Add to the appropriate category
-            grouped[category].push(keywordItem);
+            if (grouped[category]) {
+              grouped[category].push(keywordItem);
+            } else {
+              // Default to general if somehow category is unrecognized
+              grouped.general.push({...keywordItem, category: 'general'});
+            }
             
             // Also add to the 'all' category
             allKeywords.push(keywordItem);
