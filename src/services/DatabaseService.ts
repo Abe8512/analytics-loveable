@@ -64,16 +64,16 @@ export class DatabaseService {
       }
       
       // Prepare data with proper typing for the database schema
-      // IMPORTANT: Using "keywords" instead of "key_phrases" for call_transcripts table
       const transcriptData = {
-        id: transcriptId, // Explicitly set ID to avoid any UUID generation issues
+        id: transcriptId,
         user_id: finalUserId,
         filename: file.name,
         text: result.text,
         duration,
         call_score: callScore,
         sentiment,
-        keywords,  // Using keywords field which exists in the table
+        keywords,  // Store in keywords field
+        key_phrases: keywords, // Also store in key_phrases field if it exists
         transcript_segments: segmentsForStorage,
         created_at: timestamp
       };
@@ -95,6 +95,25 @@ export class DatabaseService {
       if (error) {
         console.error('Error inserting transcript into database:', error);
         errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase.insert');
+        
+        // Remove key_phrases field if it's causing the error and retry
+        if (error.message && error.message.includes('key_phrases')) {
+          console.log('Retrying without key_phrases field');
+          const { key_phrases, ...cleanedData } = transcriptData;
+          const retryResult = await supabase
+            .from('call_transcripts')
+            .insert(cleanedData)
+            .select('id')
+            .single();
+            
+          if (retryResult.error) {
+            console.error('Error on second attempt to insert transcript:', retryResult.error);
+            return { id: transcriptId, error: retryResult.error };
+          }
+          
+          return { id: retryResult.data?.id || transcriptId, error: null };
+        }
+        
         return { id: transcriptId, error };
       }
       
@@ -110,7 +129,6 @@ export class DatabaseService {
           sentiment_customer: sentiment === 'positive' ? 0.7 : sentiment === 'negative' ? 0.2 : 0.5,
           talk_ratio_agent: 50 + (Math.random() * 20 - 10), // Random value between 40-60
           talk_ratio_customer: 50 - (Math.random() * 20 - 10), // Random value between 40-60
-          // Use "key_phrases" field for calls table 
           key_phrases: keywords || [],
           filename: file.name, // Add filename to calls table
           created_at: timestamp // Use the same timestamp for consistency

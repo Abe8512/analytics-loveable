@@ -1,20 +1,48 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, Upload, Info } from 'lucide-react';
+import { Mic, Upload, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SpeechToTextRecorder from '@/components/Whisper/SpeechToTextRecorder';
 import { useWhisperService } from '@/services/WhisperService';
 import { useToast } from '@/hooks/use-toast';
 import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
 
 const Transcribe = () => {
   const [transcript, setTranscript] = useState('');
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [databaseStatus, setDatabaseStatus] = useState<'checking' | 'ready' | 'error'>('checking');
   const { saveTranscriptionWithAnalysis, getOpenAIKey, getUseLocalWhisper } = useWhisperService();
   const { toast } = useToast();
+  
+  // Check database connection on component load
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        // Try a simple check to see if we can access the database
+        const { data, error } = await supabase
+          .from('call_transcripts')
+          .select('id')
+          .limit(1);
+          
+        if (error) {
+          console.error('Database connection check failed:', error);
+          setDatabaseStatus('error');
+        } else {
+          console.log('Database connection successful, found data:', data);
+          setDatabaseStatus('ready');
+        }
+      } catch (err) {
+        console.error('Error checking database connection:', err);
+        setDatabaseStatus('error');
+      }
+    };
+    
+    checkConnection();
+  }, []);
   
   const handleTranscriptionComplete = async (text: string) => {
     setTranscript(text);
@@ -43,6 +71,17 @@ const Transcribe = () => {
     <DashboardLayout>
       <div className="container py-8">
         <h1 className="text-3xl font-bold mb-6">Transcribe Calls</h1>
+        
+        {databaseStatus === 'error' && (
+          <Alert className="mb-6" variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Database Connection Error</AlertTitle>
+            <AlertDescription>
+              There seems to be an issue connecting to the database. Some features may not work correctly.
+              Please check your Supabase configuration or try again later.
+            </AlertDescription>
+          </Alert>
+        )}
         
         <Alert className="mb-6" variant={isConfigured ? "default" : "destructive"}>
           <Info className="h-4 w-4" />
@@ -103,7 +142,7 @@ const Transcribe = () => {
               <Button 
                 className="w-full max-w-xs"
                 onClick={() => setIsBulkUploadOpen(true)}
-                disabled={!isConfigured}
+                disabled={!isConfigured || databaseStatus === 'error'}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Open Bulk Upload
@@ -112,6 +151,12 @@ const Transcribe = () => {
               {!isConfigured && (
                 <p className="text-destructive text-sm mt-2">
                   Configure OpenAI API key in Settings first
+                </p>
+              )}
+              
+              {databaseStatus === 'error' && (
+                <p className="text-destructive text-sm mt-2">
+                  Database connection error - please check configuration
                 </p>
               )}
             </CardContent>
