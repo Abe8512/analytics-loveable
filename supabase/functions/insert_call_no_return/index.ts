@@ -38,11 +38,11 @@ serve(async (req) => {
       throw new Error('Missing required field: id')
     }
 
-    // Process the call data - using insert method WITHOUT select to avoid DISTINCT ORDER BY error
+    // Process the call data - using UPSERT method to handle both insert and update cases
+    // This avoids the need for SELECT and prevents the DISTINCT ORDER BY error
     const { error } = await supabase
       .from('calls')
-      .insert(callData)
-      // DO NOT use .select() here - that's causing the DISTINCT ORDER BY error
+      .upsert(callData, { onConflict: 'id' })
 
     // Log any errors but still return success to the client
     if (error) {

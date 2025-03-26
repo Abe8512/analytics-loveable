@@ -85,10 +85,10 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // CRITICAL FIX: Don't use .select() after insert to avoid the DISTINCT ORDER BY issue
+      // Use upsert to avoid conflicts (no SELECT needed)
       const { error: insertError } = await supabase
         .from('call_transcripts')
-        .insert(transcriptData);
+        .upsert(transcriptData, { onConflict: 'id' });
       
       if (insertError) {
         console.error('Error inserting transcript into database:', insertError);
@@ -112,10 +112,10 @@ export class DatabaseService {
           if (hasKeywords) updatedData.keywords = keywords;
           if (hasKeyPhrases) updatedData.key_phrases = keywords;
           
-          // CRITICAL FIX: Don't use .select() after insert
+          // Use upsert instead of insert+select
           const { error: secondError } = await supabase
             .from('call_transcripts')
-            .insert(updatedData);
+            .upsert(updatedData, { onConflict: 'id' });
             
           if (secondError) {
             console.error('Error on second attempt to insert transcript:', secondError);
@@ -188,48 +188,45 @@ export class DatabaseService {
         key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
       };
       
-      // CRITICAL FIX: Don't use .select() after insert
+      // Use upsert instead of insert
       const { error } = await supabase
         .from('calls')
-        .insert(fixedCallData);
+        .upsert(fixedCallData, { onConflict: 'id' });
       
       if (error) {
         console.error('Error updating calls table:', error);
         errorHandler.handleError(error, 'DatabaseService.updateCallsTable');
         
-        // Try a fallback approach without using .select() for the return
-        if (error.message && (error.message.includes('SELECT DISTINCT') || error.message.includes('ORDER BY'))) {
-          // Use direct fetch with POST request
-          try {
-            console.log('Using direct fetch for insert_call_no_return');
-            
-            // Direct fetch to the Edge Function with proper error handling and retry logic
-            const supabaseKey = process.env.SUPABASE_KEY || '';
-            
-            // Construct the full URL to the edge function
-            const functionUrl = 'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return';
-            
-            const response = await fetch(
-              functionUrl,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${supabaseKey}`
-                },
-                body: JSON.stringify(fixedCallData)
-              }
-            );
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('Error on edge function call:', errorText);
-            } else {
-              console.log('Successfully inserted into calls table using edge function');
+        // Try a fallback approach using the edge function directly
+        try {
+          console.log('Using direct fetch for insert_call_no_return');
+          
+          // Direct fetch to the Edge Function with proper error handling and retry logic
+          const supabaseKey = process.env.SUPABASE_KEY || '';
+          
+          // Construct the full URL to the edge function
+          const functionUrl = 'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return';
+          
+          const response = await fetch(
+            functionUrl,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`
+              },
+              body: JSON.stringify(fixedCallData)
             }
-          } catch (fetchError) {
-            console.error('Error calling insert_call_no_return edge function:', fetchError);
+          );
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error on edge function call:', errorText);
+          } else {
+            console.log('Successfully inserted into calls table using edge function');
           }
+        } catch (fetchError) {
+          console.error('Error calling insert_call_no_return edge function:', fetchError);
         }
       } else {
         console.log('Successfully updated calls table');
@@ -254,7 +251,7 @@ export class DatabaseService {
     // Add top keywords to trends
     for (const keyword of keywords.slice(0, 5)) {
       try {
-        // CRITICAL FIX: Use simpler query approach to avoid DISTINCT ORDER BY issues
+        // Use a simplified approach without SELECT DISTINCT
         const { data } = await supabase
           .from('keyword_trends')
           .select('*')
@@ -263,7 +260,7 @@ export class DatabaseService {
           .maybeSingle();
         
         if (data) {
-          // CRITICAL FIX: Don't use .select() after update
+          // Use update without select
           await supabase
             .from('keyword_trends')
             .update({ 
@@ -272,14 +269,16 @@ export class DatabaseService {
             })
             .eq('id', data.id);
         } else {
-          // CRITICAL FIX: Don't use .select() after insert
+          // Use upsert to prevent conflicts
           await supabase
             .from('keyword_trends')
-            .insert({
+            .upsert({
               keyword: keyword as string,
               category,
               count: 1,
               last_used: new Date().toISOString()
+            }, { 
+              onConflict: 'keyword,category' 
             });
         }
       } catch (error) {
@@ -304,7 +303,7 @@ export class DatabaseService {
         recorded_at: new Date().toISOString()
       };
       
-      // CRITICAL FIX: Don't use .select() after insert
+      // Use direct insert without select
       const { error } = await supabase
         .from('sentiment_trends')
         .insert(trendData);
