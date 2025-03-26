@@ -1,5 +1,4 @@
-
-import { CallTranscript } from './CallTranscriptService';
+import { CallTranscript } from '@/types/call';
 import { supabase } from '@/integrations/supabase/client';
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';

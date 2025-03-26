@@ -3,13 +3,13 @@ import React, { memo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { SentimentTrendsData } from '@/services/SentimentAnalysisService';
+import { SentimentTrend } from '@/services/SentimentAnalysisService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThumbsUp, ThumbsDown, MessageCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 interface SentimentAnalysisVisualizerProps {
-  trendsByDay: SentimentTrendsData[];
+  trendsByDay: SentimentTrend[];
   loading: boolean;
 }
 

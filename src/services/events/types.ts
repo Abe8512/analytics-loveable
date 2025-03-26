@@ -10,7 +10,8 @@ export type EventType =
   | 'team-member-added'
   | 'team-member-removed'
   | 'managed-users-updated'
-  | 'call-updated';
+  | 'call-updated'
+  | 'transcriptions-updated';
 
 export interface EventPayload {
   [key: string]: any;
@@ -28,3 +29,12 @@ export interface EventsState {
   removeListener: (id: string) => void;
   dispatchEvent: (type: EventType, payload?: EventPayload) => void;
 }
+
+// Use EventsState instead of creating a new type
+export type EventsStore = EventsState & {
+  listeners: Map<EventType, Set<EventListener>>;
+  eventHistory: EventPayload[];
+  addEventListener: (type: EventType, listener: (payload: EventPayload) => void) => () => void;
+  removeEventListener: (type: EventType, listener: (payload: EventPayload) => void) => void;
+  clearEventHistory: () => void;
+};

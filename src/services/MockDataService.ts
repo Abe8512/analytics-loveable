@@ -1,7 +1,7 @@
 
 import { faker } from '@faker-js/faker';
 import { format, subDays } from 'date-fns';
-import type { TeamPerformanceMetric } from '@/components/CallActivity/TeamPerformanceOverview';
+import { TeamPerformanceMetric } from '@/types/team';
 import type { KeywordAnalysis } from '@/services/KeywordAnalysisService';
 import type { SentimentTrend } from '@/services/SentimentAnalysisService';
 
@@ -18,6 +18,32 @@ export interface ChartData {
   talkRatioData?: { name: string; value: number }[];
   silenceDistributionData?: { name: string; value: number }[];
 }
+
+// Add missing mock data generation functions
+export const generateMockKPIData = () => {
+  return [
+    { name: 'Revenue', value: faker.number.int({ min: 50000, max: 150000 }) },
+    { name: 'Conversion Rate', value: faker.number.int({ min: 10, max: 35 }) },
+    { name: 'Avg Deal Size', value: faker.number.int({ min: 5000, max: 25000 }) },
+    { name: 'Close Rate', value: faker.number.int({ min: 15, max: 40 }) }
+  ];
+};
+
+export const generateMockSalesFunnelData = () => {
+  const leads = faker.number.int({ min: 800, max: 1500 });
+  const qualifiedLeads = Math.round(leads * (faker.number.float({ min: 0.6, max: 0.8 })));
+  const proposals = Math.round(qualifiedLeads * (faker.number.float({ min: 0.4, max: 0.6 })));
+  const negotiations = Math.round(proposals * (faker.number.float({ min: 0.3, max: 0.5 })));
+  const closed = Math.round(negotiations * (faker.number.float({ min: 0.2, max: 0.4 })));
+  
+  return [
+    { name: 'Leads', value: leads },
+    { name: 'Qualified Leads', value: qualifiedLeads },
+    { name: 'Proposals', value: proposals },
+    { name: 'Negotiations', value: negotiations },
+    { name: 'Closed', value: closed }
+  ];
+};
 
 export const generateRandomChartData = (count: number = 5): ChartData[] => {
   const data: ChartData[] = [];

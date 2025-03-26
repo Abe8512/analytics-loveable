@@ -1,5 +1,4 @@
-
-import { CallTranscript } from './CallTranscriptService';
+import { CallTranscript } from '@/types/call';
 
 export interface CallOutcome {
   outcome: string;
@@ -68,7 +67,6 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
   };
   
   for (const transcript of transcripts) {
-    // Calculate outcome stats
     const sentiment = transcript.sentiment || 'neutral';
     
     if (sentiment === 'positive') {
@@ -82,24 +80,20 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
       neutral++;
     }
 
-    // Sum call scores
     if (transcript.call_score) {
       totalScore += transcript.call_score;
     }
     
-    // Track duration
     if (transcript.duration) {
       totalDuration += transcript.duration;
     }
     
-    // Count keywords
     if (transcript.keywords && Array.isArray(transcript.keywords)) {
       transcript.keywords.forEach(keyword => {
         keywordCount[keyword] = (keywordCount[keyword] || 0) + 1;
       });
     }
     
-    // Track time of day
     if (transcript.created_at) {
       const hour = new Date(transcript.created_at).getHours();
       if (hour >= 5 && hour < 12) {
@@ -112,7 +106,6 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
     }
   }
 
-  // Convert to array of CallOutcome objects
   const outcomeStats: CallOutcome[] = [
     {
       outcome: 'Qualified Leads',
@@ -136,12 +129,11 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
     }
   ];
   
-  // Generate call metrics
   const callMetrics: CallMetric[] = [
     {
       name: 'Call Volume',
       value: total,
-      change: 8, // Mock data, in a real app this would be calculated
+      change: 8,
       status: 'increase'
     },
     {
@@ -152,7 +144,7 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
     },
     {
       name: 'Avg Call Duration',
-      value: total > 0 ? Math.round(totalDuration / total / 60) : 0, // in minutes
+      value: total > 0 ? Math.round(totalDuration / total / 60) : 0,
       change: -2,
       status: 'decrease'
     },
@@ -164,7 +156,6 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
     }
   ];
   
-  // Generate quality metrics
   const qualityMetrics: CallQualityMetric[] = [
     {
       name: 'Discovery Questions',
@@ -192,7 +183,6 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
     }
   ];
   
-  // Get top keywords
   const topKeywords: TopKeyword[] = Object.entries(keywordCount)
     .sort(([, countA], [, countB]) => countB - countA)
     .slice(0, 10)
@@ -236,7 +226,6 @@ export const getMetrics = (transcripts: CallTranscript[]): MetricsResult => {
   };
 };
 
-// Helper function to categorize keywords
 const getKeywordCategory = (keyword: string): string => {
   const productKeywords = ['pricing', 'features', 'product', 'service', 'solution'];
   const painKeywords = ['problem', 'issue', 'challenge', 'difficulty', 'concern'];
@@ -254,14 +243,12 @@ export const getCallDistributionData = (transcripts: CallTranscript[]) => {
   const now = new Date();
   const dates: { [key: string]: number } = {};
   
-  // Initialize last 7 days
   for (let i = 6; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(now.getDate() - i);
     dates[date.toISOString().slice(0, 10)] = 0;
   }
   
-  // Count calls per day
   for (const transcript of transcripts) {
     if (transcript.created_at) {
       const date = transcript.created_at.slice(0, 10);
@@ -271,24 +258,20 @@ export const getCallDistributionData = (transcripts: CallTranscript[]) => {
     }
   }
   
-  // Convert to array for chart with correct property names
   return Object.entries(dates).map(([date, count]) => ({
     name: date,
     calls: count
   }));
 };
 
-// New function for getting detailed call distribution by hour
 export const getCallDistributionByHour = (transcripts: CallTranscript[]) => {
   const hours: { [key: string]: number } = {};
   
-  // Initialize hours
   for (let i = 0; i < 24; i++) {
     const hour = i.toString().padStart(2, '0');
     hours[hour] = 0;
   }
   
-  // Count calls per hour
   for (const transcript of transcripts) {
     if (transcript.created_at) {
       const hour = new Date(transcript.created_at).getHours().toString().padStart(2, '0');
@@ -296,22 +279,18 @@ export const getCallDistributionByHour = (transcripts: CallTranscript[]) => {
     }
   }
   
-  // Convert to array for chart
   return Object.entries(hours).map(([hour, count]) => ({
     hour: `${hour}:00`,
     count
   }));
 };
 
-// New function for getting sentiment trends over time
 export const getSentimentTrendData = (transcripts: CallTranscript[]) => {
-  // Sort transcripts by date
   const sortedTranscripts = [...transcripts].sort((a, b) => {
     if (!a.created_at || !b.created_at) return 0;
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
   
-  // Group by day and get sentiment counts
   const sentimentByDay: { [key: string]: {positive: number, neutral: number, negative: number, total: number} } = {};
   
   for (const transcript of sortedTranscripts) {
@@ -327,7 +306,6 @@ export const getSentimentTrendData = (transcripts: CallTranscript[]) => {
     sentimentByDay[date].total++;
   }
   
-  // Convert to percentage and create chart data
   return Object.entries(sentimentByDay).map(([date, counts]) => ({
     date,
     positive: Math.round((counts.positive / counts.total) * 100),
@@ -336,15 +314,12 @@ export const getSentimentTrendData = (transcripts: CallTranscript[]) => {
   }));
 };
 
-// New function for getting score trends over time
 export const getScoreTrendData = (transcripts: CallTranscript[]) => {
-  // Sort transcripts by date
   const sortedTranscripts = [...transcripts].sort((a, b) => {
     if (!a.created_at || !b.created_at) return 0;
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
   
-  // Group by day and calculate average score
   const scoreByDay: { [key: string]: {total: number, count: number} } = {};
   
   for (const transcript of sortedTranscripts) {
@@ -359,20 +334,16 @@ export const getScoreTrendData = (transcripts: CallTranscript[]) => {
     scoreByDay[date].count++;
   }
   
-  // Calculate average and create chart data
   return Object.entries(scoreByDay).map(([date, counts]) => ({
     date,
     score: Math.round(counts.total / counts.count)
   }));
 };
 
-// New function for getting keyword comparison data
 export const getKeywordComparisonData = (transcripts: CallTranscript[]) => {
-  // Group transcripts by sentiment
   const positiveTranscripts = transcripts.filter(t => t.sentiment === 'positive');
   const negativeTranscripts = transcripts.filter(t => t.sentiment === 'negative');
   
-  // Count keywords by sentiment
   const positiveKeywords: {[key: string]: number} = {};
   const negativeKeywords: {[key: string]: number} = {};
   
@@ -392,13 +363,11 @@ export const getKeywordComparisonData = (transcripts: CallTranscript[]) => {
     });
   }
   
-  // Find common keywords
   const commonKeywords = new Set([
     ...Object.keys(positiveKeywords),
     ...Object.keys(negativeKeywords)
   ]);
   
-  // Create comparison data
   return Array.from(commonKeywords).map(keyword => ({
     keyword,
     positive: positiveKeywords[keyword] || 0,

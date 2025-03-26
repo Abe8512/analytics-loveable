@@ -1,5 +1,6 @@
+
 import { faker } from '@faker-js/faker';
-import { CallTranscript } from './CallTranscriptService';
+import { CallTranscript } from '@/types/call';
 
 // Function to generate a single mock call transcript
 export function generateMockCallTranscript(): CallTranscript {

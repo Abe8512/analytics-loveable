@@ -1,205 +1,84 @@
+// Update import to use the correct path
+import { CallTranscript } from '@/types/call';
+import { supabase } from "@/integrations/supabase/client";
 
-import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { CallTranscript, CallTranscriptFilter } from './CallTranscriptService';
-import { EventType } from './events/types';
-import { toast } from 'sonner';
-import { errorHandler } from './ErrorHandlingService';
-
-// Setup real-time subscriptions for transcript changes with improved error handling and reconnection
-export const useTranscriptRealtimeSubscriptions = (
-  isConnected: boolean,
-  fetchTranscripts: (filters?: CallTranscriptFilter) => Promise<void>,
-  dispatchEvent: (type: EventType, data?: any) => void
-) => {
-  // Keep track of subscription attempts
-  const subscriptionAttemptsRef = useRef(0);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  useEffect(() => {
-    if (!isConnected) {
-      console.log('Skipping realtime setup - not connected to Supabase');
+export class TranscriptSubscriptionService {
+  async subscribeToTranscripts(transcriptId: string, userId: string): Promise<void> {
+    try {
+      const { data, error } = await supabase
+        .from('transcript_subscriptions')
+        .insert([
+          { transcript_id: transcriptId, user_id: userId }
+        ]);
       
-      // Clean up any existing timeouts when disconnected
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
+      if (error) {
+        console.error('Error subscribing to transcript:', error);
+        throw new Error(`Could not subscribe to transcript: ${error.message}`);
       }
       
-      return;
+      console.log('Successfully subscribed to transcript:', transcriptId);
+    } catch (error: any) {
+      console.error('Failed to subscribe to transcript:', error.message);
+      throw new Error(`Subscription failed: ${error.message}`);
     }
-    
-    console.log('Setting up realtime subscriptions for call_transcripts table...');
-    subscriptionAttemptsRef.current += 1;
-    
-    // Create a subscription channel with automatic reconnection
-    const setupChannel = () => {
-      // If we already have a channel, clean it up first
-      if (channelRef.current) {
-        console.log('Removing existing channel before creating a new one');
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+  }
+  
+  async unsubscribeFromTranscripts(transcriptId: string, userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('transcript_subscriptions')
+        .delete()
+        .match({ transcript_id: transcriptId, user_id: userId });
+      
+      if (error) {
+        console.error('Error unsubscribing from transcript:', error);
+        throw new Error(`Could not unsubscribe from transcript: ${error.message}`);
       }
       
-      // Create new channel with name that includes attempt count to ensure unique channel
-      const channelName = `schema-db-changes-${subscriptionAttemptsRef.current}`;
-      const channel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'call_transcripts'
-          },
-          (payload) => {
-            console.log('Received real-time INSERT event for call_transcripts:', payload);
-            
-            // Validate payload has the expected structure
-            if (payload && 
-                payload.new && 
-                typeof payload.new === 'object' && 
-                'id' in payload.new) {
-              
-              const newTranscript = payload.new as CallTranscript;
-              console.log('New transcript:', newTranscript);
-              
-              // Show notification to user
-              toast.success('New transcript created', {
-                description: `A new transcript has been added: ${payload.new.filename || 'Unknown file'}`,
-                duration: 4000,
-              });
-              
-              // Dispatch event for new transcript
-              dispatchEvent('transcript-created', newTranscript);
-              
-              // Refresh data to include the new transcript
-              // Using debounce logic inside fetchTranscripts
-              fetchTranscripts().catch(err => {
-                console.error('Error fetching transcripts after INSERT event:', err);
-                errorHandler.handleError(err, 'TranscriptSubscriptionService.INSERT');
-              });
-            } else {
-              console.warn('Received invalid payload format for call_transcripts INSERT:', payload);
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'call_transcripts'
-          },
-          (payload) => {
-            console.log('Received real-time UPDATE event for call_transcripts:', payload);
-            
-            // Validate payload has the expected structure
-            if (payload && 
-                payload.new && 
-                typeof payload.new === 'object' && 
-                'id' in payload.new) {
-              
-              const updatedTranscript = payload.new as CallTranscript;
-              console.log('Updated transcript:', updatedTranscript);
-              
-              // Dispatch event for updated transcript
-              dispatchEvent('transcript-updated', updatedTranscript);
-              
-              // Refresh data if needed - use existing debounce in fetch
-              fetchTranscripts().catch(err => {
-                console.error('Error fetching transcripts after UPDATE event:', err);
-                errorHandler.handleError(err, 'TranscriptSubscriptionService.UPDATE');
-              });
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'DELETE',
-            schema: 'public',
-            table: 'call_transcripts'
-          },
-          (payload) => {
-            console.log('Received real-time DELETE event for call_transcripts:', payload);
-            
-            // For delete events, the data is in payload.old
-            if (payload && 
-                payload.old && 
-                typeof payload.old === 'object' && 
-                'id' in payload.old) {
-              
-              const deletedTranscriptId = payload.old.id;
-              console.log('Deleted transcript ID:', deletedTranscriptId);
-              
-              // Show notification to user
-              toast.info('Transcript deleted', {
-                description: `Transcript ID: ${deletedTranscriptId}`,
-                duration: 4000,
-              });
-              
-              // Dispatch event for deleted transcript
-              dispatchEvent('transcript-deleted', { id: deletedTranscriptId });
-              
-              // Refresh data to remove the deleted transcript
-              fetchTranscripts().catch(err => {
-                console.error('Error fetching transcripts after DELETE event:', err);
-                errorHandler.handleError(err, 'TranscriptSubscriptionService.DELETE');
-              });
-            }
-          }
-        )
-        .subscribe((status) => {
-          console.log(`Real-time subscription status (${channelName}):`, status);
-          
-          if (status === 'SUBSCRIBED') {
-            console.log('Successfully subscribed to real-time updates');
-            
-            // Clear any pending reconnection attempts
-            if (reconnectTimeoutRef.current) {
-              clearTimeout(reconnectTimeoutRef.current);
-              reconnectTimeoutRef.current = null;
-            }
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            console.error(`Subscription ${channelName} closed or errored with status:`, status);
-            
-            // On connection issues, try to reconnect after a delay
-            // But only if still connected to Supabase overall
-            if (isConnected && !reconnectTimeoutRef.current) {
-              console.log('Will attempt to reconnect in 3 seconds...');
-              
-              reconnectTimeoutRef.current = setTimeout(() => {
-                console.log('Attempting to reestablish real-time connection...');
-                setupChannel();
-                reconnectTimeoutRef.current = null;
-              }, 3000);
-            }
-          }
-        });
+      console.log('Successfully unsubscribed from transcript:', transcriptId);
+    } catch (error: any) {
+      console.error('Failed to unsubscribe from transcript:', error.message);
+      throw new Error(`Unsubscription failed: ${error.message}`);
+    }
+  }
+  
+  async getSubscribedUsers(transcriptId: string): Promise<string[]> {
+    try {
+      const { data, error } = await supabase
+        .from('transcript_subscriptions')
+        .select('user_id')
+        .eq('transcript_id', transcriptId);
       
-      // Store the channel reference so we can clean it up later
-      channelRef.current = channel;
-      return channel;
-    };
-    
-    // Initial setup
-    const channel = setupChannel();
-    
-    // Clean up subscription on unmount or when connection status changes
-    return () => {
-      console.log('Cleaning up real-time subscriptions...');
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
+      if (error) {
+        console.error('Error fetching subscribed users:', error);
+        return [];
       }
       
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      return data.map(item => item.user_id);
+    } catch (error) {
+      console.error('Failed to fetch subscribed users:', error);
+      return [];
+    }
+  }
+  
+  async isUserSubscribed(transcriptId: string, userId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('transcript_subscriptions')
+        .select('*')
+        .match({ transcript_id: transcriptId, user_id: userId });
+      
+      if (error) {
+        console.error('Error checking subscription:', error);
+        return false;
       }
-    };
-  }, [isConnected, fetchTranscripts, dispatchEvent]);
-};
+      
+      return data !== null && data.length > 0;
+    } catch (error) {
+      console.error('Failed to check subscription:', error);
+      return false;
+    }
+  }
+}
+
+export const transcriptSubscriptionService = new TranscriptSubscriptionService();

@@ -3,13 +3,14 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Activity, Clock, AlertCircle, ArrowUpRight, Zap } from "lucide-react";
-import { TeamMetrics } from "@/services/RealTimeMetricsService";
+import { TeamMetricsData } from "@/services/SharedDataService";
+import { TeamPerformanceMetric } from "@/types/team";
 import ContentLoader from "@/components/ui/ContentLoader";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import { generateMockTeamMetrics, USE_MOCK_DATA } from "@/services/MockDataService";
 
 interface TeamPerformanceOverviewProps {
-  teamMetrics: TeamMetrics;
+  teamMetrics: TeamMetricsData;
   teamMetricsLoading: boolean;
   callsLength: number;
 }
@@ -32,26 +33,58 @@ const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({
   
   // Calculate derived values from either real or mock metrics with stabilization
   const totalCalls = useMemo(() => {
-    const baseCount = displayMetrics?.totalCalls !== undefined ? displayMetrics.totalCalls : 42;
-    return Math.floor(baseCount + (callsLength || 0));
-  }, [displayMetrics?.totalCalls, callsLength]);
+    if (displayMetrics && 'totalCalls' in displayMetrics) {
+      const baseCount = displayMetrics.totalCalls !== undefined ? displayMetrics.totalCalls : 42;
+      return Math.floor(baseCount + (callsLength || 0));
+    }
+    return Math.floor(42 + (callsLength || 0));
+  }, [displayMetrics, callsLength]);
   
   const sentiment = useMemo(() => {
-    const sentimentValue = displayMetrics?.avgSentiment !== undefined ? displayMetrics.avgSentiment : 0.68;
-    return Math.floor(sentimentValue * 100);
-  }, [displayMetrics?.avgSentiment]);
+    if (displayMetrics && 'avgSentiment' in displayMetrics) {
+      const sentimentValue = displayMetrics.avgSentiment !== undefined ? displayMetrics.avgSentiment : 0.68;
+      return Math.floor(sentimentValue * 100);
+    } 
+    // For metrics array, calculate average sentiment score
+    else if (Array.isArray(displayMetrics)) {
+      const avgScore = displayMetrics.reduce((acc, item) => acc + item.sentiment_score, 0) / displayMetrics.length;
+      return Math.floor(avgScore * 100);
+    }
+    return Math.floor(0.68 * 100);
+  }, [displayMetrics]);
   
   const talkRatio = useMemo(() => {
-    const agent = Math.floor(displayMetrics?.avgTalkRatio?.agent !== undefined ? displayMetrics.avgTalkRatio.agent : 55);
-    const customer = Math.floor(displayMetrics?.avgTalkRatio?.customer !== undefined ? displayMetrics.avgTalkRatio.customer : 45);
-    return `${agent}:${customer}`;
-  }, [displayMetrics?.avgTalkRatio?.agent, displayMetrics?.avgTalkRatio?.customer]);
+    if (displayMetrics && 'avgTalkRatio' in displayMetrics) {
+      const agent = Math.floor(displayMetrics.avgTalkRatio?.agent !== undefined ? displayMetrics.avgTalkRatio.agent : 55);
+      const customer = Math.floor(displayMetrics.avgTalkRatio?.customer !== undefined ? displayMetrics.avgTalkRatio.customer : 45);
+      return `${agent}:${customer}`;
+    }
+    // For metrics array, calculate average talk ratio
+    else if (Array.isArray(displayMetrics)) {
+      const avgRatio = displayMetrics.reduce((acc, item) => acc + item.avg_talk_ratio, 0) / displayMetrics.length;
+      const agent = Math.floor(avgRatio * 100);
+      const customer = 100 - agent;
+      return `${agent}:${customer}`;
+    }
+    return "55:45";
+  }, [displayMetrics]);
   
   const topKeywords = useMemo(() => {
-    return displayMetrics?.topKeywords?.length ? 
-      displayMetrics.topKeywords.slice(0, 3) : 
-      ["pricing", "features", "support"];
-  }, [displayMetrics?.topKeywords]);
+    if (displayMetrics && 'topKeywords' in displayMetrics) {
+      return displayMetrics.topKeywords?.length ? 
+        displayMetrics.topKeywords.slice(0, 3) : 
+        ["pricing", "features", "support"];
+    }
+    // For metrics array, collect unique keywords
+    else if (Array.isArray(displayMetrics)) {
+      const allKeywords = displayMetrics.flatMap(item => item.top_keywords || []);
+      const uniqueKeywords = [...new Set(allKeywords)];
+      return uniqueKeywords.slice(0, 3).length > 0 ? 
+        uniqueKeywords.slice(0, 3) : 
+        ["pricing", "features", "support"];
+    }
+    return ["pricing", "features", "support"];
+  }, [displayMetrics]);
   
   // Determine if we should show loading state
   const showLoading = teamMetricsLoading && !USE_MOCK_DATA;

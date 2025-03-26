@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { EventType, EventListener, EventPayload, EventsStore } from './types';
+import { EventType, EventListener, EventPayload, EventsState, EventsStore } from './types';
 
 // Create events store
 export const useEventsStore = create<EventsStore>((set, get) => ({
@@ -64,5 +64,25 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
   
   clearEventHistory: () => {
     set({ eventHistory: [] });
+  },
+  
+  // Add these methods to satisfy the EventsState interface
+  addListener: (type, callback) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    const listener: EventListener = { id, type, callback };
+    
+    set(state => {
+      const listeners = [...state.listeners];
+      listeners.push(listener);
+      return { listeners };
+    });
+    
+    return id;
+  },
+  
+  removeListener: (id) => {
+    set(state => ({
+      listeners: state.listeners.filter(listener => listener.id !== id)
+    }));
   }
 }));
