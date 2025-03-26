@@ -1,293 +1,144 @@
 
-import React, { useState, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DateRange } from "react-day-picker";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { 
-  TrendingUp, 
-  TrendingDown,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Download,
-  Search,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-
-// Mock data
-const metrics = [
-  { 
-    id: 1, 
-    metric: "Total Calls", 
-    daily: 15, 
-    weekly: 76, 
-    monthly: 315, 
-    trend: 8,
-    benchmark: 300,
-    status: "above"
-  },
-  { 
-    id: 2, 
-    metric: "Avg Call Duration", 
-    daily: "8.2 min", 
-    weekly: "7.5 min", 
-    monthly: "7.8 min", 
-    trend: 2,
-    benchmark: "8.0 min",
-    status: "on-track"
-  },
-  { 
-    id: 3, 
-    metric: "Success Rate", 
-    daily: "65%", 
-    weekly: "72%", 
-    monthly: "68%", 
-    trend: 5,
-    benchmark: "70%",
-    status: "on-track"
-  },
-  { 
-    id: 4, 
-    metric: "Conversion Rate", 
-    daily: "22%", 
-    weekly: "34%", 
-    monthly: "32%", 
-    trend: 12,
-    benchmark: "40%",
-    status: "below"
-  },
-  { 
-    id: 5, 
-    metric: "Talk-to-Listen Ratio", 
-    daily: "45:55", 
-    weekly: "42:58", 
-    monthly: "44:56", 
-    trend: -3,
-    benchmark: "40:60",
-    status: "below"
-  },
-];
-
-type SortKey = "metric" | "daily" | "weekly" | "monthly" | "trend" | "benchmark" | "status";
-type SortDirection = "asc" | "desc";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/integrations/supabase/client';
+import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 
 interface KeyMetricsTableProps {
-  dateRange: DateRange | undefined;
+  dateRange?: {
+    from?: Date;
+    to?: Date;
+  };
 }
 
-const KeyMetricsTable = ({ dateRange }: KeyMetricsTableProps) => {
-  const [sortKey, setSortKey] = useState<SortKey>("metric");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [searchTerm, setSearchTerm] = useState("");
+const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState<any[]>([]);
   
-  const handleSort = (key: SortKey) => {
-    if (key === sortKey) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortKey(key);
-      setSortDirection("asc");
-    }
-  };
-  
-  const sortedMetrics = useMemo(() => 
-    [...metrics]
-      .filter(metric => metric.metric.toLowerCase().includes(searchTerm.toLowerCase()))
-      .sort((a, b) => {
-        if (sortDirection === "asc") {
-          return a[sortKey] > b[sortKey] ? 1 : -1;
-        } else {
-          return a[sortKey] < b[sortKey] ? 1 : -1;
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      setLoading(true);
+      try {
+        let query = supabase
+          .from('call_metrics_summary')
+          .select('*')
+          .order('report_date', { ascending: false });
+        
+        if (dateRange?.from) {
+          query = query.gte('report_date', dateRange.from.toISOString().split('T')[0]);
         }
-      }),
-    [searchTerm, sortKey, sortDirection]
-  );
+        
+        if (dateRange?.to) {
+          query = query.lte('report_date', dateRange.to.toISOString().split('T')[0]);
+        }
+        
+        // Limit to last 7 days if no date range specified
+        if (!dateRange?.from && !dateRange?.to) {
+          const last7Days = new Date();
+          last7Days.setDate(last7Days.getDate() - 7);
+          query = query.gte('report_date', last7Days.toISOString().split('T')[0]);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('Error fetching metrics:', error);
+          return;
+        }
+        
+        setMetrics(data || []);
+      } catch (err) {
+        console.error('Error in fetchMetrics:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchMetrics();
+  }, [dateRange]);
   
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "above":
-        return "text-green-500";
-      case "on-track":
-        return "text-amber-500";
-      case "below":
-        return "text-red-500";
-      default:
-        return "text-gray-500";
-    }
+  const calculateChange = (current: number, previous: number) => {
+    if (previous === 0) return 0;
+    return Math.round(((current - previous) / previous) * 100);
   };
-
+  
+  const formatMetricRow = (name: string, getValue: (data: any) => number) => {
+    if (metrics.length === 0) return { name, current: 0, previous: 0, change: 0 };
+    
+    const current = getValue(metrics[0]);
+    const previous = metrics.length > 1 ? getValue(metrics[1]) : 0;
+    const change = calculateChange(current, previous);
+    
+    return { name, current, previous, change };
+  };
+  
+  const metricRows = [
+    formatMetricRow('Total Calls', (data) => data.total_calls || 0),
+    formatMetricRow('Avg Duration (min)', (data) => Math.round((data.avg_duration || 0) / 60)),
+    formatMetricRow('Positive Calls', (data) => data.positive_sentiment_count || 0),
+    formatMetricRow('Average Sentiment', (data) => Math.round((data.avg_sentiment || 0) * 100)),
+    formatMetricRow('Agent Talk Ratio', (data) => Math.round(data.agent_talk_ratio || 0)),
+    formatMetricRow('Performance Score', (data) => data.performance_score || 0)
+  ];
+  
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-          <div>
-            <CardTitle>Key Metrics</CardTitle>
-            <CardDescription className="mt-1">
-              Key performance indicators
-            </CardDescription>
-          </div>
-          
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search metrics..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 h-9 w-[180px]"
-              />
-            </div>
-            <Button variant="outline" size="icon" className="h-9 w-9">
-              <Download className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Key Performance Metrics</CardTitle>
+        <CardDescription>
+          Comparing current period to previous period
+        </CardDescription>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="rounded-md border max-h-[300px] overflow-auto">
-          <Table>
-            <TableHeader className="sticky top-0 bg-background z-10">
-              <TableRow>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("metric")}
-                >
-                  <div className="flex items-center">
-                    Metric
-                    {sortKey === "metric" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-1 h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="ml-1 h-3 w-3" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer text-right"
-                  onClick={() => handleSort("daily")}
-                >
-                  <div className="flex items-center justify-end">
-                    Daily
-                    {sortKey === "daily" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-1 h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="ml-1 h-3 w-3" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer text-right"
-                  onClick={() => handleSort("weekly")}
-                >
-                  <div className="flex items-center justify-end">
-                    Weekly
-                    {sortKey === "weekly" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-1 h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="ml-1 h-3 w-3" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer text-right"
-                  onClick={() => handleSort("trend")}
-                >
-                  <div className="flex items-center justify-end">
-                    Trend
-                    {sortKey === "trend" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-1 h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="ml-1 h-3 w-3" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("status")}
-                >
-                  <div className="flex items-center">
-                    Status
-                    {sortKey === "status" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-1 h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="ml-1 h-3 w-3" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
-                    )}
-                  </div>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedMetrics.map((item) => (
-                <TableRow key={item.id} className="h-12">
-                  <TableCell><strong>{item.metric}</strong></TableCell>
-                  <TableCell className="text-right">{item.daily}</TableCell>
-                  <TableCell className="text-right">{item.weekly}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end">
-                      {item.trend >= 0 ? (
-                        <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
-                      )}
-                      <span className={item.trend >= 0 ? "text-green-500" : "text-red-500"}>
-                        {item.trend >= 0 ? "+" : ""}{item.trend}%
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      item.status === "above" 
-                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" 
-                        : item.status === "on-track" 
-                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" 
-                          : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                    }`}>
-                      {item.status === "above" && "Above Target"}
-                      {item.status === "on-track" && "On Track"}
-                      {item.status === "below" && "Below Target"}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {sortedMetrics.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-                    No metrics match your search
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="w-full h-[300px]" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4 font-medium">Metric</th>
+                  <th className="text-right py-3 px-4 font-medium">Current</th>
+                  <th className="text-right py-3 px-4 font-medium">Previous</th>
+                  <th className="text-right py-3 px-4 font-medium">Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metricRows.map((row, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-3 px-4">{row.name}</td>
+                    <td className="text-right py-3 px-4 font-medium">{row.current}</td>
+                    <td className="text-right py-3 px-4 text-muted-foreground">{row.previous}</td>
+                    <td className="text-right py-3 px-4">
+                      <div className="flex items-center justify-end gap-1">
+                        {row.change > 0 ? (
+                          <>
+                            <ArrowUpRight className="h-4 w-4 text-green-500" />
+                            <span className="text-green-500">{row.change}%</span>
+                          </>
+                        ) : row.change < 0 ? (
+                          <>
+                            <ArrowDownRight className="h-4 w-4 text-red-500" />
+                            <span className="text-red-500">{Math.abs(row.change)}%</span>
+                          </>
+                        ) : (
+                          <>
+                            <Minus className="h-4 w-4 text-gray-500" />
+                            <span className="text-gray-500">0%</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 };
 
-export default React.memo(KeyMetricsTable);
+export default KeyMetricsTable;
