@@ -105,11 +105,11 @@ const CallActivity = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <Checkbox id="filter-short" />
-                            <label htmlFor="filter-short" className="text-sm">Short Calls (< 3 min)</label>
+                            <label htmlFor="filter-short" className="text-sm">Short Calls (&lt; 3 min)</label>
                           </div>
                           <div className="flex items-center gap-2">
                             <Checkbox id="filter-long" />
-                            <label htmlFor="filter-long" className="text-sm">Long Calls (> 10 min)</label>
+                            <label htmlFor="filter-long" className="text-sm">Long Calls (&gt; 10 min)</label>
                           </div>
                         </div>
                       </div>
