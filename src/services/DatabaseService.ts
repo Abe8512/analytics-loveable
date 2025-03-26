@@ -122,6 +122,7 @@ export class DatabaseService {
             return { id: transcriptId, error: null };
           }
           
+          // FIX: Access id property directly from the single() result, not from array
           return { id: fetchResult.data?.id || transcriptId, error: null };
         }
         
@@ -181,7 +182,17 @@ export class DatabaseService {
         errorHandler.handleError(callsError, 'DatabaseService.saveTranscriptToDatabase.updateCallsTable');
       }
       
-      return { id: data?.id || transcriptId, error: null };
+      // FIX: Extract id from array correctly if data is an array, otherwise use first element
+      let resultId = '';
+      if (Array.isArray(data) && data.length > 0) {
+        resultId = data[0]?.id || transcriptId;
+      } else if (data?.id) {
+        resultId = data.id;
+      } else {
+        resultId = transcriptId;
+      }
+      
+      return { id: resultId, error: null };
     } catch (error) {
       console.error('Error saving transcript:', error);
       errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase');
@@ -232,13 +243,32 @@ export class DatabaseService {
         
         // Try a fallback approach without using .select() for the return
         if (error.message && (error.message.includes('SELECT DISTINCT') || error.message.includes('ORDER BY'))) {
-          // Direct insert without any return value
-          const retryResult = await supabase.rpc('insert_call_no_return', fixedCallData);
-          
-          if (retryResult.error) {
-            console.error('Error on fallback call insert:', retryResult.error);
-          } else {
-            console.log('Successfully inserted into calls table using fallback method');
+          // Use direct fetch with POST request instead of RPC
+          // FIX: Don't use rpc for insert_call_no_return, use a direct fetch call instead
+          try {
+            console.log('Using direct fetch for insert_call_no_return');
+            
+            // Direct fetch to the Edge Function
+            const response = await fetch(
+              'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${process.env.SUPABASE_KEY || ''}`
+                },
+                body: JSON.stringify(fixedCallData)
+              }
+            );
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Error on edge function call:', errorText);
+            } else {
+              console.log('Successfully inserted into calls table using edge function');
+            }
+          } catch (fetchError) {
+            console.error('Error calling insert_call_no_return edge function:', fetchError);
           }
         }
       } else {
