@@ -72,7 +72,7 @@ export class DatabaseService {
         duration,
         call_score: callScore,
         sentiment,
-        keywords,  // Store in keywords field
+        keywords: keywords,  // Store in keywords field
         key_phrases: keywords, // Also store in key_phrases field (the updated schema)
         transcript_segments: segmentsForStorage,
         created_at: timestamp
@@ -110,12 +110,13 @@ export class DatabaseService {
           console.log(`Column check: keywords=${hasKeywords}, key_phrases=${hasKeyPhrases}`);
           
           // Add back the appropriate field
-          if (hasKeywords) cleanedData.keywords = keywords;
-          if (hasKeyPhrases) cleanedData.key_phrases = key_phrases;
+          const updatedData: any = { ...cleanedData };
+          if (hasKeywords) updatedData.keywords = keywords;
+          if (hasKeyPhrases) updatedData.key_phrases = keywords;
           
           const retryResult = await supabase
             .from('call_transcripts')
-            .insert(cleanedData)
+            .insert(updatedData)
             .select('id')
             .single();
             

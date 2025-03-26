@@ -6,6 +6,7 @@ import { UploadStatus } from "@/store/useBulkUploadStore";
 import { WhisperTranscriptionResponse } from "@/services/WhisperService";
 import { throttle } from "lodash";
 import { errorHandler } from "./ErrorHandlingService";
+import { storageService } from "./StorageService";
 
 export class BulkUploadProcessorService {
   private whisperService: any;
@@ -76,11 +77,20 @@ export class BulkUploadProcessorService {
         size: file.size
       });
       
-      // Phase 1: Optimize audio if possible
+      // Phase 1: Save file to storage bucket
+      updateStatus('processing', 12, 'Uploading audio file...', undefined);
+      const { path: storagePath, error: storageError } = await storageService.uploadAudioFile(file, this.assignedUserId);
+      
+      if (storageError) {
+        console.error('Error uploading file to storage:', storageError);
+        throw new Error(`Storage upload failed: ${storageError.message}`);
+      }
+      
+      // Phase 2: Optimize audio if possible
       updateStatus('processing', 15, 'Preparing audio file...', undefined);
       const optimizedFile = await this.optimizeAudioIfPossible(file);
       
-      // Phase 2: Transcribe the audio file with retries
+      // Phase 3: Transcribe the audio file with retries
       console.log('Transcribing audio...');
       updateStatus('processing', 20, 'Transcribing audio...', undefined);
       
@@ -113,19 +123,19 @@ export class BulkUploadProcessorService {
         return null;
       }
       
-      // Phase 3: Process transcription
+      // Phase 4: Process transcription
       console.log('Processing transcription result:', result);
       updateStatus('processing', 50, result.text, undefined);
       
       // Process and save transcript data
       console.log('Saving transcript to database');
-      await this.processTranscriptData(result, file, updateStatus);
+      const transcriptData = await this.processTranscriptData(result, file, updateStatus, storagePath);
       
       // Calculate processing time
       const processingTime = Math.round((performance.now() - startTime) / 1000);
       console.log(`Completed processing ${file.name} in ${processingTime} seconds`);
       
-      return null;
+      return transcriptData?.id || null;
     } catch (error) {
       console.error(`Error processing file ${file.name}:`, error);
       errorHandler.handleError(error, 'BulkUploadProcessorService.processFile');
@@ -192,8 +202,9 @@ export class BulkUploadProcessorService {
   private async processTranscriptData(
     result: WhisperTranscriptionResponse, 
     file: File,
-    updateStatus: (status: UploadStatus, progress: number, result?: string, error?: string, transcriptId?: string) => void
-  ): Promise<void> {
+    updateStatus: (status: UploadStatus, progress: number, result?: string, error?: string, transcriptId?: string) => void,
+    storagePath?: string
+  ): Promise<{id: string} | null> {
     try {
       // Update status to indicate database save
       updateStatus('processing', 70, result.text, undefined, undefined);
@@ -257,10 +268,12 @@ export class BulkUploadProcessorService {
       this.dispatchEvent('transcript-created', { 
         id,
         filename: file.name,
-        duration: await databaseService.calculateAudioDuration(file)
+        duration: await databaseService.calculateAudioDuration(file),
+        storagePath // Include the storage path in the event data
       });
       
       console.log('Transcript processing completed successfully');
+      return { id };
     } catch (error) {
       console.error('Error processing transcript data:', error);
       errorHandler.handleError(error, 'BulkUploadProcessorService.processTranscriptData');

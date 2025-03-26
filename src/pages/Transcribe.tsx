@@ -90,7 +90,7 @@ const Transcribe = () => {
         )}
         
         {realtimeStatus === 'disabled' && databaseStatus === 'ready' && (
-          <Alert className="mb-6" variant="warning">
+          <Alert className="mb-6" variant="default">
             <Info className="h-4 w-4" />
             <AlertTitle>Realtime Updates Disabled</AlertTitle>
             <AlertDescription>

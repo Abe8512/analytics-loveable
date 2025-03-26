@@ -1,3 +1,4 @@
+
 export interface CallTranscript {
   id: string;
   call_id?: string;
@@ -7,6 +8,7 @@ export interface CallTranscript {
   sentiment?: 'positive' | 'neutral' | 'negative';
   call_score?: number;
   keywords?: string[];
+  key_phrases?: string[];
   transcript_segments?: any[];
   created_at?: string;
   metadata?: any;
