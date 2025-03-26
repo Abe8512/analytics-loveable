@@ -159,7 +159,7 @@ export class TranscriptAnalysisService {
           call_score: Math.round(analysis.sentimentScore * 100), // Convert to 0-100 scale
           key_phrases: analysis.keyPhrases,
           keywords: Object.keys(analysis.keywordFrequency).slice(0, 10), // Top 10 keywords
-          transcript_segments: analyzedTurns, // Store the analyzed turns
+          transcript_segments: JSON.stringify(analyzedTurns), // Convert to JSON string to ensure type compatibility
           metadata: {
             ...analysis,
             analyzed_at: new Date().toISOString()
