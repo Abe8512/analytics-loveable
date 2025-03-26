@@ -31,7 +31,8 @@ export interface AnalyzedTranscript {
   updated_at: string;
 }
 
-class TranscriptAnalysisService {
+// Create a TranscriptAnalysisService class with all required methods
+export class TranscriptAnalysisService {
   // Analyze a transcript and return the analysis results
   async analyzeTranscript(transcriptId: string): Promise<TranscriptAnalysisResult | null> {
     try {
@@ -47,8 +48,10 @@ class TranscriptAnalysisService {
         return null;
       }
 
-      // Ensure turns is an array before processing
-      const turns: SpeakerTurn[] = Array.isArray(transcript.turns) ? transcript.turns : [];
+      // Ensure transcript_segments is an array before processing
+      const turns: SpeakerTurn[] = Array.isArray(transcript.transcript_segments) 
+        ? transcript.transcript_segments 
+        : [];
       
       // Analyze sentiment for each turn
       const analyzedTurns = turns.map(turn => ({
@@ -67,10 +70,10 @@ class TranscriptAnalysisService {
         : 0;
 
       // Extract key phrases (simplified implementation)
-      const keyPhrases = this.extractKeyPhrases(turns.map(t => t.text).join(' '));
+      const keyPhrases = this.extractKeyPhrases(transcript.text);
 
       // Calculate keyword frequency
-      const keywordFrequency = this.calculateKeywordFrequency(turns.map(t => t.text).join(' '));
+      const keywordFrequency = this.calculateKeywordFrequency(transcript.text);
 
       // Calculate speaker ratio
       const agentWords = turns
@@ -201,6 +204,62 @@ class TranscriptAnalysisService {
     }
     
     return topics.slice(0, 8); // Return max 8 topics
+  }
+
+  // Add the missing methods needed by DatabaseService
+  
+  // Split text by speaker
+  splitBySpeaker(text: string, segments: any[], numSpeakers: number): SpeakerTurn[] {
+    try {
+      // Simple implementation: alternating speakers
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      const turns: SpeakerTurn[] = [];
+      
+      for (let i = 0; i < sentences.length; i++) {
+        const speaker = i % 2 === 0 ? 'agent' : 'customer';
+        turns.push({
+          speaker,
+          text: sentences[i].trim(),
+          timestamp: new Date(Date.now() + i * 10000).toISOString(), // Fake timestamps 10 seconds apart
+          sentiment: SentimentAnalysisService.analyzeSentiment(sentences[i])
+        });
+      }
+      
+      return turns;
+    } catch (error) {
+      console.error('Error splitting text by speaker:', error);
+      return [];
+    }
+  }
+  
+  // Extract keywords from text
+  extractKeywords(text: string): string[] {
+    const frequency = this.calculateKeywordFrequency(text);
+    return Object.keys(frequency).slice(0, 10); // Return top 10 keywords
+  }
+  
+  // Analyze sentiment of text
+  analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
+    return SentimentAnalysisService.analyzeSentiment(text);
+  }
+  
+  // Generate a call score based on text and sentiment
+  generateCallScore(text: string, sentiment: string): number {
+    // Simple scoring: 
+    // - Positive sentiment: 75-100
+    // - Neutral sentiment: 50-75
+    // - Negative sentiment: 25-50
+    // - Text length also factors in (longer = higher within range)
+    
+    const baseScore = 
+      sentiment === 'positive' ? 75 : 
+      sentiment === 'negative' ? 25 : 50;
+    
+    // Adjust score based on text length (longer text = more detailed = better score)
+    const lengthFactor = Math.min(Math.max(text.length / 1000, 0), 1); // 0-1 based on text length
+    const lengthBonus = 25 * lengthFactor; // Add up to 25 points based on length
+    
+    return Math.round(baseScore + lengthBonus);
   }
 }
 
