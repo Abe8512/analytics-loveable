@@ -73,7 +73,7 @@ export class DatabaseService {
         call_score: callScore,
         sentiment,
         keywords,  // Store in keywords field
-        key_phrases: keywords, // Also store in key_phrases field if it exists
+        key_phrases: keywords, // Also store in key_phrases field (the updated schema)
         transcript_segments: segmentsForStorage,
         created_at: timestamp
       };
@@ -96,10 +96,23 @@ export class DatabaseService {
         console.error('Error inserting transcript into database:', error);
         errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase.insert');
         
-        // Remove key_phrases field if it's causing the error and retry
-        if (error.message && error.message.includes('key_phrases')) {
-          console.log('Retrying without key_phrases field');
-          const { key_phrases, ...cleanedData } = transcriptData;
+        // If key_phrases is causing the error, try a more targeted approach
+        if (error.message && (error.message.includes('key_phrases') || error.message.includes('column'))) {
+          console.log('Retrying with a more compatible data structure');
+          
+          // Create a more compatible version of the data
+          const { keywords, key_phrases, ...cleanedData } = transcriptData;
+          
+          // Try to determine which field is supported
+          const hasKeywords = await this.checkColumnExists('call_transcripts', 'keywords');
+          const hasKeyPhrases = await this.checkColumnExists('call_transcripts', 'key_phrases');
+          
+          console.log(`Column check: keywords=${hasKeywords}, key_phrases=${hasKeyPhrases}`);
+          
+          // Add back the appropriate field
+          if (hasKeywords) cleanedData.keywords = keywords;
+          if (hasKeyPhrases) cleanedData.key_phrases = key_phrases;
+          
           const retryResult = await supabase
             .from('call_transcripts')
             .insert(cleanedData)
@@ -144,6 +157,26 @@ export class DatabaseService {
       console.error('Error saving transcript:', error);
       errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase');
       return { id: '', error };
+    }
+  }
+  
+  // Check if a column exists in a table
+  private async checkColumnExists(table: string, column: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase.rpc('check_column_exists', {
+        p_table_name: table,
+        p_column_name: column
+      });
+      
+      if (error) {
+        console.error(`Error checking if column ${column} exists in ${table}:`, error);
+        return false;
+      }
+      
+      return !!data;
+    } catch (error) {
+      console.error(`Exception checking if column ${column} exists in ${table}:`, error);
+      return false;
     }
   }
   

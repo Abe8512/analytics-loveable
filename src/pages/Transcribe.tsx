@@ -10,15 +10,17 @@ import { useToast } from '@/hooks/use-toast';
 import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
+import { realtimeService } from '@/services/RealtimeService';
 
 const Transcribe = () => {
   const [transcript, setTranscript] = useState('');
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [databaseStatus, setDatabaseStatus] = useState<'checking' | 'ready' | 'error'>('checking');
+  const [realtimeStatus, setRealtimeStatus] = useState<'checking' | 'enabled' | 'disabled'>('checking');
   const { saveTranscriptionWithAnalysis, getOpenAIKey, getUseLocalWhisper } = useWhisperService();
   const { toast } = useToast();
   
-  // Check database connection on component load
+  // Check database connection and realtime status on component load
   useEffect(() => {
     const checkConnection = async () => {
       try {
@@ -34,6 +36,10 @@ const Transcribe = () => {
         } else {
           console.log('Database connection successful, found data:', data);
           setDatabaseStatus('ready');
+          
+          // Check realtime status for call_transcripts table
+          const realtimeEnabled = await realtimeService.checkRealtimeEnabled('call_transcripts');
+          setRealtimeStatus(realtimeEnabled.enabled ? 'enabled' : 'disabled');
         }
       } catch (err) {
         console.error('Error checking database connection:', err);
@@ -79,6 +85,17 @@ const Transcribe = () => {
             <AlertDescription>
               There seems to be an issue connecting to the database. Some features may not work correctly.
               Please check your Supabase configuration or try again later.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {realtimeStatus === 'disabled' && databaseStatus === 'ready' && (
+          <Alert className="mb-6" variant="warning">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Realtime Updates Disabled</AlertTitle>
+            <AlertDescription>
+              Realtime updates are not enabled for call transcripts. You may not see live updates.
+              Visit the Settings page to enable realtime features.
             </AlertDescription>
           </Alert>
         )}

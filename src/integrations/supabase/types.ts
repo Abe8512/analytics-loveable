@@ -184,6 +184,7 @@ export type Database = {
           end_time: string | null
           filename: string | null
           id: string
+          key_phrases: string[] | null
           keywords: string[] | null
           metadata: Json | null
           sentiment: string | null
@@ -203,6 +204,7 @@ export type Database = {
           end_time?: string | null
           filename?: string | null
           id?: string
+          key_phrases?: string[] | null
           keywords?: string[] | null
           metadata?: Json | null
           sentiment?: string | null
@@ -222,6 +224,7 @@ export type Database = {
           end_time?: string | null
           filename?: string | null
           id?: string
+          key_phrases?: string[] | null
           keywords?: string[] | null
           metadata?: Json | null
           sentiment?: string | null
