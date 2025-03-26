@@ -1,401 +1,459 @@
 
-import React, { useContext, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import DashboardLayout from "@/components/layout/DashboardLayout";
-import { ThemeContext } from "@/App";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { getStoredTranscriptions, StoredTranscription } from "@/services/WhisperService";
-import { Search, Filter, Clock, ArrowUpDown, Download, RefreshCw, Calendar, Phone, FileCheck, Database } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import BulkUploadButton from "@/components/BulkUpload/BulkUploadButton";
-import BulkUploadModal from "@/components/BulkUpload/BulkUploadModal";
-import TranscriptDetail from "@/components/Transcripts/TranscriptDetail";
-import AIWaveform from "@/components/ui/AIWaveform";
-import { supabase } from "@/integrations/supabase/client";
-import BulkUploadHistory from "@/components/BulkUpload/BulkUploadHistory";
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { 
+  Calendar as CalendarIcon, 
+  Download, 
+  Filter, 
+  Mic, 
+  Search, 
+  SlidersHorizontal, 
+  Trash2, 
+  Upload,
+  ListFilter,
+  Check
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuGroup, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { 
+  Table, 
+  TableBody, 
+  TableCaption, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
+import { useTheme } from '@/hooks/use-theme';
+import { cn } from '@/lib/utils';
+import { getStoredTranscriptions, StoredTranscription } from '@/services/WhisperService';
+import TranscriptDetail from '@/components/Transcripts/TranscriptDetail';
+import BlurredLoading from '@/components/ui/BlurredLoading';
+import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
+import { useToast } from '@/hooks/use-toast';
+import PageHeader from '@/components/ui/PageHeader';
 
 const Transcripts = () => {
-  const { isDarkMode } = useContext(ThemeContext);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTranscript, setActiveTranscript] = useState<StoredTranscription | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { isDarkMode } = useTheme();
+  
   const [transcripts, setTranscripts] = useState<StoredTranscription[]>([]);
-  const [dbTranscripts, setDbTranscripts] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("all");
-  const [activeSource, setActiveSource] = useState("local");
+  const [filteredTranscripts, setFilteredTranscripts] = useState<StoredTranscription[]>([]);
+  const [selectedTranscript, setSelectedTranscript] = useState<StoredTranscription | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   
-  // Load transcriptions from storage and check for ID in URL parameters
   useEffect(() => {
-    loadTranscriptions();
+    // Check if a specific transcript id was requested in the URL
+    const searchParams = new URLSearchParams(location.search);
+    const requestedId = searchParams.get('id');
     
-    const transcriptId = searchParams.get("id");
-    if (transcriptId) {
-      // First check in local storage
-      const transcript = transcripts.find(t => t.id === transcriptId);
-      if (transcript) {
-        setActiveTranscript(transcript);
-      } else {
-        // Then check in database
-        fetchTranscriptById(transcriptId);
-      }
-    }
-  }, [searchParams]);
-  
-  const fetchTranscriptById = async (id: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('call_transcripts')
-        .select('*')
-        .eq('id', id)
-        .single();
-        
-      if (error) throw error;
+    const storedTranscripts = getStoredTranscriptions();
+    
+    // Generate sample transcript data if none exists
+    if (storedTranscripts.length === 0) {
+      const sampleTranscripts: StoredTranscription[] = [
+        {
+          id: '1',
+          text: "Hi, this is John from sales. I'm calling to follow up on our previous conversation about our software solution. Could you tell me more about your current needs?",
+          date: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), // 3 hours ago
+          sentiment: 'positive',
+          duration: 124,
+          call_score: 85,
+          keywords: ['software', 'needs', 'solution']
+        },
+        {
+          id: '2',
+          text: "Hello, I'm calling about the issue you reported yesterday. I understand it's been frustrating. Let me see how I can help resolve this problem quickly for you.",
+          date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+          sentiment: 'neutral',
+          duration: 183,
+          call_score: 72,
+          keywords: ['issue', 'problem', 'help']
+        },
+        {
+          id: '3',
+          text: "I'm disappointed with the service quality. We've had repeated issues with the product and the support has been inadequate. I'd like to speak with a manager.",
+          date: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
+          sentiment: 'negative',
+          duration: 215,
+          call_score: 45,
+          keywords: ['disappointed', 'issues', 'inadequate']
+        }
+      ];
       
-      if (data) {
-        // Convert to StoredTranscription format
-        const convertedTranscript: StoredTranscription = {
-          id: data.id,
-          text: data.text,
-          filename: data.filename,
-          date: data.created_at,
-          duration: data.duration,
-          callScore: data.call_score,
-          // Fix the type error by checking if sentiment is one of the allowed values
-          sentiment: (data.sentiment === 'positive' || data.sentiment === 'negative' || data.sentiment === 'neutral') 
-            ? data.sentiment as 'positive' | 'neutral' | 'negative' 
-            : 'neutral',
-          keywords: data.keywords || [],
-        };
-        
-        setActiveTranscript(convertedTranscript);
-      }
-    } catch (error) {
-      console.error('Error fetching transcript:', error);
-    }
-  };
-  
-  const loadTranscriptions = async () => {
-    setIsLoading(true);
-    
-    // Get local data from storage
-    const storedTranscriptions = getStoredTranscriptions();
-    
-    // Sort by date (newest first)
-    const sorted = [...storedTranscriptions].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
-    setTranscripts(sorted);
-    
-    // Get data from database
-    try {
-      const { data, error } = await supabase
-        .from('call_transcripts')
-        .select('*')
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
+      setTranscripts(sampleTranscripts);
+      setFilteredTranscripts(sampleTranscripts);
       
-      if (data) {
-        setDbTranscripts(data);
+      // If an ID was requested, select that transcript
+      if (requestedId) {
+        const requested = sampleTranscripts.find(t => t.id === requestedId);
+        if (requested) {
+          setSelectedTranscript(requested);
+        }
       }
-    } catch (error) {
-      console.error('Error loading transcripts from DB:', error);
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Sort by date (newest first)
+      const sortedTranscripts = [...storedTranscripts].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      
+      setTranscripts(sortedTranscripts);
+      setFilteredTranscripts(sortedTranscripts);
+      
+      // If an ID was requested, select that transcript
+      if (requestedId) {
+        const requested = sortedTranscripts.find(t => t.id === requestedId);
+        if (requested) {
+          setSelectedTranscript(requested);
+        }
+      }
     }
-  };
+    
+    setIsLoading(false);
+  }, [location.search]);
   
-  // Filter transcripts based on search term, active tab, and active source
-  const filteredTranscripts = activeSource === 'local' 
-    ? transcripts.filter(transcript => {
-        const matchesSearch = transcript.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             (transcript.speakerName && transcript.speakerName.toLowerCase().includes(searchTerm.toLowerCase()));
-        
-        if (activeTab === "all") return matchesSearch;
-        if (activeTab === "positive") return matchesSearch && transcript.sentiment === "positive";
-        if (activeTab === "negative") return matchesSearch && transcript.sentiment === "negative";
-        if (activeTab === "neutral") return matchesSearch && transcript.sentiment === "neutral";
-        
-        return matchesSearch;
-      })
-    : dbTranscripts.filter(transcript => {
-        const matchesSearch = transcript.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             (transcript.filename && transcript.filename.toLowerCase().includes(searchTerm.toLowerCase()));
-        
-        if (activeTab === "all") return matchesSearch;
-        if (activeTab === "positive") return matchesSearch && transcript.sentiment === "positive";
-        if (activeTab === "negative") return matchesSearch && transcript.sentiment === "negative";
-        if (activeTab === "neutral") return matchesSearch && transcript.sentiment === "neutral";
-        
-        return matchesSearch;
+  useEffect(() => {
+    if (!searchQuery && !selectedDate && !activeFilter) {
+      setFilteredTranscripts(transcripts);
+      return;
+    }
+    
+    let results = [...transcripts];
+    
+    // Filter by search query
+    if (searchQuery) {
+      results = results.filter(transcript => 
+        transcript.text.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    // Filter by date
+    if (selectedDate) {
+      const dateString = format(selectedDate, 'yyyy-MM-dd');
+      results = results.filter(transcript => {
+        const transcriptDate = new Date(transcript.date);
+        return format(transcriptDate, 'yyyy-MM-dd') === dateString;
       });
+    }
+    
+    // Filter by sentiment
+    if (activeFilter) {
+      results = results.filter(transcript => 
+        transcript.sentiment?.toLowerCase() === activeFilter.toLowerCase()
+      );
+    }
+    
+    setFilteredTranscripts(results);
+  }, [searchQuery, selectedDate, activeFilter, transcripts]);
   
-  // Format duration from seconds to minutes and seconds
-  const formatDuration = (seconds?: number): string => {
-    if (!seconds) return "unknown";
+  const handleTranscriptClick = (transcript: StoredTranscription) => {
+    setSelectedTranscript(transcript);
+    
+    // Update URL without reload
+    navigate(`/transcripts?id=${transcript.id}`, { replace: true });
+  };
+  
+  const handleCloseDetail = () => {
+    setSelectedTranscript(null);
+    navigate('/transcripts', { replace: true });
+  };
+  
+  const handleDeleteTranscript = (id: string) => {
+    // Filter out the transcript with the matching id
+    const updatedTranscripts = transcripts.filter(t => t.id !== id);
+    
+    // Update state
+    setTranscripts(updatedTranscripts);
+    setFilteredTranscripts(prevFiltered => prevFiltered.filter(t => t.id !== id));
+    
+    // If the deleted transcript was selected, clear selection
+    if (selectedTranscript && selectedTranscript.id === id) {
+      setSelectedTranscript(null);
+      navigate('/transcripts', { replace: true });
+    }
+    
+    toast({
+      title: 'Transcript deleted',
+      description: 'The transcript has been successfully removed',
+    });
+  };
+  
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedDate(undefined);
+    setActiveFilter(null);
+  };
+  
+  const sentimentClasses = {
+    positive: 'bg-green-500/10 text-green-500 hover:bg-green-500/20',
+    neutral: 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20',
+    negative: 'bg-red-500/10 text-red-500 hover:bg-red-500/20',
+  };
+  
+  const formatTranscriptDuration = (seconds?: number) => {
+    if (!seconds) return '00:00';
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
   
-  // Generate a speaker name if none exists
-  const getSpeakerName = (transcript: any): string => {
-    if (transcript.speakerName) return transcript.speakerName;
-    
-    // Generate a random name if none exists
-    const firstNames = ["Sarah", "Michael", "Emily", "David", "Jessica", "John", "Rachel", "Robert", "Linda", "William"];
-    const lastNames = ["Johnson", "Chen", "Rodriguez", "Kim", "Wong", "Smith", "Brown", "Jones", "Miller", "Davis"];
-    
-    // Use the transcript ID as a seed for consistent naming
-    const idSum = transcript.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-    const firstName = firstNames[idSum % firstNames.length];
-    const lastName = lastNames[(idSum * 13) % lastNames.length];
-    
-    return `${firstName} ${lastName}`;
-  };
-  
-  const handleTranscriptClick = (transcript: any) => {
-    if (activeSource === 'local') {
-      const localTranscript = transcripts.find(t => t.id === transcript.id);
-      setActiveTranscript(localTranscript || null);
-    } else {
-      // Convert DB transcript to StoredTranscription format
-      const convertedTranscript: StoredTranscription = {
-        id: transcript.id,
-        text: transcript.text,
-        filename: transcript.filename,
-        date: transcript.created_at,
-        duration: transcript.duration,
-        callScore: transcript.call_score,
-        sentiment: transcript.sentiment,
-        keywords: transcript.keywords || [],
-      };
-      
-      setActiveTranscript(convertedTranscript);
-    }
-    
-    setSearchParams({ id: transcript.id });
-  };
-  
-  const handleRefresh = () => {
-    loadTranscriptions();
-  };
+  if (isLoading) {
+    return <BlurredLoading />;
+  }
   
   return (
-    <DashboardLayout>
-      <div className="container mx-auto p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Call Transcripts</h1>
-            <p className="text-muted-foreground">
-              Review, analyze and search through your call transcriptions
-            </p>
+    <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
+      <PageHeader 
+        title="Transcripts" 
+        description="View and analyze your call transcripts"
+        icon={<Mic className="h-6 w-6 text-primary" />}
+      />
+      
+      {selectedTranscript ? (
+        <TranscriptDetail
+          transcript={selectedTranscript}
+          onClose={handleCloseDetail}
+          onDelete={() => handleDeleteTranscript(selectedTranscript.id)}
+        />
+      ) : (
+        <>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search transcripts..."
+                  className="pl-8 w-full"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "justify-start text-left font-normal w-full md:w-auto",
+                        !selectedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <ListFilter className="h-4 w-4" />
+                      {activeFilter ? activeFilter : "Filter"}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuLabel>Filter by sentiment</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem onClick={() => setActiveFilter('positive')}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-green-500" />
+                          <span>Positive</span>
+                          {activeFilter === 'positive' && <Check className="ml-2 h-4 w-4" />}
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setActiveFilter('neutral')}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-blue-500" />
+                          <span>Neutral</span>
+                          {activeFilter === 'neutral' && <Check className="ml-2 h-4 w-4" />}
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setActiveFilter('negative')}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-red-500" />
+                          <span>Negative</span>
+                          {activeFilter === 'negative' && <Check className="ml-2 h-4 w-4" />}
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={clearFilters}>
+                      Clear filters
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                
+                {(searchQuery || selectedDate || activeFilter) && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button 
+                variant="outline" 
+                className="gap-2 w-full md:w-auto"
+                onClick={() => setShowBulkUpload(true)}
+              >
+                <Upload className="h-4 w-4" />
+                <span>Bulk Upload</span>
+              </Button>
+              
+              <BulkUploadModal
+                isOpen={showBulkUpload}
+                onClose={() => setShowBulkUpload(false)}
+              />
+            </div>
           </div>
           
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-            </Button>
-            <BulkUploadButton onClick={() => setIsBulkUploadOpen(true)} />
-          </div>
-        </div>
-        
-        <BulkUploadModal 
-          isOpen={isBulkUploadOpen} 
-          onClose={() => setIsBulkUploadOpen(false)} 
-        />
-        
-        {activeTranscript ? (
-          <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div>
-                  <CardTitle>Transcript Details</CardTitle>
-                  <CardDescription>
-                    {activeTranscript.filename ? activeTranscript.filename : `Call with ${getSpeakerName(activeTranscript)}`} • {
-                      format(
-                        parseISO(activeTranscript.date), 
-                        'PPp'
-                      )
-                    } • {formatDuration(activeTranscript.duration)}
-                  </CardDescription>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    setActiveTranscript(null);
-                    setSearchParams({});
-                  }}
-                >
-                  Back to List
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <TranscriptDetail transcript={activeTranscript} />
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6">
-            <Tabs defaultValue="transcripts">
-              <TabsList>
-                <TabsTrigger value="transcripts">All Transcripts</TabsTrigger>
-                <TabsTrigger value="bulkuploads">Bulk Upload History</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="transcripts">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-col md:flex-row md:justify-between gap-4">
-                      <div className="flex flex-col md:flex-row md:items-center gap-3">
-                        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
-                          <TabsList>
-                            <TabsTrigger value="all">All</TabsTrigger>
-                            <TabsTrigger value="positive">Positive</TabsTrigger>
-                            <TabsTrigger value="neutral">Neutral</TabsTrigger>
-                            <TabsTrigger value="negative">Negative</TabsTrigger>
-                          </TabsList>
-                        </Tabs>
-                        
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            type="search"
-                            placeholder="Search transcripts..."
-                            className="pl-8 w-full md:w-[250px]"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Tabs defaultValue="local" value={activeSource} onValueChange={setActiveSource}>
-                          <TabsList>
-                            <TabsTrigger value="local">
-                              <Phone className="h-4 w-4 mr-2" />
-                              Local Storage
-                            </TabsTrigger>
-                            <TabsTrigger value="database">
-                              <Database className="h-4 w-4 mr-2" />
-                              Database
-                            </TabsTrigger>
-                          </TabsList>
-                        </Tabs>
-                        
-                        <Button variant="outline" size="sm">
-                          <Filter className="h-4 w-4 mr-2" />
-                          Filters
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {filteredTranscripts.length > 0 ? (
-                      <div className="space-y-2">
-                        {filteredTranscripts.map((transcript) => (
+          <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+            <Table>
+              <TableCaption>
+                {filteredTranscripts.length === 0
+                  ? searchQuery || selectedDate || activeFilter
+                    ? "No matching transcripts found. Try adjusting your filters."
+                    : "No transcripts available. Upload a recording to get started."
+                  : `Showing ${filteredTranscripts.length} transcript${filteredTranscripts.length === 1 ? '' : 's'}`
+                }
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Date</TableHead>
+                  <TableHead>Content</TableHead>
+                  <TableHead className="w-[150px]">Duration</TableHead>
+                  <TableHead className="w-[120px]">Sentiment</TableHead>
+                  <TableHead className="w-[100px]">Score</TableHead>
+                  <TableHead className="w-[100px] text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTranscripts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                      No transcripts found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredTranscripts.map((transcript) => (
+                    <TableRow 
+                      key={transcript.id}
+                      className="cursor-pointer hover:bg-accent/50"
+                      onClick={() => handleTranscriptClick(transcript)}
+                    >
+                      <TableCell className="font-medium">
+                        {format(new Date(transcript.date), 'MMM d, yyyy')}
+                      </TableCell>
+                      <TableCell className="max-w-md truncate">
+                        {transcript.text}
+                      </TableCell>
+                      <TableCell>
+                        {formatTranscriptDuration(transcript.duration)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={
+                            sentimentClasses[
+                              transcript.sentiment as keyof typeof sentimentClasses
+                            ] || sentimentClasses.neutral
+                          }
+                        >
+                          {transcript.sentiment || 'neutral'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
                           <div 
-                            key={transcript.id}
-                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent cursor-pointer"
-                            onClick={() => handleTranscriptClick(transcript)}
+                            className={`w-10 h-1 rounded-full mr-2 ${
+                              transcript.call_score && transcript.call_score >= 70 
+                                ? 'bg-green-500' 
+                                : transcript.call_score && transcript.call_score >= 50 
+                                ? 'bg-yellow-500' 
+                                : 'bg-red-500'
+                            }`}
+                          ></div>
+                          <span>{transcript.call_score || 'N/A'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toast({
+                                title: 'Transcript downloaded',
+                                description: 'The transcript has been downloaded as a text file',
+                              });
+                            }}
                           >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-full ${
-                                transcript.sentiment === 'positive' ? 'bg-neon-green/20' : 
-                                transcript.sentiment === 'negative' ? 'bg-neon-red/20' : 'bg-neon-blue/20'
-                              } flex items-center justify-center`}>
-                                <Phone className={`h-5 w-5 ${
-                                  transcript.sentiment === 'positive' ? 'text-neon-green' : 
-                                  transcript.sentiment === 'negative' ? 'text-neon-red' : 'text-neon-blue'
-                                }`} />
-                              </div>
-                              <div>
-                                <div className="font-medium">
-                                  {activeSource === 'local' 
-                                    ? getSpeakerName(transcript)
-                                    : transcript.filename || 'Untitled Recording'
-                                  }
-                                </div>
-                                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(parseISO(activeSource === 'local' ? transcript.date : transcript.created_at), 'PPp')}
-                                  <span>•</span>
-                                  <Clock className="h-3 w-3" />
-                                  {formatDuration(transcript.duration)}
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-4">
-                              <div className="flex items-center gap-2">
-                                <AIWaveform 
-                                  barCount={5} 
-                                  color={
-                                    transcript.sentiment === 'positive' ? "green" : 
-                                    transcript.sentiment === 'negative' ? "pink" : "blue"
-                                  } 
-                                  className="h-6" 
-                                />
-                                <div className="text-sm">
-                                  Score: <span className={`font-medium ${
-                                    (activeSource === 'local' ? transcript.callScore : transcript.call_score || 0) >= 80 ? 'text-neon-green' : 
-                                    (activeSource === 'local' ? transcript.callScore : transcript.call_score || 0) >= 60 ? 'text-neon-blue' : 'text-neon-red'
-                                  }`}>
-                                    {activeSource === 'local' ? transcript.callScore : transcript.call_score || 50}
-                                  </span>
-                                </div>
-                              </div>
-                              
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-neon-blue hover:text-neon-blue/80 hover:bg-neon-blue/10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTranscriptClick(transcript);
-                                }}
-                              >
-                                <FileCheck className="h-4 w-4 mr-1" />
-                                View
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-10">
-                        <FileCheck className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-30" />
-                        <h3 className="text-lg font-medium mb-2">No transcripts found</h3>
-                        <p className="text-muted-foreground mb-4">
-                          {searchTerm ? "No results match your search criteria." : "Upload audio files to see transcripts here."}
-                        </p>
-                        <BulkUploadButton onClick={() => setIsBulkUploadOpen(true)} />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="bulkuploads">
-                <BulkUploadHistory />
-              </TabsContent>
-            </Tabs>
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTranscript(transcript.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-        )}
-      </div>
-    </DashboardLayout>
+        </>
+      )}
+    </div>
   );
 };
 

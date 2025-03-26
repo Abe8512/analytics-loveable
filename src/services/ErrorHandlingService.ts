@@ -21,7 +21,22 @@ class ErrorHandler {
   private errors: AppError[] = [];
   private maxErrorsStored = 50;
   private errorListeners: ((error: AppError) => void)[] = [];
+  private connectionListeners: ((isOnline: boolean) => void)[] = [];
   public networkLatency = 0;
+  public isOffline = false;
+  
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.updateConnectionStatus(true));
+      window.addEventListener('offline', () => this.updateConnectionStatus(false));
+      this.isOffline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+    }
+  }
+  
+  private updateConnectionStatus(isOnline: boolean) {
+    this.isOffline = !isOnline;
+    this.notifyConnectionListeners(isOnline);
+  }
   
   handleError(error: any, context?: string): AppError {
     const appError = this.createAppError(error, context);
@@ -91,12 +106,31 @@ class ErrorHandler {
     };
   }
   
+  onConnectionChange(listener: (isOnline: boolean) => void): () => void {
+    this.connectionListeners.push(listener);
+    
+    // Return function to remove listener
+    return () => {
+      this.connectionListeners = this.connectionListeners.filter(l => l !== listener);
+    };
+  }
+  
   private notifyListeners(error: AppError): void {
     this.errorListeners.forEach(listener => {
       try {
         listener(error);
       } catch (err) {
         console.error('Error in error listener:', err);
+      }
+    });
+  }
+  
+  private notifyConnectionListeners(isOnline: boolean): void {
+    this.connectionListeners.forEach(listener => {
+      try {
+        listener(isOnline);
+      } catch (err) {
+        console.error('Error in connection listener:', err);
       }
     });
   }

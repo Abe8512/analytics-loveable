@@ -1,4 +1,3 @@
-
 import React, { useContext, useEffect, useState } from "react";
 import { MoreHorizontal, Flag, Clock, Phone, User, CalendarClock } from "lucide-react";
 import GlowingCard from "../ui/GlowingCard";
@@ -80,10 +79,8 @@ const CallsOverview = () => {
   const [recentCalls, setRecentCalls] = useState<StoredTranscription[]>([]);
   const navigate = useNavigate();
   
-  // Load real transcription data
   useEffect(() => {
     const storedTranscriptions = getStoredTranscriptions();
-    // Sort by date (newest first) and take the first 5
     const sorted = [...storedTranscriptions].sort((a, b) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
     ).slice(0, 5);
@@ -91,7 +88,6 @@ const CallsOverview = () => {
     setRecentCalls(sorted);
   }, []);
 
-  // Format duration from seconds to minutes and seconds
   const formatDuration = (seconds?: number): string => {
     if (!seconds) return "unknown";
     const minutes = Math.floor(seconds / 60);
@@ -99,15 +95,12 @@ const CallsOverview = () => {
     return `${minutes}m ${remainingSeconds}s`;
   };
 
-  // Generate a speaker name if none exists
   const getSpeakerName = (transcript: StoredTranscription): string => {
     if (transcript.speakerName) return transcript.speakerName;
     
-    // Generate a random name if none exists
     const firstNames = ["Sarah", "Michael", "Emily", "David", "Jessica", "John", "Rachel", "Robert", "Linda", "William"];
     const lastNames = ["Johnson", "Chen", "Rodriguez", "Kim", "Wong", "Smith", "Brown", "Jones", "Miller", "Davis"];
     
-    // Use the transcript ID as a seed for consistent naming
     const idSum = transcript.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const firstName = firstNames[idSum % firstNames.length];
     const lastName = lastNames[(idSum * 13) % lastNames.length];
@@ -115,7 +108,6 @@ const CallsOverview = () => {
     return `${firstName} ${lastName}`;
   };
 
-  // Format time from ISO string to 12-hour format
   const formatTime = (dateString: string): string => {
     try {
       const date = parseISO(dateString);
@@ -159,17 +151,16 @@ const CallsOverview = () => {
               customer={getSpeakerName(call)}
               time={formatTime(call.date)}
               duration={formatDuration(call.duration)}
-              score={call.callScore || 0}
-              flagged={call.sentiment === 'negative'}
+              score={call.call_score || 75}
+              flagged={call.sentiment === "negative"}
               isDarkMode={isDarkMode}
               onClick={() => handleCallClick(call.id)}
             />
           ))
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <Phone className="mx-auto h-12 w-12 mb-4 opacity-50" />
-            <p>No call transcriptions yet</p>
-            <p className="text-sm mt-2">Upload audio files in the Transcripts section to see your calls here</p>
+          <div className="text-center py-10">
+            <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No recent calls found</p>
+            <p className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Upload call recordings to see them here</p>
           </div>
         )}
       </div>

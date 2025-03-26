@@ -21,7 +21,7 @@ interface BulkUploadModalProps {
 const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const { toast } = useToast();
-  const { getUseLocalWhisper, setUseLocalWhisper } = useWhisperService();
+  const whisperService = useWhisperService();
   const { user, getManagedUsers } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [openAIKeyMissing, setOpenAIKeyMissing] = useState(false);
@@ -40,14 +40,14 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
       setOpenAIKeyMissing(!apiKey || apiKey.trim() === '');
       
       // Check local Whisper setting
-      setUseLocalWhisperState(getUseLocalWhisper());
+      setUseLocalWhisperState(whisperService.getUseLocalWhisper());
       
       // Set default rep ID to current user if available
       if (user?.id && !selectedRepId) {
         setSelectedRepId(user.id);
       }
     }
-  }, [isOpen, getUseLocalWhisper, user, selectedRepId]);
+  }, [isOpen, whisperService, user, selectedRepId]);
   
   // Listen for upload errors and display toast
   useEffect(() => {
@@ -136,7 +136,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   
   const toggleLocalWhisper = (checked: boolean) => {
     setUseLocalWhisperState(checked);
-    setUseLocalWhisper(checked);
+    whisperService.setUseLocalWhisper(checked);
     toast({
       title: checked ? "Local Whisper Enabled" : "OpenAI API Mode",
       description: checked 
@@ -179,7 +179,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
               <SelectContent>
                 {user && (
                   <SelectItem value={user.id}>
-                    {user.name || 'Current User'} (You)
+                    {user.email || 'Current User'} (You)
                   </SelectItem>
                 )}
                 
@@ -188,7 +188,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
                     .filter(rep => rep.id !== user?.id) // Filter out current user
                     .map(rep => (
                       <SelectItem key={rep.id} value={rep.id}>
-                        {rep.name}
+                        {rep.email}
                       </SelectItem>
                     ))
                 )}

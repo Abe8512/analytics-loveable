@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Mic, MicOff, MessageSquare, Settings, Zap, ToggleLeft, ToggleRight, UserCircle, Radio } from "lucide-react";
-import { useWhisperService } from "@/services/WhisperService";
+import { useWhisperService, setOpenAIKey } from "@/services/WhisperService";
 import AIWaveform from "../ui/AIWaveform";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
@@ -24,12 +24,12 @@ const LiveCallAnalysis = () => {
     "Acknowledge the concern before addressing it directly",
     "Try using the phrase 'What I'm hearing is...' to confirm understanding"
   ]);
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKeyState] = useState("");
   const [openAPIKeyDialog, setOpenAPIKeyDialog] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [processingChunk, setProcessingChunk] = useState(false);
-  const [useLocalWhisper, setUseLocalWhisper] = useState(false);
-  const [numSpeakers, setNumSpeakers] = useState(2);
+  const [useLocalWhisper, setUseLocalWhisperState] = useState(false);
+  const [numSpeakers, setNumSpeakersState] = useState(2);
   
   const { 
     isRecording, 
@@ -52,33 +52,24 @@ const LiveCallAnalysis = () => {
   
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { 
-    transcribeAudio, 
-    saveTranscriptionWithAnalysis, 
-    setOpenAIKey, 
-    setUseLocalWhisper: saveUseLocalWhisperSetting, 
-    getUseLocalWhisper,
-    setNumSpeakers: saveNumSpeakers,
-    getNumSpeakers,
-    startRealtimeTranscription
-  } = useWhisperService();
-
+  const whisperService = useWhisperService();
+  
   useEffect(() => {
     const storedKey = localStorage.getItem("openai_api_key");
     if (storedKey) {
       setHasApiKey(true);
-      setApiKey(storedKey);
+      setApiKeyState(storedKey);
     }
     
-    setUseLocalWhisper(getUseLocalWhisper());
-    setNumSpeakers(getNumSpeakers());
+    setUseLocalWhisperState(whisperService.getUseLocalWhisper());
+    setNumSpeakersState(whisperService.getNumSpeakers());
     
     return () => {
       if (realtimeTranscriptionRef.current) {
         realtimeTranscriptionRef.current.stop();
       }
     };
-  }, [getUseLocalWhisper, getNumSpeakers]);
+  }, [whisperService]);
 
   const generateSuggestions = (text: string) => {
     const newSuggestions = [];
@@ -145,7 +136,7 @@ const LiveCallAnalysis = () => {
         description: "Listening to your call for analysis",
       });
       
-      realtimeTranscriptionRef.current = await startRealtimeTranscription(
+      realtimeTranscriptionRef.current = await whisperService.startRealtimeTranscription(
         (newTranscript) => {
           setTranscript(newTranscript);
           const newSuggestions = generateSuggestions(newTranscript);
@@ -191,7 +182,7 @@ const LiveCallAnalysis = () => {
       try {
         if (transcript) {
           const audioFileName = `Live Call ${new Date().toLocaleString()}`;
-          await saveTranscriptionWithAnalysis(transcript, undefined, audioFileName);
+          await whisperService.saveTranscriptionWithAnalysis(transcript, undefined, audioFileName);
           
           toast({
             title: "Analysis Complete",
@@ -216,8 +207,8 @@ const LiveCallAnalysis = () => {
   
   const updateNumSpeakers = (value: string) => {
     const num = parseInt(value, 10);
-    setNumSpeakers(num);
-    saveNumSpeakers(num);
+    setNumSpeakersState(num);
+    whisperService.setNumSpeakers(num);
     toast({
       title: "Speakers Updated",
       description: `Set to ${num} speakers for diarization`,
@@ -235,8 +226,8 @@ const LiveCallAnalysis = () => {
   };
 
   const toggleLocalWhisper = (checked: boolean) => {
-    setUseLocalWhisper(checked);
-    saveUseLocalWhisperSetting(checked);
+    setUseLocalWhisperState(checked);
+    whisperService.setUseLocalWhisper(checked);
     toast({
       title: checked ? "Local Whisper Enabled" : "OpenAI API Mode",
       description: checked 
@@ -275,7 +266,7 @@ const LiveCallAnalysis = () => {
                     type="password"
                     placeholder="sk-..."
                     value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
+                    onChange={(e) => setApiKeyState(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
                     Your API key is stored locally and never sent to our servers
@@ -470,4 +461,3 @@ const LiveCallAnalysis = () => {
 };
 
 export default LiveCallAnalysis;
-

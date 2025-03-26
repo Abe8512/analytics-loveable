@@ -1,9 +1,10 @@
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { withErrorHandling } from './ErrorHandlingService';
-import type { DataFilters } from './SharedDataService';
-import { useEventsStore } from './EventsService';
+import { errorHandler } from './ErrorHandlingService';
+import type { DataFilters } from '@/contexts/SharedFilterContext';
+import { useEventsStore } from './events';
 
 export interface CallTranscript {
   id: string;
@@ -24,13 +25,35 @@ export interface CallTranscript {
   metadata?: any;
 }
 
+export interface CallTranscriptFilter {
+  dateRange?: DataFilters['dateRange'];
+  refresh?: boolean;
+  force?: boolean;
+}
+
 interface UseCallTranscriptsResult {
   transcripts: CallTranscript[] | null;
   loading: boolean;
   error: Error | null;
-  fetchTranscripts: (options?: { dateRange?: DataFilters['dateRange']; refresh?: boolean }) => Promise<void>;
+  fetchTranscripts: (options?: CallTranscriptFilter) => Promise<void>;
   fetchTranscriptById: (id: string) => Promise<CallTranscript | null>;
 }
+
+// Helper for error handling
+const withErrorHandling = <T extends (...args: any[]) => Promise<any>>(
+  fn: T, 
+  errorMessage: string
+) => {
+  return async (...args: Parameters<T>): Promise<ReturnType<T>> => {
+    try {
+      return await fn(...args);
+    } catch (error) {
+      console.error(errorMessage, error);
+      errorHandler.handleError(error, errorMessage);
+      throw error;
+    }
+  };
+};
 
 export const useCallTranscripts = (): UseCallTranscriptsResult => {
   const [transcripts, setTranscripts] = useState<CallTranscript[] | null>(null);
@@ -41,7 +64,7 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
 
   const fetchTranscripts = useCallback(
     withErrorHandling(
-      async (options?: { dateRange?: DataFilters['dateRange']; refresh?: boolean }) => {
+      async (options?: CallTranscriptFilter) => {
         try {
           setLoading(true);
           setError(null);
@@ -72,12 +95,11 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
           }
           
           // Properly type and convert the data
-          const typedTranscripts: CallTranscript[] = data.map((item: any) => ({
+          const typedTranscripts: CallTranscript[] = data?.map((item: any) => ({
             ...item,
-            sentiment: (item.sentiment as string)?.toLowerCase() === 'positive' ? 'positive' : 
-                       (item.sentiment as string)?.toLowerCase() === 'negative' ? 'negative' : 'neutral',
+            sentiment: validateSentiment(item.sentiment),
             keywords: item.keywords || []
-          }));
+          })) || [];
           
           setTranscripts(typedTranscripts);
           dispatchEvent('transcript-created');
@@ -112,8 +134,7 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
           // Properly convert the data
           const transcript: CallTranscript = {
             ...data,
-            sentiment: (data.sentiment as string)?.toLowerCase() === 'positive' ? 'positive' : 
-                       (data.sentiment as string)?.toLowerCase() === 'negative' ? 'negative' : 'neutral',
+            sentiment: validateSentiment(data.sentiment),
             keywords: data.keywords || []
           };
           
@@ -136,20 +157,37 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
   };
 };
 
+// Function to validate sentiment values
+function validateSentiment(sentiment: string): "positive" | "neutral" | "negative" {
+  if (sentiment?.toLowerCase() === 'positive') return 'positive';
+  if (sentiment?.toLowerCase() === 'negative') return 'negative';
+  return 'neutral';
+}
+
 // For simpler usage without the hook
 export const fetchTranscriptsByDateRange = async (
   dateRange: { from: Date; to: Date }
 ): Promise<CallTranscript[]> => {
-  const { data, error } = await supabase
-    .from('call_transcripts')
-    .select('*')
-    .gte('created_at', dateRange.from.toISOString())
-    .lte('created_at', dateRange.to.toISOString())
-    .order('created_at', { ascending: false });
-  
-  if (error) {
-    throw new Error(`Error fetching transcripts: ${error.message}`);
+  try {
+    const { data, error } = await supabase
+      .from('call_transcripts')
+      .select('*')
+      .gte('created_at', dateRange.from.toISOString())
+      .lte('created_at', dateRange.to.toISOString())
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      throw new Error(`Error fetching transcripts: ${error.message}`);
+    }
+    
+    // Ensure we return properly formatted data
+    return (data || []).map(item => ({
+      ...item,
+      sentiment: validateSentiment(item.sentiment),
+      keywords: item.keywords || []
+    }));
+  } catch (error) {
+    errorHandler.handleError(error, 'fetchTranscriptsByDateRange');
+    throw error;
   }
-  
-  return data || [];
 };
