@@ -38,7 +38,7 @@ serve(async (req) => {
       throw new Error('Missing required field: id')
     }
 
-    // Process the call data - using insert method with no returning clause
+    // Process the call data - using insert method WITHOUT select to avoid DISTINCT ORDER BY error
     const { error } = await supabase
       .from('calls')
       .insert(callData)

@@ -1,3 +1,4 @@
+
 import { supabase, generateAnonymousUserId } from "@/integrations/supabase/client";
 import { transcriptAnalysisService } from './TranscriptAnalysisService';
 import { WhisperTranscriptionResponse } from "@/services/WhisperService";
@@ -84,7 +85,7 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // FIXED: Don't use .select() after insert to avoid the DISTINCT ORDER BY issue
+      // CRITICAL FIX: Don't use .select() after insert to avoid the DISTINCT ORDER BY issue
       const { error: insertError } = await supabase
         .from('call_transcripts')
         .insert(transcriptData);
@@ -111,7 +112,7 @@ export class DatabaseService {
           if (hasKeywords) updatedData.keywords = keywords;
           if (hasKeyPhrases) updatedData.key_phrases = keywords;
           
-          // FIXED: Don't use .select() after insert
+          // CRITICAL FIX: Don't use .select() after insert
           const { error: secondError } = await supabase
             .from('call_transcripts')
             .insert(updatedData);
@@ -187,7 +188,7 @@ export class DatabaseService {
         key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
       };
       
-      // FIXED: Don't use .select() after insert
+      // CRITICAL FIX: Don't use .select() after insert
       const { error } = await supabase
         .from('calls')
         .insert(fixedCallData);
@@ -253,7 +254,7 @@ export class DatabaseService {
     // Add top keywords to trends
     for (const keyword of keywords.slice(0, 5)) {
       try {
-        // FIXED: Use simpler query approach to avoid DISTINCT ORDER BY issues
+        // CRITICAL FIX: Use simpler query approach to avoid DISTINCT ORDER BY issues
         const { data } = await supabase
           .from('keyword_trends')
           .select('*')
@@ -262,7 +263,7 @@ export class DatabaseService {
           .maybeSingle();
         
         if (data) {
-          // FIXED: Don't use .select() after update
+          // CRITICAL FIX: Don't use .select() after update
           await supabase
             .from('keyword_trends')
             .update({ 
@@ -271,7 +272,7 @@ export class DatabaseService {
             })
             .eq('id', data.id);
         } else {
-          // FIXED: Don't use .select() after insert
+          // CRITICAL FIX: Don't use .select() after insert
           await supabase
             .from('keyword_trends')
             .insert({
@@ -303,7 +304,7 @@ export class DatabaseService {
         recorded_at: new Date().toISOString()
       };
       
-      // FIXED: Don't use .select() after insert
+      // CRITICAL FIX: Don't use .select() after insert
       const { error } = await supabase
         .from('sentiment_trends')
         .insert(trendData);
