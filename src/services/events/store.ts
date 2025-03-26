@@ -1,24 +1,26 @@
 
 import { create } from 'zustand';
-import { EventType, EventListener, EventPayload, EventsState, EventsStore } from './types';
+import { EventType, EventListener, EventPayload, EventsState, EventsStore, EventMap } from './types';
 
 // Create events store
 export const useEventsStore = create<EventsStore>((set, get) => ({
-  listeners: new Map<EventType, Set<EventListener>>(),
+  listeners: [], // Array of event listeners
+  listenerMap: new Map<EventType, Set<(payload: EventPayload) => void>>(), // Map for efficient event dispatch
   eventHistory: [],
   
   addEventListener: (type, listener) => {
-    set(state => {
-      const listeners = state.listeners;
-      
-      if (!listeners.has(type)) {
-        listeners.set(type, new Set());
-      }
-      
-      listeners.get(type)?.add(listener);
-      
-      return { listeners: new Map(listeners) };
-    });
+    const listenerMap = get().listenerMap;
+    
+    if (!listenerMap.has(type)) {
+      listenerMap.set(type, new Set());
+    }
+    
+    const listenerSet = listenerMap.get(type);
+    if (listenerSet) {
+      listenerSet.add(listener);
+    }
+    
+    set({ listenerMap: new Map(listenerMap) });
     
     // Return unsubscribe function
     return () => {
@@ -27,11 +29,13 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
   },
   
   removeEventListener: (type, listener) => {
-    set(state => {
-      const listeners = state.listeners;
-      listeners.get(type)?.delete(listener);
-      return { listeners: new Map(listeners) };
-    });
+    const listenerMap = get().listenerMap;
+    const listenerSet = listenerMap.get(type);
+    
+    if (listenerSet) {
+      listenerSet.delete(listener);
+      set({ listenerMap: new Map(listenerMap) });
+    }
   },
   
   dispatchEvent: (type, data) => {
@@ -46,14 +50,17 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
       eventHistory: [...state.eventHistory.slice(-100), event] // Keep last 100 events
     }));
     
-    // Notify listeners
-    get().listeners.get(type)?.forEach(listener => {
-      try {
-        listener(event);
-      } catch (error) {
-        console.error(`Error in event listener for ${type}:`, error);
-      }
-    });
+    // Notify listeners using the map
+    const listenerSet = get().listenerMap.get(type);
+    if (listenerSet) {
+      listenerSet.forEach(listener => {
+        try {
+          listener(event);
+        } catch (error) {
+          console.error(`Error in event listener for ${type}:`, error);
+        }
+      });
+    }
     
     // Also dispatch the event to the window as a CustomEvent
     const customEvent = new CustomEvent(`app:${type}`, { detail: event });
@@ -72,17 +79,43 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
     const listener: EventListener = { id, type, callback };
     
     set(state => {
-      const listeners = [...state.listeners];
-      listeners.push(listener);
-      return { listeners };
+      const newListeners = [...state.listeners, listener];
+      return { listeners: newListeners };
     });
+    
+    // Also add to the map for efficiency
+    const listenerMap = get().listenerMap;
+    if (!listenerMap.has(type)) {
+      listenerMap.set(type, new Set());
+    }
+    
+    const listenerSet = listenerMap.get(type);
+    if (listenerSet) {
+      listenerSet.add(callback);
+    }
+    
+    set({ listenerMap: new Map(listenerMap) });
     
     return id;
   },
   
   removeListener: (id) => {
-    set(state => ({
-      listeners: state.listeners.filter(listener => listener.id !== id)
-    }));
+    const state = get();
+    const listenerToRemove = state.listeners.find(listener => listener.id === id);
+    
+    if (listenerToRemove) {
+      // Remove from array
+      set(state => ({
+        listeners: state.listeners.filter(listener => listener.id !== id)
+      }));
+      
+      // Also remove from map
+      const listenerMap = state.listenerMap;
+      const listenerSet = listenerMap.get(listenerToRemove.type);
+      if (listenerSet) {
+        listenerSet.delete(listenerToRemove.callback);
+        set({ listenerMap: new Map(listenerMap) });
+      }
+    }
   }
 }));

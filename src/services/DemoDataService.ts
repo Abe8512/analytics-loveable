@@ -18,7 +18,6 @@ export function generateMockCallTranscript(): CallTranscript {
 
   return {
     id: faker.string.uuid(),
-    call_id: faker.string.uuid(),
     text: faker.lorem.paragraph(),
     created_at: faker.date.recent().toISOString(),
     customer_name: faker.person.fullName(),

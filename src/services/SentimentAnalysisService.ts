@@ -1,117 +1,42 @@
 
-import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
-import { useSharedFilters } from "@/contexts/SharedFilterContext";
-
-export type SentimentLabel = "positive" | "neutral" | "negative";
-
-export interface SentimentAnalysis {
-  sentiment_label: SentimentLabel;
-  confidence: number;
-  text_segment?: string;
-}
+// Sentiment analysis interfaces and services
 
 export interface SentimentTrend {
-  id: string;
-  sentiment_label: SentimentLabel;
-  confidence: number;
-  user_id: string;
-  recorded_at: string;
-}
-
-export interface SentimentDistribution {
-  positive: number;
-  neutral: number;
-  negative: number;
-  date?: string;
+  date: string;
+  avg_agent_sentiment: number;
+  avg_customer_sentiment: number;
+  total_calls: number;
+  positive_agent_calls: number;
+  negative_agent_calls: number;
 }
 
 export class SentimentAnalysisService {
-  public async getSentimentTrends(): Promise<SentimentTrend[]> {
-    try {
-      const { data, error } = await supabase
-        .from('sentiment_trends')
-        .select('*')
-        .order('recorded_at', { ascending: false })
-        .limit(100);
-      
-      if (error) {
-        console.error('Error fetching sentiment trends:', error);
-        return [];
-      }
-      
-      // Ensure sentiment_label is always of type SentimentLabel
-      const typedData = data.map(item => ({
-        ...item,
-        sentiment_label: this.validateSentimentLabel(item.sentiment_label)
-      }));
-      
-      return typedData;
-    } catch (error) {
-      console.error('Exception in getSentimentTrends:', error);
-      return [];
-    }
-  }
-  
-  private validateSentimentLabel(label: string): SentimentLabel {
-    const validLabels: SentimentLabel[] = ["positive", "neutral", "negative"];
-    return validLabels.includes(label as SentimentLabel) 
-      ? (label as SentimentLabel) 
-      : "neutral";
-  }
-  
-  public analyzeSentiment(text: string): SentimentLabel {
-    // This is a simple placeholder implementation
-    // In a real app, this would call an NLP service or ML model
-    if (!text) return "neutral";
+  // This could be expanded with more methods as needed
+  static analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
+    // Simple sentiment analysis logic
+    const positiveWords = ['good', 'great', 'excellent', 'happy', 'pleased'];
+    const negativeWords = ['bad', 'poor', 'terrible', 'unhappy', 'disappointed'];
     
     const lowerText = text.toLowerCase();
-    const positiveWords = ['great', 'excellent', 'awesome', 'good', 'happy', 'pleased', 'thank'];
-    const negativeWords = ['bad', 'poor', 'terrible', 'awful', 'unhappy', 'disappointed', 'issue', 'problem'];
-    
-    let positiveScore = 0;
-    let negativeScore = 0;
+    let positiveCount = 0;
+    let negativeCount = 0;
     
     positiveWords.forEach(word => {
-      const regex = new RegExp('\\b' + word + '\\b', 'g');
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
       const matches = lowerText.match(regex);
-      if (matches) positiveScore += matches.length;
+      if (matches) positiveCount += matches.length;
     });
     
     negativeWords.forEach(word => {
-      const regex = new RegExp('\\b' + word + '\\b', 'g');
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
       const matches = lowerText.match(regex);
-      if (matches) negativeScore += matches.length;
+      if (matches) negativeCount += matches.length;
     });
     
-    if (positiveScore > negativeScore + 1) return "positive";
-    if (negativeScore > positiveScore + 1) return "negative";
-    return "neutral";
+    if (positiveCount > negativeCount) return 'positive';
+    if (negativeCount > positiveCount) return 'negative';
+    return 'neutral';
   }
 }
 
 export const sentimentAnalysisService = new SentimentAnalysisService();
-
-export const useSentimentTrends = () => {
-  const [sentimentTrends, setSentimentTrends] = useState<SentimentTrend[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { filters } = useSharedFilters();
-  
-  useEffect(() => {
-    const fetchSentimentTrends = async () => {
-      setLoading(true);
-      try {
-        const data = await sentimentAnalysisService.getSentimentTrends();
-        setSentimentTrends(data);
-      } catch (error) {
-        console.error('Error in useSentimentTrends:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchSentimentTrends();
-  }, [filters.dateRange]);
-  
-  return { sentimentTrends, loading };
-};

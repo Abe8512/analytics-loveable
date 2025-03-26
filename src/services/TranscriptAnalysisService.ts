@@ -112,7 +112,6 @@ export const useTranscriptAnalysis = (options?: AnalysisOptions) => {
           sentiment: validateSentiment(data.sentiment),
           keywords: data.keywords || [],
           id: data.id,
-          call_id: data.call_id,
           text: data.text,
           created_at: data.created_at
         };

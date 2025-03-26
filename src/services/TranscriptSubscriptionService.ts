@@ -1,19 +1,32 @@
-// Update import to use the correct path
+
 import { CallTranscript } from '@/types/call';
 import { supabase } from "@/integrations/supabase/client";
 
 export class TranscriptSubscriptionService {
+  // Instead of trying to use a non-existent table, we'll use localStorage for now
+  // This approach means we're just simulating the subscription functionality until
+  // the proper database table is created
+  
+  private getSubscriptions(): Record<string, string[]> {
+    const subscriptions = localStorage.getItem('transcript_subscriptions');
+    return subscriptions ? JSON.parse(subscriptions) : {};
+  }
+  
+  private saveSubscriptions(subscriptions: Record<string, string[]>): void {
+    localStorage.setItem('transcript_subscriptions', JSON.stringify(subscriptions));
+  }
+  
   async subscribeToTranscripts(transcriptId: string, userId: string): Promise<void> {
     try {
-      const { data, error } = await supabase
-        .from('transcript_subscriptions')
-        .insert([
-          { transcript_id: transcriptId, user_id: userId }
-        ]);
+      const subscriptions = this.getSubscriptions();
       
-      if (error) {
-        console.error('Error subscribing to transcript:', error);
-        throw new Error(`Could not subscribe to transcript: ${error.message}`);
+      if (!subscriptions[transcriptId]) {
+        subscriptions[transcriptId] = [];
+      }
+      
+      if (!subscriptions[transcriptId].includes(userId)) {
+        subscriptions[transcriptId].push(userId);
+        this.saveSubscriptions(subscriptions);
       }
       
       console.log('Successfully subscribed to transcript:', transcriptId);
@@ -25,14 +38,11 @@ export class TranscriptSubscriptionService {
   
   async unsubscribeFromTranscripts(transcriptId: string, userId: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('transcript_subscriptions')
-        .delete()
-        .match({ transcript_id: transcriptId, user_id: userId });
+      const subscriptions = this.getSubscriptions();
       
-      if (error) {
-        console.error('Error unsubscribing from transcript:', error);
-        throw new Error(`Could not unsubscribe from transcript: ${error.message}`);
+      if (subscriptions[transcriptId]) {
+        subscriptions[transcriptId] = subscriptions[transcriptId].filter(id => id !== userId);
+        this.saveSubscriptions(subscriptions);
       }
       
       console.log('Successfully unsubscribed from transcript:', transcriptId);
@@ -44,17 +54,8 @@ export class TranscriptSubscriptionService {
   
   async getSubscribedUsers(transcriptId: string): Promise<string[]> {
     try {
-      const { data, error } = await supabase
-        .from('transcript_subscriptions')
-        .select('user_id')
-        .eq('transcript_id', transcriptId);
-      
-      if (error) {
-        console.error('Error fetching subscribed users:', error);
-        return [];
-      }
-      
-      return data.map(item => item.user_id);
+      const subscriptions = this.getSubscriptions();
+      return subscriptions[transcriptId] || [];
     } catch (error) {
       console.error('Failed to fetch subscribed users:', error);
       return [];
@@ -63,17 +64,8 @@ export class TranscriptSubscriptionService {
   
   async isUserSubscribed(transcriptId: string, userId: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase
-        .from('transcript_subscriptions')
-        .select('*')
-        .match({ transcript_id: transcriptId, user_id: userId });
-      
-      if (error) {
-        console.error('Error checking subscription:', error);
-        return false;
-      }
-      
-      return data !== null && data.length > 0;
+      const subscriptions = this.getSubscriptions();
+      return subscriptions[transcriptId]?.includes(userId) || false;
     } catch (error) {
       console.error('Failed to check subscription:', error);
       return false;

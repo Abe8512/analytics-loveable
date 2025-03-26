@@ -69,7 +69,13 @@ export const useConnectionStatus = () => {
       if (online !== isConnected) {
         setIsConnected(online);
         setLastChecked(Date.now());
-        dispatchEvent(online ? 'connection-restored' : 'connection-lost');
+        
+        // Dispatch appropriate event
+        if (online) {
+          dispatchEvent('connection-restored');
+        } else {
+          dispatchEvent('connection-lost');
+        }
       }
     });
 

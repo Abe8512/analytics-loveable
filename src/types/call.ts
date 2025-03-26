@@ -1,6 +1,6 @@
-
 export interface CallTranscript {
   id: string;
+  call_id?: string;
   user_id?: string;
   text: string;
   duration?: number;
@@ -13,6 +13,10 @@ export interface CallTranscript {
   user_name?: string;
   customer_name?: string;
   filename?: string;
+  start_time?: string;
+  end_time?: string;
+  speaker_count?: number;
+  assigned_to?: string;
 }
 
 export interface Call {

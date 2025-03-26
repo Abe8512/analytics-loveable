@@ -108,7 +108,7 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     });
   });
   
-  useEventListener('transcriptions-updated', () => {
+  useEventListener('transcripts-updated', () => {
     fetchTranscripts({
       dateRange: filters.dateRange
     });

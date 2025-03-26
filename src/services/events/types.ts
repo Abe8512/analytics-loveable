@@ -11,7 +11,9 @@ export type EventType =
   | 'team-member-removed'
   | 'managed-users-updated'
   | 'call-updated'
-  | 'transcriptions-updated';
+  | 'transcriptions-updated'
+  | 'connection-restored'
+  | 'connection-lost';
 
 export interface EventPayload {
   [key: string]: any;
@@ -30,11 +32,13 @@ export interface EventsState {
   dispatchEvent: (type: EventType, payload?: EventPayload) => void;
 }
 
-// Use EventsState instead of creating a new type
-export type EventsStore = EventsState & {
-  listeners: Map<EventType, Set<EventListener>>;
+// Separating EventMap from EventsStore to fix typing issues
+export type EventMap = Map<EventType, Set<(payload: EventPayload) => void>>;
+
+export interface EventsStore extends EventsState {
+  listenerMap: EventMap;
   eventHistory: EventPayload[];
   addEventListener: (type: EventType, listener: (payload: EventPayload) => void) => () => void;
   removeEventListener: (type: EventType, listener: (payload: EventPayload) => void) => void;
   clearEventHistory: () => void;
-};
+}
