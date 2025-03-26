@@ -1,3 +1,4 @@
 
 project_id = "yfufpcxkerovnijhodrr"
 [global.env]
+SUPABASE_URL = "https://yfufpcxkerovnijhodrr.supabase.co"
