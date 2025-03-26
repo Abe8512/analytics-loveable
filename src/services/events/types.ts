@@ -1,7 +1,10 @@
 
 export type EventType = 
   | 'transcript-created'
-  | 'transcriptions-updated'
+  | 'transcript-updated'
+  | 'transcript-deleted'
+  | 'transcripts-updated'
+  | 'transcripts-refreshed'
   | 'bulk-upload-started'
   | 'bulk-upload-completed'
   | 'team-member-added'
