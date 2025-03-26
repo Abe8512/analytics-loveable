@@ -33,6 +33,7 @@ export const useBulkUploadService = () => {
   const dispatchEvent = useEventsStore.getState().dispatchEvent;
   
   const setAssignedUserId = (userId: string) => {
+    console.log('Setting assigned user ID:', userId);
     bulkUploadProcessor.setAssignedUserId(userId);
   };
   

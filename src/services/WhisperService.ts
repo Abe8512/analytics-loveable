@@ -49,14 +49,28 @@ export const useWhisperService = () => {
   const [transcription, setTranscription] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [speechRecognition, setSpeechRecognition] = useState<any>(null);
-  const [useLocalWhisper, setUseLocalWhisper] = useState(false);
-  const [numSpeakers, setNumSpeakers] = useState(2);
+  const [useLocalWhisper, setUseLocalWhisper] = useState(() => {
+    // Initialize from localStorage if available
+    const stored = localStorage.getItem('use_local_whisper');
+    return stored ? stored === 'true' : false;
+  });
+  const [numSpeakers, setNumSpeakers] = useState(() => {
+    // Initialize from localStorage if available
+    const stored = localStorage.getItem('num_speakers');
+    return stored ? parseInt(stored, 10) : 2;
+  });
   const [transcriptions, setTranscriptions] = useState<StoredTranscription[]>([]);
   
   // Load transcriptions from local storage on mount
   useEffect(() => {
     loadTranscriptions();
   }, []);
+  
+  // Save settings to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('use_local_whisper', useLocalWhisper.toString());
+    localStorage.setItem('num_speakers', numSpeakers.toString());
+  }, [useLocalWhisper, numSpeakers]);
   
   // Function to load transcriptions from local storage
   const loadTranscriptions = useCallback(() => {
@@ -270,33 +284,52 @@ export const useWhisperService = () => {
   
   const transcribeAudio = async (file: File): Promise<WhisperTranscriptionResponse> => {
     try {
-      // This is a mock implementation that returns predefined transcription
-      const demoText = "Hello, this is a demo transcription. Thank you for calling our company. How can I help you today? I'm interested in learning more about your product offerings. Can you tell me about your pricing plans? Of course, we have several pricing tiers designed to meet different customer needs. Our basic plan starts at $29 per month and includes all core features. For enterprise clients, we offer custom solutions with dedicated support.";
-      
-      // Simulate a delay to mimic processing time
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Create mock segments with alternating speakers
-      const segments = demoText.split('. ').map((sentence, i) => ({
-        id: i + 1,
-        start: i * 10,
-        end: (i + 1) * 10,
-        text: sentence + (sentence.endsWith('.') ? '' : '.'),
-        speaker: i % 2 === 0 ? "Speaker 1" : "Speaker 2"
-      }));
-      
-      // Return mock response
-      return {
-        text: demoText,
-        segments,
-        language: "en",
-        duration: 120 // 2 minutes in seconds
-      };
+      if (useLocalWhisper) {
+        // For local Whisper, we use a mock implementation for now
+        return await mockTranscription(file);
+      } else {
+        // For API-based Whisper, we'd normally call the OpenAI API
+        // Check if API key exists
+        const apiKey = localStorage.getItem("openai_api_key");
+        
+        if (!apiKey) {
+          throw new Error("OpenAI API key is missing. Please add it in the Settings page.");
+        }
+        
+        // Since we can't actually call the API in this demo, we'll use mock data
+        return await mockTranscription(file);
+      }
     } catch (error) {
       console.error('Transcription error:', error);
       errorHandler.handleError(error, 'WhisperService.transcribeAudio');
-      throw new Error('Failed to transcribe audio');
+      throw error;
     }
+  };
+  
+  const mockTranscription = async (file: File): Promise<WhisperTranscriptionResponse> => {
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Generate demo text with file name mentioned
+    const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+    const demoText = `This is a demo transcription for file "${fileName}". Hello, thank you for calling our company. How can I help you today? I'm interested in learning more about your product offerings. Can you tell me about your pricing plans? Of course, we have several pricing tiers designed to meet different customer needs. Our basic plan starts at $29 per month and includes all core features. For enterprise clients, we offer custom solutions with dedicated support.`;
+    
+    // Create mock segments with alternating speakers
+    const segments = demoText.split('. ').map((sentence, i) => ({
+      id: i + 1,
+      start: i * 10,
+      end: (i + 1) * 10,
+      text: sentence + (sentence.endsWith('.') ? '' : '.'),
+      speaker: i % 2 === 0 ? "agent" : "customer"
+    }));
+    
+    // Return mock response
+    return {
+      text: demoText,
+      segments,
+      language: "en",
+      duration: 120 // 2 minutes in seconds
+    };
   };
   
   const forceRefreshTranscriptions = () => {
@@ -330,7 +363,6 @@ export const useWhisperService = () => {
     addTranscription,
     updateTranscription,
     deleteTranscription,
-    // Add the new methods
     setUseLocalWhisper: setUseLocalWhisperState,
     setNumSpeakers: setNumSpeakersValue,
     startRealtimeTranscription,
@@ -340,6 +372,14 @@ export const useWhisperService = () => {
 
 export const setOpenAIKey = (key: string): void => {
   localStorage.setItem('openai_api_key', key);
+  // Trigger an event that settings have been updated
+  window.dispatchEvent(new CustomEvent('settings-updated', {
+    detail: { setting: 'openai_api_key' }
+  }));
+};
+
+export const getOpenAIKey = (): string | null => {
+  return localStorage.getItem('openai_api_key');
 };
 
 export function getStoredTranscriptions(): StoredTranscription[] {

@@ -8,6 +8,7 @@ import CallAnalysisSection from '../components/Dashboard/CallAnalysisSection';
 import AIInsights from '../components/Dashboard/AIInsights';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -15,6 +16,10 @@ const Dashboard = () => {
   
   const handleBulkUploadOpen = useCallback(() => {
     setIsBulkUploadOpen(true);
+  }, []);
+  
+  const handleBulkUploadClose = useCallback(() => {
+    setIsBulkUploadOpen(false);
   }, []);
   
   const refreshData = useCallback(() => {
@@ -33,6 +38,11 @@ const Dashboard = () => {
           onBulkUploadOpen={handleBulkUploadOpen} 
           refreshData={refreshData} 
           isDashboardScreen={true} 
+        />
+        
+        <BulkUploadModal 
+          isOpen={isBulkUploadOpen} 
+          onClose={handleBulkUploadClose} 
         />
         
         <motion.div
