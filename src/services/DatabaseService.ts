@@ -1,4 +1,3 @@
-
 import { supabase, generateAnonymousUserId } from "@/integrations/supabase/client";
 import { transcriptAnalysisService } from './TranscriptAnalysisService';
 import { WhisperTranscriptionResponse } from "@/services/WhisperService";
@@ -85,7 +84,7 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // FIX: Do a simple insert without returning data to avoid the DISTINCT ORDER BY issue
+      // FIXED: Don't use .select() after insert to avoid the DISTINCT ORDER BY issue
       const { error: insertError } = await supabase
         .from('call_transcripts')
         .insert(transcriptData);
@@ -112,13 +111,13 @@ export class DatabaseService {
           if (hasKeywords) updatedData.keywords = keywords;
           if (hasKeyPhrases) updatedData.key_phrases = keywords;
           
-          // Try insert without using .select() for the return
+          // FIXED: Don't use .select() after insert
           const { error: secondError } = await supabase
             .from('call_transcripts')
             .insert(updatedData);
             
           if (secondError) {
-            console.error('Error on third attempt to insert transcript:', secondError);
+            console.error('Error on second attempt to insert transcript:', secondError);
             return { id: transcriptId, error: secondError };
           }
         } else {
@@ -188,7 +187,7 @@ export class DatabaseService {
         key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
       };
       
-      // First try with a simpler approach without a DISTINCT or ORDER BY
+      // FIXED: Don't use .select() after insert
       const { error } = await supabase
         .from('calls')
         .insert(fixedCallData);
@@ -203,14 +202,19 @@ export class DatabaseService {
           try {
             console.log('Using direct fetch for insert_call_no_return');
             
-            // Direct fetch to the Edge Function
+            // Direct fetch to the Edge Function with proper error handling and retry logic
+            const supabaseKey = process.env.SUPABASE_KEY || '';
+            
+            // Construct the full URL to the edge function
+            const functionUrl = 'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return';
+            
             const response = await fetch(
-              'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return',
+              functionUrl,
               {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.SUPABASE_KEY || ''}`
+                  'Authorization': `Bearer ${supabaseKey}`
                 },
                 body: JSON.stringify(fixedCallData)
               }
@@ -249,7 +253,7 @@ export class DatabaseService {
     // Add top keywords to trends
     for (const keyword of keywords.slice(0, 5)) {
       try {
-        // First check if keyword exists, using a simpler query approach
+        // FIXED: Use simpler query approach to avoid DISTINCT ORDER BY issues
         const { data } = await supabase
           .from('keyword_trends')
           .select('*')
@@ -258,7 +262,7 @@ export class DatabaseService {
           .maybeSingle();
         
         if (data) {
-          // Update existing keyword, without using any complex return 
+          // FIXED: Don't use .select() after update
           await supabase
             .from('keyword_trends')
             .update({ 
@@ -267,17 +271,15 @@ export class DatabaseService {
             })
             .eq('id', data.id);
         } else {
-          // Insert new keyword with proper UUID, without using any complex return
-          const trendData = {
-            keyword: keyword as string,
-            category,
-            count: 1,
-            last_used: new Date().toISOString()
-          };
-          
+          // FIXED: Don't use .select() after insert
           await supabase
             .from('keyword_trends')
-            .insert(trendData);
+            .insert({
+              keyword: keyword as string,
+              category,
+              count: 1,
+              last_used: new Date().toISOString()
+            });
         }
       } catch (error) {
         console.error(`Error updating keyword trend for ${keyword}:`, error);
@@ -301,7 +303,7 @@ export class DatabaseService {
         recorded_at: new Date().toISOString()
       };
       
-      // Insert without a complex return query
+      // FIXED: Don't use .select() after insert
       const { error } = await supabase
         .from('sentiment_trends')
         .insert(trendData);

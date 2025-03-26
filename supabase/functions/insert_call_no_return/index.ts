@@ -11,7 +11,7 @@ const corsHeaders = {
 
 // Create a Supabase client with the project details
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 serve(async (req) => {
@@ -38,10 +38,11 @@ serve(async (req) => {
       throw new Error('Missing required field: id')
     }
 
-    // Process the call data
+    // Process the call data - using insert method with no returning clause
     const { error } = await supabase
       .from('calls')
       .insert(callData)
+      // DO NOT use .select() here - that's causing the DISTINCT ORDER BY error
 
     // Log any errors but still return success to the client
     if (error) {
@@ -59,7 +60,7 @@ serve(async (req) => {
       )
     }
 
-    // Return success even if there was an error - this prevents client timeouts
+    // Return success
     return new Response(
       JSON.stringify({ 
         success: true,
