@@ -378,7 +378,7 @@ export const useWhisperService = () => {
           const transcriber = await pipeline(
             "automatic-speech-recognition",
             "openai/whisper-small",
-            { quantized: true }
+            // Remove the 'quantized' option as it's not in the PretrainedModelOptions type
           );
           
           // Convert file to a format that the model can use
@@ -399,9 +399,19 @@ export const useWhisperService = () => {
           // Clean up
           URL.revokeObjectURL(fileUrl);
           
+          // Handle the output which might be an array or single object
+          // Fix the text property access by checking the type
+          let transcriptionText = '';
+          if (Array.isArray(output)) {
+            // If it's an array, join the texts
+            transcriptionText = output.map(item => item.text || '').join(' ');
+          } else {
+            // If it's a single object
+            transcriptionText = output.text || '';
+          }
+          
           // Create segments
-          const text = output.text || "";
-          const sentences = text.split(/(?<=[.!?])\s+/);
+          const sentences = transcriptionText.split(/(?<=[.!?])\s+/);
           const segments = sentences.map((sentence, i) => {
             // Estimate 5 words per second for timing
             const wordCount = sentence.split(/\s+/).length;
@@ -419,7 +429,7 @@ export const useWhisperService = () => {
           });
           
           return {
-            text,
+            text: transcriptionText,
             segments,
             language: "en",
             duration: segments.length > 0 ? segments[segments.length - 1].end : 0
