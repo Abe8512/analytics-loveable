@@ -1,277 +1,207 @@
 
-import { CallTranscript } from '@/types/call';
 import { supabase } from '@/integrations/supabase/client';
-import { useCallback, useEffect, useState } from 'react';
-import { useToast } from '@/components/ui/use-toast';
-import { errorHandler } from './ErrorHandlingService';
-import { animationUtils } from '@/utils/animationUtils';
-import { useDebounce } from '@/hooks/useDebounce';
+import { SentimentAnalysisService } from './SentimentAnalysisService';
 
-interface TranscriptSegment {
-  start: number;
-  end: number;
-  speaker: string;
-  text: string;
-}
-
+// Interfaces for the transcript analysis results
 export interface TranscriptAnalysisResult {
-  id: string;
-  keywords: string[];
-  entities: string[];
-  sentiment: 'positive' | 'neutral' | 'negative';
-  summary: string;
-  key_moments: {
-    timestamp: number;
-    text: string;
-    type: 'question' | 'objection' | 'interest' | 'action_item';
-  }[];
-}
-
-export interface AnalysisOptions {
-  transcriptId?: string;
-  generateSummary?: boolean;
-  detectKeyMoments?: boolean;
-  calculateMetrics?: boolean;
-}
-
-// Mock function to simulate analysis, replace with actual ML processing
-const analyzeText = (text: string): Partial<TranscriptAnalysisResult> => {
-  // Placeholder for actual NLP analysis
-  return {
-    keywords: ['pricing', 'features', 'support', 'timeline'],
-    entities: ['product X', 'company Y'],
-    sentiment: Math.random() > 0.7 ? 'positive' : Math.random() > 0.4 ? 'neutral' : 'negative',
-    summary: 'This is a summary of the conversation discussing product features and pricing.',
-    key_moments: [
-      {
-        timestamp: 120,
-        text: 'What features are included in the premium plan?',
-        type: 'question',
-      },
-    ],
-  } as Partial<TranscriptAnalysisResult>;
-};
-
-export const useTranscriptAnalysis = (options?: AnalysisOptions) => {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<Partial<TranscriptAnalysisResult> | null>(null);
-  const [transcript, setTranscript] = useState<CallTranscript | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
-  const debouncedOptions = useDebounce(options, 300);
-
-  const calculateSpeakingTime = useCallback((segments?: TranscriptSegment[] | null) => {
-    if (!segments || !Array.isArray(segments) || segments.length === 0) {
-      return { agent: 0, customer: 0, total: 0 };
-    }
-
-    let agentTime = 0;
-    let customerTime = 0;
-
-    segments.forEach((segment) => {
-      if (segment.speaker === 'agent') {
-        agentTime += segment.end - segment.start;
-      } else if (segment.speaker === 'customer') {
-        customerTime += segment.end - segment.start;
-      }
-    });
-
-    return {
-      agent: agentTime,
-      customer: customerTime,
-      total: agentTime + customerTime,
-    };
-  }, []);
-
-  const analyzeTranscript = useCallback(
-    async (transcriptId?: string) => {
-      if (!transcriptId) {
-        return;
-      }
-
-      setIsAnalyzing(true);
-      setError(null);
-
-      try {
-        const { data, error } = await supabase
-          .from('call_transcripts')
-          .select('*')
-          .eq('id', transcriptId)
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        if (!data) {
-          throw new Error('Transcript not found');
-        }
-
-        // Ensure the data from Supabase is cast to the right type
-        const typedTranscript: CallTranscript = {
-          ...data,
-          sentiment: validateSentiment(data.sentiment),
-          keywords: data.keywords || [],
-          id: data.id,
-          text: data.text,
-          created_at: data.created_at,
-          transcript_segments: data.transcript_segments || []
-        };
-
-        setTranscript(typedTranscript);
-
-        // Perform analysis on the transcript text
-        const analysisResults = analyzeText(data.text);
-        
-        // Update with analysis results
-        setAnalysisResult({
-          id: data.id,
-          ...analysisResults,
-        });
-
-        toast({
-          title: 'Analysis Complete',
-          description: 'Transcript has been analyzed successfully.',
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'An unknown error occurred';
-        setError(message);
-        errorHandler.handleError(
-          {
-            message: 'Analysis failed',
-            technical: message,
-            severity: 'error',
-            code: 'ANALYSIS_ERROR',
-          },
-          'TranscriptAnalysis'
-        );
-
-        toast({
-          title: 'Analysis Failed',
-          description: message,
-          variant: 'destructive',
-        });
-      } finally {
-        setIsAnalyzing(false);
-      }
-    },
-    [toast]
-  );
-
-  useEffect(() => {
-    if (debouncedOptions?.transcriptId) {
-      analyzeTranscript(debouncedOptions.transcriptId);
-    }
-  }, [debouncedOptions, analyzeTranscript]);
-
-  return {
-    isAnalyzing,
-    analysisResult,
-    transcript,
-    error,
-    analyzeTranscript,
-    calculateSpeakingTime,
+  sentimentScore: number;
+  keyPhrases: string[];
+  keywordFrequency: Record<string, number>;
+  callDuration: number;
+  speakerRatio: {
+    agent: number;
+    customer: number;
   };
-};
-
-// Function to validate sentiment values
-function validateSentiment(sentiment: string): "positive" | "neutral" | "negative" {
-  if (sentiment?.toLowerCase() === 'positive') return 'positive';
-  if (sentiment?.toLowerCase() === 'negative') return 'negative';
-  return 'neutral';
+  topics: string[];
 }
 
-// Add a class implementation of TranscriptAnalysisService
-export class TranscriptAnalysisService {
-  // Split transcript by speaker
-  public splitBySpeaker(text: string, segments: any[], numSpeakers: number): TranscriptSegment[] {
-    if (!segments || !Array.isArray(segments) || segments.length === 0) {
-      return [];
+export interface SpeakerTurn {
+  speaker: 'agent' | 'customer';
+  text: string;
+  timestamp: string;
+  sentiment?: 'positive' | 'neutral' | 'negative';
+}
+
+export interface AnalyzedTranscript {
+  id: string;
+  call_id: string;
+  turns: SpeakerTurn[];
+  analysis: TranscriptAnalysisResult;
+  created_at: string;
+  updated_at: string;
+}
+
+class TranscriptAnalysisService {
+  // Analyze a transcript and return the analysis results
+  async analyzeTranscript(transcriptId: string): Promise<TranscriptAnalysisResult | null> {
+    try {
+      // First, get the transcript text
+      const { data: transcript, error } = await supabase
+        .from('call_transcripts')
+        .select('*')
+        .eq('id', transcriptId)
+        .single();
+
+      if (error || !transcript) {
+        console.error('Error fetching transcript:', error);
+        return null;
+      }
+
+      // Ensure turns is an array before processing
+      const turns: SpeakerTurn[] = Array.isArray(transcript.turns) ? transcript.turns : [];
+      
+      // Analyze sentiment for each turn
+      const analyzedTurns = turns.map(turn => ({
+        ...turn,
+        sentiment: SentimentAnalysisService.analyzeSentiment(turn.text)
+      }));
+
+      // Calculate overall sentiment score (simple average)
+      const sentiments = analyzedTurns.map(t => 
+        t.sentiment === 'positive' ? 1 : 
+        t.sentiment === 'negative' ? -1 : 0
+      );
+      
+      const sentimentScore = sentiments.length > 0 
+        ? sentiments.reduce((sum, score) => sum + score, 0) / sentiments.length
+        : 0;
+
+      // Extract key phrases (simplified implementation)
+      const keyPhrases = this.extractKeyPhrases(turns.map(t => t.text).join(' '));
+
+      // Calculate keyword frequency
+      const keywordFrequency = this.calculateKeywordFrequency(turns.map(t => t.text).join(' '));
+
+      // Calculate speaker ratio
+      const agentWords = turns
+        .filter(t => t.speaker === 'agent')
+        .reduce((count, turn) => count + turn.text.split(/\s+/).length, 0);
+      
+      const customerWords = turns
+        .filter(t => t.speaker === 'customer')
+        .reduce((count, turn) => count + turn.text.split(/\s+/).length, 0);
+      
+      const totalWords = agentWords + customerWords;
+      
+      const speakerRatio = {
+        agent: totalWords > 0 ? agentWords / totalWords : 0.5,
+        customer: totalWords > 0 ? customerWords / totalWords : 0.5
+      };
+
+      // Calculate call duration (if timestamps available)
+      let callDuration = 0;
+      if (turns.length > 0 && turns[0].timestamp && turns[turns.length - 1].timestamp) {
+        const startTime = new Date(turns[0].timestamp).getTime();
+        const endTime = new Date(turns[turns.length - 1].timestamp).getTime();
+        callDuration = (endTime - startTime) / 1000; // in seconds
+      }
+
+      // Identify topics (simplified)
+      const topics = this.identifyTopics(keyPhrases, keywordFrequency);
+
+      // Create the analysis result
+      const analysisResult: TranscriptAnalysisResult = {
+        sentimentScore,
+        keyPhrases,
+        keywordFrequency,
+        callDuration,
+        speakerRatio,
+        topics
+      };
+
+      // Store the analysis in the database
+      await this.saveAnalysisResults(transcriptId, analysisResult, analyzedTurns);
+
+      return analysisResult;
+    } catch (error) {
+      console.error('Error analyzing transcript:', error);
+      return null;
+    }
+  }
+
+  // Save analysis results to the database
+  private async saveAnalysisResults(
+    transcriptId: string, 
+    analysis: TranscriptAnalysisResult,
+    analyzedTurns: SpeakerTurn[]
+  ): Promise<void> {
+    try {
+      // Update the transcript with the analysis results
+      const { error } = await supabase
+        .from('call_transcripts')
+        .update({
+          sentiment_score: analysis.sentimentScore,
+          key_phrases: analysis.keyPhrases,
+          keyword_frequency: analysis.keywordFrequency,
+          analyzed_turns: analyzedTurns,
+          analyzed_at: new Date().toISOString()
+        })
+        .eq('id', transcriptId);
+
+      if (error) {
+        console.error('Error saving analysis results:', error);
+      }
+    } catch (error) {
+      console.error('Error in saveAnalysisResults:', error);
+    }
+  }
+
+  // Extract key phrases from text (simplified)
+  private extractKeyPhrases(text: string): string[] {
+    const phrases = [];
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    
+    for (const sentence of sentences) {
+      // Simple heuristic: sentences with 3-10 words that don't start with common words
+      const words = sentence.trim().split(/\s+/);
+      if (words.length >= 3 && words.length <= 10) {
+        const firstWord = words[0].toLowerCase();
+        if (!['the', 'a', 'an', 'and', 'but', 'or', 'so', 'because', 'if', 'when'].includes(firstWord)) {
+          phrases.push(sentence.trim());
+        }
+      }
     }
     
-    // Simple algorithm to assign speakers based on alternating patterns
-    return segments.map((segment, index) => {
-      const speakerIndex = index % numSpeakers;
-      const speaker = speakerIndex === 0 ? 'agent' : 'customer';
-      
-      return {
-        start: segment.start || 0,
-        end: segment.end || 0, 
-        speaker,
-        text: segment.text || ''
-      };
-    });
+    return phrases.slice(0, 5); // Return top 5 phrases
   }
-  
-  // Analyze sentiment with basic rules
-  public analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
-    if (!text) return 'neutral';
+
+  // Calculate keyword frequency
+  private calculateKeywordFrequency(text: string): Record<string, number> {
+    const frequency: Record<string, number> = {};
+    const stopWords = ['the', 'a', 'an', 'and', 'but', 'or', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'of', 'is', 'are', 'was', 'were'];
     
-    const positiveWords = ['great', 'excellent', 'good', 'happy', 'pleased', 'thank', 'appreciate'];
-    const negativeWords = ['bad', 'issue', 'problem', 'unhappy', 'disappointed', 'sorry', 'fail'];
+    const words = text.toLowerCase().match(/\b\w+\b/g) || [];
     
-    const lowerText = text.toLowerCase();
-    let positiveScore = 0;
-    let negativeScore = 0;
-    
-    positiveWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = lowerText.match(regex);
-      if (matches) positiveScore += matches.length;
-    });
-    
-    negativeWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = lowerText.match(regex);
-      if (matches) negativeScore += matches.length;
-    });
-    
-    if (positiveScore > negativeScore + 2) return 'positive';
-    if (negativeScore > positiveScore + 1) return 'negative';
-    return 'neutral';
-  }
-  
-  // Extract keywords with basic approach
-  public extractKeywords(text: string): string[] {
-    if (!text) return [];
-    
-    const stopWords = ['the', 'and', 'a', 'to', 'of', 'is', 'in', 'that', 'it', 'with', 'for', 'as', 'was', 'on'];
-    const words = text.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
-    
-    // Count word frequency
-    const wordCounts: Record<string, number> = {};
-    words.forEach(word => {
-      if (!stopWords.includes(word)) {
-        wordCounts[word] = (wordCounts[word] || 0) + 1;
+    for (const word of words) {
+      if (word.length > 2 && !stopWords.includes(word)) {
+        frequency[word] = (frequency[word] || 0) + 1;
       }
-    });
+    }
     
-    // Sort by frequency
-    return Object.entries(wordCounts)
+    // Sort by frequency and take top 20
+    const sortedWords = Object.entries(frequency)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(entry => entry[0]);
+      .slice(0, 20);
+    
+    return Object.fromEntries(sortedWords);
   }
-  
-  // Generate a basic call score
-  public generateCallScore(text: string, sentiment: string): number {
-    if (!text) return 50;
+
+  // Identify topics from key phrases and keyword frequency
+  private identifyTopics(keyPhrases: string[], keywordFrequency: Record<string, number>): string[] {
+    // Simplified implementation: take top keywords as topics
+    const topics = Object.keys(keywordFrequency).slice(0, 5);
     
-    let baseScore = 50;
+    // Add any key phrases that aren't already included
+    for (const phrase of keyPhrases) {
+      const simplified = phrase.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+      if (!topics.some(topic => simplified.includes(topic))) {
+        topics.push(phrase);
+      }
+      if (topics.length >= 8) break;
+    }
     
-    // Adjust based on sentiment
-    if (sentiment === 'positive') baseScore += 20;
-    if (sentiment === 'negative') baseScore -= 15;
-    
-    // Adjust based on text length (assuming longer calls are more detailed)
-    const wordCount = text.split(/\s+/).length;
-    if (wordCount > 500) baseScore += 10;
-    if (wordCount < 100) baseScore -= 10;
-    
-    // Ensure score is within bounds
-    return Math.max(0, Math.min(100, baseScore));
+    return topics.slice(0, 8); // Return max 8 topics
   }
 }
 
-// Export an instance to be used across the application
 export const transcriptAnalysisService = new TranscriptAnalysisService();

@@ -2,7 +2,26 @@
 // Sentiment analysis interfaces and services
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { EventType, useEventListener } from '@/services/events/hooks';
+import { useEventListener } from '@/services/events/hooks';
+
+// Import or define EventType locally if it's not exported from hooks
+type EventType = 
+  | 'transcript-created'
+  | 'transcript-updated'
+  | 'transcript-deleted'
+  | 'transcripts-updated'
+  | 'transcripts-refreshed'
+  | 'bulk-upload-started'
+  | 'bulk-upload-completed'
+  | 'bulk-upload-progress'
+  | 'team-member-added'
+  | 'team-member-removed'
+  | 'managed-users-updated'
+  | 'call-updated'
+  | 'recording-completed'
+  | 'sentiment-updated'
+  | 'connection-restored'
+  | 'connection-lost';
 
 export interface SentimentTrend {
   date: string;
@@ -41,7 +60,16 @@ export const useSentimentTrends = () => {
       }
 
       if (data && data.length > 0) {
-        setSentimentTrends(data);
+        // Ensure the data conforms to the SentimentRecord type
+        const typedData: SentimentRecord[] = data.map(item => ({
+          id: item.id,
+          user_id: item.user_id,
+          sentiment_label: (item.sentiment_label || 'neutral') as 'positive' | 'neutral' | 'negative',
+          confidence: item.confidence || 0.5,
+          recorded_at: item.recorded_at
+        }));
+        
+        setSentimentTrends(typedData);
         setLastUpdated(new Date());
         setLoading(false);
         return;
@@ -59,15 +87,18 @@ export const useSentimentTrends = () => {
       }
 
       if (transcriptData && transcriptData.length > 0) {
-        // Map transcript data to sentiment records
-        const mappedData = transcriptData.map(t => ({
+        // Map transcript data to sentiment records with proper type casting
+        const mappedData: SentimentRecord[] = transcriptData.map(t => ({
           id: t.id,
           user_id: t.user_id,
-          sentiment_label: (t.sentiment || 'neutral') as 'positive' | 'neutral' | 'negative',
+          // Ensure the sentiment_label is one of the allowed values
+          sentiment_label: (t.sentiment === 'positive' ? 'positive' : 
+                           t.sentiment === 'negative' ? 'negative' : 'neutral') as 'positive' | 'neutral' | 'negative',
           confidence: t.sentiment === 'positive' ? 0.8 : 
-                      t.sentiment === 'negative' ? 0.3 : 0.6,
+                     t.sentiment === 'negative' ? 0.3 : 0.6,
           recorded_at: t.created_at
         }));
+        
         setSentimentTrends(mappedData);
         setLastUpdated(new Date());
       } else {
@@ -115,9 +146,15 @@ const getMockSentimentTrends = (): SentimentRecord[] => {
     const date = new Date(now);
     date.setDate(date.getDate() - index);
     
+    // Determine sentiment based on index
+    let sentiment: 'positive' | 'neutral' | 'negative';
+    if (index % 3 === 0) sentiment = 'positive';
+    else if (index % 3 === 1) sentiment = 'negative';
+    else sentiment = 'neutral';
+    
     return {
       id: `mock-${index}`,
-      sentiment_label: index % 3 === 0 ? 'positive' : index % 3 === 1 ? 'negative' : 'neutral',
+      sentiment_label: sentiment,
       confidence: Math.random() * 0.5 + 0.5,
       recorded_at: date.toISOString()
     };
