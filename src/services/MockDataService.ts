@@ -9,37 +9,13 @@ export const USE_MOCK_DATA = true;
 export const generateMockKPIData = () => {
   return {
     objectionHandlingScore: faker.number.int({ min: 65, max: 95 }),
-    discoveryQuestionsRate: faker.number.float({ min: 4.5, max: 8.5, precision: 0.1 }),
+    discoveryQuestionsRate: faker.number.float({ min: 4.5, max: 8.5, fractionDigits: 1 }),
     closingTechniquesScore: faker.number.int({ min: 70, max: 90 }),
     clientEngagementScore: faker.number.int({ min: 75, max: 98 }),
     followUpCommitmentRate: faker.number.int({ min: 60, max: 95 }),
     painPointIdentificationScore: faker.number.int({ min: 65, max: 90 }),
     silencePercentage: faker.number.int({ min: 5, max: 20 }),
   };
-};
-
-// Generate team performance metrics for reports
-export const generateMockTeamMetrics = (count = 5): TeamPerformanceMetric[] => {
-  const metrics: TeamPerformanceMetric[] = [];
-  
-  for (let i = 0; i < count; i++) {
-    metrics.push({
-      rep_id: faker.string.uuid(),
-      rep_name: faker.person.fullName(),
-      call_volume: faker.number.int({ min: 20, max: 120 }),
-      avg_call_duration: faker.number.int({ min: 120, max: 600 }),
-      sentiment_score: faker.number.float({ min: 0.4, max: 0.9, precision: 0.01 }),
-      success_rate: faker.number.float({ min: 0.5, max: 0.95, precision: 0.01 }),
-      avg_talk_ratio: faker.number.float({ min: 0.4, max: 0.7, precision: 0.01 }),
-      objection_handling_score: faker.number.float({ min: 0.6, max: 0.95, precision: 0.01 }),
-      positive_language_score: faker.number.float({ min: 0.7, max: 0.95, precision: 0.01 }),
-      top_keywords: Array.from({ length: faker.number.int({ min: 3, max: 6 }) }, () => 
-        faker.word.sample()),
-      last_call_date: faker.date.recent().toISOString()
-    });
-  }
-  
-  return metrics;
 };
 
 // Generate mock chart data for the dashboard
@@ -77,6 +53,30 @@ export const generateMockChartData = () => {
       { name: '>10s', value: faker.number.int({ min: 5, max: 15 }) }
     ]
   };
+};
+
+// Generate team performance metrics for reports
+export const generateMockTeamMetrics = (count = 5): TeamPerformanceMetric[] => {
+  const metrics: TeamPerformanceMetric[] = [];
+  
+  for (let i = 0; i < count; i++) {
+    metrics.push({
+      rep_id: faker.string.uuid(),
+      rep_name: faker.person.fullName(),
+      call_volume: faker.number.int({ min: 20, max: 120 }),
+      avg_call_duration: faker.number.int({ min: 120, max: 600 }),
+      sentiment_score: faker.number.float({ min: 0.4, max: 0.9, fractionDigits: 2 }),
+      success_rate: faker.number.float({ min: 0.5, max: 0.95, fractionDigits: 2 }),
+      avg_talk_ratio: faker.number.float({ min: 0.4, max: 0.7, fractionDigits: 2 }),
+      objection_handling_score: faker.number.float({ min: 0.6, max: 0.95, fractionDigits: 2 }),
+      positive_language_score: faker.number.float({ min: 0.7, max: 0.95, fractionDigits: 2 }),
+      top_keywords: Array.from({ length: faker.number.int({ min: 3, max: 6 }) }, () => 
+        faker.word.sample()),
+      last_call_date: faker.date.recent().toISOString()
+    });
+  }
+  
+  return metrics;
 };
 
 // Generate mock sales funnel data

@@ -1,3 +1,4 @@
+
 import { CallTranscript } from '@/types/call';
 import { supabase } from '@/integrations/supabase/client';
 import { useCallback, useEffect, useState } from 'react';
@@ -113,7 +114,8 @@ export const useTranscriptAnalysis = (options?: AnalysisOptions) => {
           keywords: data.keywords || [],
           id: data.id,
           text: data.text,
-          created_at: data.created_at
+          created_at: data.created_at,
+          transcript_segments: data.transcript_segments || []
         };
 
         setTranscript(typedTranscript);

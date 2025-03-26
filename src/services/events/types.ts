@@ -11,7 +11,6 @@ export type EventType =
   | 'team-member-removed'
   | 'managed-users-updated'
   | 'call-updated'
-  | 'transcriptions-updated'
   | 'connection-restored'
   | 'connection-lost';
 
