@@ -85,49 +85,17 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // Insert into database - modify query to fix the DISTINCT ORDER BY issue
-      const { data, error } = await supabase
+      // FIX: Do a simple insert without returning data to avoid the DISTINCT ORDER BY issue
+      const { error: insertError } = await supabase
         .from('call_transcripts')
-        .insert(transcriptData)
-        .select('id');
+        .insert(transcriptData);
       
-      if (error) {
-        console.error('Error inserting transcript into database:', error);
-        errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase.insert');
+      if (insertError) {
+        console.error('Error inserting transcript into database:', insertError);
+        errorHandler.handleError(insertError, 'DatabaseService.saveTranscriptToDatabase.insert');
         
-        // Try a more targeted approach without DISTINCT or ORDER BY
-        if (error.message && (error.message.includes('SELECT DISTINCT') || error.message.includes('ORDER BY'))) {
-          console.log('Retrying with a simpler query approach');
-          
-          // First insert without returning
-          const insertResult = await supabase
-            .from('call_transcripts')
-            .insert(transcriptData);
-          
-          if (insertResult.error) {
-            console.error('Error on second attempt to insert transcript:', insertResult.error);
-            return { id: transcriptId, error: insertResult.error };
-          }
-          
-          // Then fetch the ID separately
-          const fetchResult = await supabase
-            .from('call_transcripts')
-            .select('id')
-            .eq('id', transcriptId)
-            .single();
-            
-          if (fetchResult.error) {
-            console.error('Error fetching inserted transcript ID:', fetchResult.error);
-            // Still return transcriptId since we know it was successfully inserted
-            return { id: transcriptId, error: null };
-          }
-          
-          // FIX: Access id property directly from the single() result, not from array
-          return { id: fetchResult.data?.id || transcriptId, error: null };
-        }
-        
-        // For other types of errors, try a different approach with column validation
-        if (error.message && (error.message.includes('key_phrases') || error.message.includes('column'))) {
+        // Try a different approach for column validation if needed
+        if (insertError.message && (insertError.message.includes('key_phrases') || insertError.message.includes('column'))) {
           console.log('Retrying with a more compatible data structure');
           
           // Create a more compatible version of the data
@@ -145,22 +113,20 @@ export class DatabaseService {
           if (hasKeyPhrases) updatedData.key_phrases = keywords;
           
           // Try insert without using .select() for the return
-          const insertOnly = await supabase
+          const { error: secondError } = await supabase
             .from('call_transcripts')
             .insert(updatedData);
             
-          if (insertOnly.error) {
-            console.error('Error on third attempt to insert transcript:', insertOnly.error);
-            return { id: transcriptId, error: insertOnly.error };
+          if (secondError) {
+            console.error('Error on third attempt to insert transcript:', secondError);
+            return { id: transcriptId, error: secondError };
           }
-          
-          return { id: transcriptId, error: null };
+        } else {
+          return { id: transcriptId, error: insertError };
         }
-        
-        return { id: transcriptId, error };
       }
       
-      console.log('Successfully inserted transcript:', data);
+      console.log('Successfully inserted transcript with ID:', transcriptId);
       
       // Also update the calls table with similar data for real-time metrics
       try {
@@ -182,21 +148,7 @@ export class DatabaseService {
         errorHandler.handleError(callsError, 'DatabaseService.saveTranscriptToDatabase.updateCallsTable');
       }
       
-      // FIX: Extract id from array correctly if data is an array
-      let resultId = '';
-      if (Array.isArray(data)) {
-        // Handle array case
-        resultId = data.length > 0 && typeof data[0] === 'object' && data[0] !== null ? 
-          (data[0] as any).id || transcriptId : transcriptId;
-      } else if (data && typeof data === 'object' && 'id' in data) {
-        // Handle object case
-        resultId = (data as any).id;
-      } else {
-        // Fallback to transcriptId
-        resultId = transcriptId;
-      }
-      
-      return { id: resultId, error: null };
+      return { id: transcriptId, error: null };
     } catch (error) {
       console.error('Error saving transcript:', error);
       errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase');
@@ -247,8 +199,7 @@ export class DatabaseService {
         
         // Try a fallback approach without using .select() for the return
         if (error.message && (error.message.includes('SELECT DISTINCT') || error.message.includes('ORDER BY'))) {
-          // Use direct fetch with POST request instead of RPC
-          // FIX: Don't use rpc for insert_call_no_return, use a direct fetch call instead
+          // Use direct fetch with POST request
           try {
             console.log('Using direct fetch for insert_call_no_return');
             
