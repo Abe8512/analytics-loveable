@@ -182,13 +182,17 @@ export class DatabaseService {
         errorHandler.handleError(callsError, 'DatabaseService.saveTranscriptToDatabase.updateCallsTable');
       }
       
-      // FIX: Extract id from array correctly if data is an array, otherwise use first element
+      // FIX: Extract id from array correctly if data is an array
       let resultId = '';
-      if (Array.isArray(data) && data.length > 0) {
-        resultId = data[0]?.id || transcriptId;
-      } else if (data?.id) {
-        resultId = data.id;
+      if (Array.isArray(data)) {
+        // Handle array case
+        resultId = data.length > 0 && typeof data[0] === 'object' && data[0] !== null ? 
+          (data[0] as any).id || transcriptId : transcriptId;
+      } else if (data && typeof data === 'object' && 'id' in data) {
+        // Handle object case
+        resultId = (data as any).id;
       } else {
+        // Fallback to transcriptId
         resultId = transcriptId;
       }
       
