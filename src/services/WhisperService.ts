@@ -1,189 +1,242 @@
-
-// Basic Whisper Service implementation for demonstration
-import { v4 as uuidv4 } from 'uuid';
+import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import { errorHandler } from './ErrorHandlingService';
-import { useEventsStore } from './EventsService';
+
+// Define the structure of the transcription response from Whisper
+export interface WhisperTranscriptionResponse {
+  text: string;
+  segments?: Array<{
+    id: number;
+    start: number;
+    end: number;
+    text: string;
+    speaker: string;
+  }>;
+  language?: string;
+  duration?: number;
+}
 
 export interface StoredTranscription {
   id: string;
   text: string;
   date: string;
   duration?: number;
-  callScore?: number;
-  sentiment?: 'positive' | 'neutral' | 'negative';
   speakerName?: string;
   transcript_segments?: Array<{
-    id: string;
-    text: string;
+    id: number;
     start: number;
     end: number;
+    text: string;
     speaker: string;
   }>;
+  sentiment?: string;
+  keywords?: string[];
+  filename?: string;
 }
 
-const LOCAL_STORAGE_KEY = 'whisper_transcriptions';
-
-// Get stored transcriptions from localStorage
-export const getStoredTranscriptions = (): StoredTranscription[] => {
-  try {
-    const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (storedData) {
-      return JSON.parse(storedData);
-    }
-  } catch (error) {
-    console.error('Error parsing stored transcriptions:', error);
-  }
-  
-  return [];
+// Speech recognition fallback for browsers
+const getSpeechRecognition = () => {
+  // @ts-ignore - These properties exist in modern browsers
+  return window.SpeechRecognition || window.webkitSpeechRecognition;
 };
 
-// Save transcription to localStorage
-export const saveTranscription = (transcription: StoredTranscription): void => {
-  try {
-    const existingTranscriptions = getStoredTranscriptions();
-    const updatedTranscriptions = [transcription, ...existingTranscriptions];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedTranscriptions));
-    
-    // Dispatch event for real-time updates
-    const dispatchEvent = useEventsStore.getState().dispatchEvent;
-    dispatchEvent('transcript-created', { id: transcription.id });
-    
-    // Trigger DOM event for broader compatibility
-    window.dispatchEvent(new CustomEvent('transcriptions-updated'));
-  } catch (error) {
-    console.error('Error saving transcription:', error);
-    errorHandler.handleError({
-      message: 'Failed to save transcription',
-      technical: error instanceof Error ? error.message : String(error),
-      severity: 'error',
-      code: 'TRANSCRIPTION_SAVE_ERROR'
-    });
-  }
-};
-
-// Get a specific transcription by ID
-export const getTranscriptionById = (id: string): StoredTranscription | null => {
-  const transcriptions = getStoredTranscriptions();
-  return transcriptions.find(t => t.id === id) || null;
-};
-
-// Simulates transcribing audio and returns a transcription
-export const transcribeAudio = async (
-  audioBlob: Blob, 
-  options?: { speakerName?: string }
-): Promise<StoredTranscription> => {
-  // In a real app, we would upload to a Whisper API endpoint
-  // This is a simulation for demo purposes
+export const useWhisperService = () => {
+  const [useSpeechRecognition, setUseSpeechRecognition] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcription, setTranscription] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [speechRecognition, setSpeechRecognition] = useState<any>(null);
+  const [useLocalWhisper, setUseLocalWhisper] = useState(false);
+  const [numSpeakers, setNumSpeakers] = useState(2);
+  const [transcriptions, setTranscriptions] = useState<StoredTranscription[]>([]);
   
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const transcription: StoredTranscription = {
-        id: uuidv4(),
-        text: 'This is a simulated transcription from the Whisper service. In a real implementation, this would contain the actual transcribed text from the audio file.',
-        date: new Date().toISOString(),
-        duration: Math.floor(Math.random() * 300) + 60, // Random duration between 1-6 minutes
-        callScore: Math.floor(Math.random() * 40) + 60, // Random score between 60-100
-        sentiment: Math.random() > 0.7 ? 'positive' : (Math.random() > 0.4 ? 'neutral' : 'negative'),
-        speakerName: options?.speakerName || 'Unknown Speaker',
-        // Generate some random segments
-        transcript_segments: [
-          {
-            id: '1',
-            text: 'Hello, thank you for calling our support line. How can I help you today?',
-            start: 0,
-            end: 5.2,
-            speaker: 'Agent'
-          },
-          {
-            id: '2',
-            text: 'Hi, I\'m having an issue with my subscription. It seems to be charging me twice.',
-            start: 5.5,
-            end: 12.1,
-            speaker: 'Customer'
-          },
-          {
-            id: '3',
-            text: 'I understand that can be frustrating. Let me look into that for you right away.',
-            start: 12.5,
-            end: 17.3,
-            speaker: 'Agent'
-          }
-        ]
-      };
-      
-      // Save the transcription to localStorage
-      saveTranscription(transcription);
-      
-      resolve(transcription);
-    }, 2000); // Simulate processing time
-  });
-};
-
-// Type for speech recognition options
-interface SpeechRecognitionOptions {
-  continuous?: boolean;
-  language?: string;
-  interimResults?: boolean;
-  onResult?: (transcript: string, isFinal: boolean) => void;
-  onError?: (error: any) => void;
-  onEnd?: () => void;
-}
-
-// Simplified speech-to-text using Web Speech API 
-export const useSpeechRecognition = (options: SpeechRecognitionOptions = {}) => {
-  let recognition: any = null;
+  // Load transcriptions from local storage on mount
+  useEffect(() => {
+    loadTranscriptions();
+  }, []);
   
-  const isSupported = (): boolean => {
-    return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
-  };
-  
-  const start = () => {
-    if (!isSupported()) {
-      options.onError?.({ message: 'Speech recognition not supported in this browser' });
-      return false;
-    }
-    
+  // Function to load transcriptions from local storage
+  const loadTranscriptions = useCallback(() => {
     try {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognition = new SpeechRecognition();
-      
-      recognition.continuous = options.continuous ?? true;
-      recognition.interimResults = options.interimResults ?? true;
-      recognition.lang = options.language ?? 'en-US';
-      
-      recognition.onresult = (event: any) => {
-        const resultIndex = event.resultIndex;
-        const transcript = event.results[resultIndex][0].transcript;
-        const isFinal = event.results[resultIndex].isFinal;
-        
-        options.onResult?.(transcript, isFinal);
-      };
-      
-      recognition.onerror = (event: any) => {
-        options.onError?.(event);
-      };
-      
-      recognition.onend = () => {
-        options.onEnd?.();
-      };
-      
-      recognition.start();
-      return true;
+      const stored = localStorage.getItem('transcriptions');
+      setTranscriptions(stored ? JSON.parse(stored) : []);
     } catch (error) {
-      options.onError?.(error);
-      return false;
+      console.error('Error retrieving stored transcriptions:', error);
+      errorHandler.handleError(error, 'WhisperService.loadTranscriptions');
+    }
+  }, []);
+  
+  // Function to save transcriptions to local storage
+  const saveTranscriptions = useCallback((newTranscriptions: StoredTranscription[]) => {
+    try {
+      localStorage.setItem('transcriptions', JSON.stringify(newTranscriptions));
+      setTranscriptions(newTranscriptions);
+    } catch (error) {
+      console.error('Error saving transcriptions to local storage:', error);
+      errorHandler.handleError(error, 'WhisperService.saveTranscriptions');
+    }
+  }, []);
+  
+  // Function to add a new transcription
+  const addTranscription = useCallback((newTranscription: StoredTranscription) => {
+    saveTranscriptions([newTranscription, ...transcriptions]);
+  }, [transcriptions, saveTranscriptions]);
+  
+  // Function to update an existing transcription
+  const updateTranscription = useCallback((updatedTranscription: StoredTranscription) => {
+    const updatedTranscriptions = transcriptions.map(transcription =>
+      transcription.id === updatedTranscription.id ? updatedTranscription : transcription
+    );
+    saveTranscriptions(updatedTranscriptions);
+  }, [transcriptions, saveTranscriptions]);
+  
+  // Function to delete a transcription
+  const deleteTranscription = useCallback((id: string) => {
+    const remainingTranscriptions = transcriptions.filter(transcription => transcription.id !== id);
+    saveTranscriptions(remainingTranscriptions);
+  }, [transcriptions, saveTranscriptions]);
+  
+  // Initialize speech recognition if available
+  useEffect(() => {
+    const SpeechRecognition = getSpeechRecognition();
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onresult = (event: any) => {
+        let interimTranscription = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            setTranscription(prevTranscription => prevTranscription + ' ' + event.results[i][0].transcript);
+          } else {
+            interimTranscription += event.results[i][0].transcript;
+          }
+        }
+        if (interimTranscription) {
+          setTranscription(prevTranscription => prevTranscription + ' ' + interimTranscription);
+        }
+      };
+      recognition.onerror = (event: any) => {
+        setError(`Speech recognition error: ${event.error}`);
+        errorHandler.handleError(event, 'WhisperService.speechRecognition.onerror');
+      };
+      recognition.onend = () => {
+        setIsTranscribing(false);
+      };
+      setSpeechRecognition(recognition);
+      setUseSpeechRecognition(true);
+    } else {
+      console.warn('Speech recognition is not supported in this browser.');
+      errorHandler.handleError(new Error('Speech recognition not supported'), 'WhisperService.speechRecognition.notSupported');
+      setUseSpeechRecognition(false);
+    }
+  }, []);
+  
+  // Start transcribing with browser-based speech recognition
+  const startTranscription = () => {
+    if (speechRecognition) {
+      setTranscription('');
+      setError(null);
+      setIsTranscribing(true);
+      speechRecognition.start();
     }
   };
   
-  const stop = () => {
-    if (recognition) {
-      recognition.stop();
+  // Stop transcribing with browser-based speech recognition
+  const stopTranscription = () => {
+    if (speechRecognition) {
+      setIsTranscribing(false);
+      speechRecognition.stop();
     }
+  };
+  
+  // Toggle between local and API-based Whisper
+  const toggleUseLocalWhisper = () => {
+    setUseLocalWhisper(prev => !prev);
+  };
+  
+  // Set the number of speakers for diarization
+  const setNumSpeakersValue = (value: number) => {
+    setNumSpeakers(value);
+  };
+  
+  // Placeholder function for transcribing audio with Whisper
+  const transcribeAudio = async (file: File): Promise<WhisperTranscriptionResponse> => {
+    // This is a placeholder implementation
+    return {
+      text: "This is a placeholder transcription.",
+      segments: [
+        {
+          id: 1,
+          start: 0,
+          end: 5,
+          text: "This is a placeholder transcription.",
+          speaker: "Speaker 1"
+        }
+      ]
+    };
+  };
+  
+  const forceRefreshTranscriptions = () => {
+    loadTranscriptions();
   };
   
   return {
-    isSupported,
-    start,
-    stop
+    isTranscribing,
+    transcription,
+    error,
+    startTranscription,
+    stopTranscription,
+    useSpeechRecognition,
+    toggleUseLocalWhisper,
+    useLocalWhisper,
+    numSpeakers,
+    setNumSpeakersValue,
+    transcribeAudio: async (file: File): Promise<WhisperTranscriptionResponse> => {
+      // This is a placeholder implementation
+      return {
+        text: "This is a placeholder transcription.",
+        segments: [
+          {
+            id: 1,
+            start: 0,
+            end: 5,
+            text: "This is a placeholder transcription.",
+            speaker: "Speaker 1"
+          }
+        ]
+      };
+    },
+    getUseLocalWhisper: () => useLocalWhisper,
+    getNumSpeakers: () => numSpeakers,
+    forceRefreshTranscriptions: () => {
+      loadTranscriptions();
+    },
+    getStoredTranscriptions: () => {
+      try {
+        const stored = localStorage.getItem('transcriptions');
+        return stored ? JSON.parse(stored) : [];
+      } catch (error) {
+        console.error('Error retrieving stored transcriptions:', error);
+        return [];
+      }
+    },
+    addTranscription,
+    updateTranscription,
+    deleteTranscription
   };
 };
+
+export const setOpenAIKey = (key: string): void => {
+  localStorage.setItem('openai_api_key', key);
+};
+
+export function getStoredTranscriptions(): StoredTranscription[] {
+  try {
+    const stored = localStorage.getItem('transcriptions');
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error retrieving stored transcriptions:', error);
+    return [];
+  }
+}

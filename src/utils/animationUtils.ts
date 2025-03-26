@@ -55,5 +55,28 @@ export const animationUtils = {
         }
       }
     };
+  },
+
+  // Easing function for smooth animation
+  easeOutCubic: (t: number): number => {
+    return 1 - Math.pow(1 - t, 3);
+  },
+
+  // Stabilize element height during animations
+  getStableHeight: (element: HTMLElement | null): number => {
+    if (!element) return 0;
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.style.position = 'absolute';
+    clone.style.visibility = 'hidden';
+    clone.style.height = 'auto';
+    document.body.appendChild(clone);
+    const height = clone.offsetHeight;
+    document.body.removeChild(clone);
+    return height;
+  },
+
+  // Stabilize dimensions for responsive components
+  stabilizeDimension: (value: number, minValue: number = 100, maxValue: number = 2000): number => {
+    return Math.max(minValue, Math.min(maxValue, value));
   }
 };

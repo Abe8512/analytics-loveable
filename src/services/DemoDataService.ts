@@ -1,41 +1,50 @@
-
-import { useState, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import { generateAnonymousUserId } from "@/integrations/supabase/client";
+import { faker } from '@faker-js/faker';
 import { CallTranscript } from './CallTranscriptService';
 
-export const useDemoDataService = () => {
-  // Generate demo data for when the database connection fails
-  const generateDemoTranscripts = useCallback((count = 10): CallTranscript[] => {
-    const sentiments = ['positive', 'neutral', 'negative'];
-    const demoData: CallTranscript[] = [];
-    
-    for (let i = 0; i < count; i++) {
-      const id = uuidv4(); // Use proper UUID format for all IDs
-      const anonymousId = generateAnonymousUserId();
-      const randomSentiment = sentiments[Math.floor(Math.random() * sentiments.length)];
-      const randomDate = new Date();
-      randomDate.setDate(randomDate.getDate() - Math.floor(Math.random() * 30));
-      
-      demoData.push({
-        id,
-        user_id: anonymousId,
-        filename: `call-${i}.wav`,
-        text: `This is a demo transcript for call ${i}. It contains sample conversation text that would typically be generated from a real call recording.`,
-        duration: Math.floor(Math.random() * 600) + 120, // 2-12 minutes
-        call_score: Math.floor(Math.random() * 50) + 50, // 50-100
-        sentiment: randomSentiment,
-        keywords: ["product", "pricing", "follow-up", "meeting"],
-        transcript_segments: null,
-        created_at: randomDate.toISOString()
-      });
-    }
-    
-    console.log('Generated demo transcripts with proper UUIDs:', demoData);
-    return demoData;
-  }, []);
+// Function to generate a single mock call transcript
+export function generateMockCallTranscript(): CallTranscript {
+  const startTime = faker.date.past();
+  const endTime = faker.date.future();
+  const duration = Math.floor((endTime.getTime() - startTime.getTime()) / 1000); // Duration in seconds
+
+  // Change any string sentiment to valid "positive" | "neutral" | "negative" type
+  const getValidSentiment = (sentiment: string): "positive" | "neutral" | "negative" => {
+    const lowerSentiment = sentiment.toLowerCase();
+    if (lowerSentiment === 'positive') return 'positive';
+    if (lowerSentiment === 'negative') return 'negative';
+    return 'neutral';
+  };
 
   return {
-    generateDemoTranscripts
+    id: faker.string.uuid(),
+    call_id: faker.string.uuid(),
+    text: faker.lorem.paragraph(),
+    created_at: faker.date.recent().toISOString(),
+    customer_name: faker.person.fullName(),
+    duration: duration,
+    end_time: endTime.toISOString(),
+    sentiment: getValidSentiment(faker.helpers.arrayElement(['positive', 'neutral', 'negative'])),
+    speaker_count: faker.number.int({ min: 1, max: 4 }),
+    start_time: startTime.toISOString(),
+    assigned_to: faker.string.uuid(),
+    call_score: faker.number.int({ min: 1, max: 100 }),
+    keywords: faker.helpers.arrayElements([
+      'sales', 'marketing', 'customer', 'product', 'service'
+    ]),
+    filename: faker.system.fileName(),
+    user_name: faker.person.fullName(),
+    metadata: {
+      device: faker.helpers.arrayElement(['mobile', 'desktop', 'tablet']),
+      location: faker.location.country()
+    }
   };
-};
+}
+
+// Function to generate multiple mock call transcripts
+export function generateMockCallTranscripts(count: number): CallTranscript[] {
+  const transcripts: CallTranscript[] = [];
+  for (let i = 0; i < count; i++) {
+    transcripts.push(generateMockCallTranscript());
+  }
+  return transcripts;
+}

@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,24 +7,21 @@ import { useEventsStore } from './EventsService';
 
 export interface CallTranscript {
   id: string;
+  call_id: string;
   text: string;
   created_at: string;
-  user_id?: string;
-  user_name?: string;
   customer_name?: string;
   duration?: number;
+  end_time?: string;
+  sentiment: "positive" | "neutral" | "negative";
+  speaker_count?: number;
+  start_time?: string;
+  assigned_to?: string;
   call_score?: number;
-  sentiment?: 'positive' | 'neutral' | 'negative';
   keywords?: string[];
   filename?: string;
-  transcript_segments?: Array<{
-    id: string;
-    text: string;
-    start: number;
-    end: number;
-    speaker: string;
-  }>;
-  metadata?: Record<string, any>;
+  user_name?: string;
+  metadata?: any;
 }
 
 interface UseCallTranscriptsResult {
@@ -75,10 +71,18 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
             throw new Error(`Error fetching transcripts: ${error.message}`);
           }
           
-          setTranscripts(data);
+          // Properly type and convert the data
+          const typedTranscripts: CallTranscript[] = data.map((item: any) => ({
+            ...item,
+            sentiment: (item.sentiment as string)?.toLowerCase() === 'positive' ? 'positive' : 
+                       (item.sentiment as string)?.toLowerCase() === 'negative' ? 'negative' : 'neutral',
+            keywords: item.keywords || []
+          }));
+          
+          setTranscripts(typedTranscripts);
           dispatchEvent('transcript-created');
           
-          return data;
+          return typedTranscripts;
         } finally {
           setLoading(false);
         }
@@ -105,7 +109,15 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
             throw new Error(`Error fetching transcript: ${error.message}`);
           }
           
-          return data;
+          // Properly convert the data
+          const transcript: CallTranscript = {
+            ...data,
+            sentiment: (data.sentiment as string)?.toLowerCase() === 'positive' ? 'positive' : 
+                       (data.sentiment as string)?.toLowerCase() === 'negative' ? 'negative' : 'neutral',
+            keywords: data.keywords || []
+          };
+          
+          return transcript;
         } finally {
           setLoading(false);
         }

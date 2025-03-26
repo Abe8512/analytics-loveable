@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import type { TeamMetricsData, RepMetricsData } from './SharedDataService';
 
@@ -189,3 +188,31 @@ export const generateKeywordTrends = () => {
     sentiment: +(Math.random() * 0.6 + 0.3).toFixed(2),
   })).sort((a, b) => b.count - a.count);
 };
+
+export function generateMockKPIData() {
+  return {
+    newCalls: Math.floor(Math.random() * 100) + 50,
+    totalDuration: Math.floor(Math.random() * 5000) + 2000,
+    averageScore: Math.floor(Math.random() * 30) + 70,
+    positiveRate: Math.floor(Math.random() * 30) + 70,
+  };
+}
+
+export function generateMockChartData() {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return days.map(day => ({
+    name: day,
+    calls: Math.floor(Math.random() * 50) + 10,
+    score: Math.floor(Math.random() * 20) + 80,
+  }));
+}
+
+export function generateMockSalesFunnelData() {
+  return [
+    { name: 'Leads', value: Math.floor(Math.random() * 200) + 100 },
+    { name: 'Qualified', value: Math.floor(Math.random() * 150) + 50 },
+    { name: 'Proposal', value: Math.floor(Math.random() * 100) + 20 },
+    { name: 'Negotiation', value: Math.floor(Math.random() * 50) + 10 },
+    { name: 'Closed', value: Math.floor(Math.random() * 20) + 5 },
+  ];
+}

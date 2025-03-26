@@ -1,7 +1,19 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { addDays, subDays, startOfDay, endOfDay } from 'date-fns';
-import type { DataFilters } from '@/services/SharedDataService';
+
+export interface DataFilters {
+  dateRange: {
+    from: Date;
+    to: Date;
+  };
+  repIds: string[];
+  sentimentRange: { min: number; max: number };
+  keywords: string[];
+  customerId?: string;
+  productLines?: string[];
+  callTypes?: string[];
+}
 
 interface SharedFilterContextType {
   filters: DataFilters;
@@ -10,7 +22,10 @@ interface SharedFilterContextType {
   updateSentimentRange: (range: { min: number; max: number }) => void;
   updateKeywords: (keywords: string[]) => void;
   updateCustomerId: (id: string | null) => void;
+  updateProductLines: (productLines: string[]) => void;
+  updateCallTypes: (callTypes: string[]) => void;
   resetFilters: () => void;
+  clearAllFilters: () => void;
 }
 
 const defaultFilters: DataFilters = {
@@ -22,6 +37,8 @@ const defaultFilters: DataFilters = {
   sentimentRange: { min: 0, max: 1 },
   keywords: [],
   customerId: undefined,
+  productLines: [],
+  callTypes: [],
 };
 
 const SharedFilterContext = createContext<SharedFilterContextType | undefined>(undefined);
@@ -64,7 +81,25 @@ export const SharedFilterProvider: React.FC<{ children: ReactNode }> = ({ childr
     }));
   };
 
+  const updateProductLines = (productLines: string[]) => {
+    setFilters((prev) => ({
+      ...prev,
+      productLines,
+    }));
+  };
+
+  const updateCallTypes = (callTypes: string[]) => {
+    setFilters((prev) => ({
+      ...prev,
+      callTypes,
+    }));
+  };
+
   const resetFilters = () => {
+    setFilters(defaultFilters);
+  };
+
+  const clearAllFilters = () => {
     setFilters(defaultFilters);
   };
 
@@ -77,7 +112,10 @@ export const SharedFilterProvider: React.FC<{ children: ReactNode }> = ({ childr
         updateSentimentRange,
         updateKeywords,
         updateCustomerId,
+        updateProductLines,
+        updateCallTypes,
         resetFilters,
+        clearAllFilters,
       }}
     >
       {children}

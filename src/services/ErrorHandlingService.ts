@@ -1,146 +1,131 @@
 
-import { toast } from 'sonner';
+// Define standardized error types for the application
+export type AppErrorType = 
+  | 'database'
+  | 'network'
+  | 'auth'
+  | 'api'
+  | 'transcription'
+  | 'processing'
+  | 'unknown';
 
 export interface AppError {
+  type: AppErrorType;
   message: string;
-  technical?: string;
-  severity: 'info' | 'warning' | 'error' | 'critical';
-  code?: string;
-  actionable?: boolean;
-  retry?: () => Promise<any>;
+  originalError?: any;
+  timestamp: Date;
+  context?: string;
 }
 
-type ConnectionChangeCallback = (online: boolean) => void;
-
 class ErrorHandler {
-  private static instance: ErrorHandler;
-  private connectionCallbacks: ConnectionChangeCallback[] = [];
-  isOffline: boolean = false;
+  private errors: AppError[] = [];
+  private maxErrorsStored = 50;
+  private errorListeners: ((error: AppError) => void)[] = [];
+  public networkLatency = 0;
   
-  // Track errors to avoid duplicate toasts
-  private recentErrors: Map<string, number> = new Map();
-  
-  constructor() {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', this.handleConnectionChange);
-      window.addEventListener('offline', this.handleConnectionChange);
-      this.isOffline = !navigator.onLine;
-    }
-  }
-  
-  static getInstance(): ErrorHandler {
-    if (!ErrorHandler.instance) {
-      ErrorHandler.instance = new ErrorHandler();
-    }
-    return ErrorHandler.instance;
-  }
-  
-  private handleConnectionChange = () => {
-    const isOnline = navigator.onLine;
-    this.isOffline = !isOnline;
-    this.connectionCallbacks.forEach(callback => callback(isOnline));
+  handleError(error: any, context?: string): AppError {
+    const appError = this.createAppError(error, context);
     
-    if (isOnline) {
-      toast.success('Connection restored', {
-        description: 'Your internet connection is back online',
-        duration: 3000,
-      });
-    } else {
-      toast.error('Connection lost', {
-        description: 'You are currently offline. Some features may be unavailable',
-        duration: 5000,
-      });
+    // Add to error history, maintaining max size
+    this.errors.unshift(appError);
+    if (this.errors.length > this.maxErrorsStored) {
+      this.errors = this.errors.slice(0, this.maxErrorsStored);
     }
-  };
+    
+    // Log to console with standardized format
+    console.error(`[${appError.type}] ${appError.message}`, {
+      context: appError.context,
+      timestamp: appError.timestamp,
+      originalError: appError.originalError
+    });
+    
+    // Notify listeners
+    this.notifyListeners(appError);
+    
+    return appError;
+  }
   
-  onConnectionChange(callback: ConnectionChangeCallback) {
-    this.connectionCallbacks.push(callback);
-    return () => {
-      this.connectionCallbacks = this.connectionCallbacks.filter(cb => cb !== callback);
+  private createAppError(error: any, context?: string): AppError {
+    const errorMessage = error?.message || 'An unknown error occurred';
+    
+    // Determine error type based on message or error instance
+    let errorType: AppErrorType = 'unknown';
+    
+    if (error?.code === 'PGRST301' || error?.message?.includes('database')) {
+      errorType = 'database';
+    } else if (error?.message?.includes('network') || error instanceof TypeError && error.message.includes('fetch')) {
+      errorType = 'network';
+    } else if (error?.message?.includes('auth') || error?.code === 'auth/') {
+      errorType = 'auth';
+    } else if (error?.message?.includes('API') || error?.status === 429) {
+      errorType = 'api';
+    } else if (error?.message?.includes('transcription') || error?.message?.includes('Whisper')) {
+      errorType = 'transcription';
+    } else if (error?.message?.includes('processing')) {
+      errorType = 'processing';
+    }
+    
+    return {
+      type: errorType,
+      message: errorMessage,
+      originalError: error,
+      timestamp: new Date(),
+      context
     };
   }
   
-  // Main error handling method
-  handleError(error: AppError, source?: string) {
-    console.error(`Error [${source}]:`, error);
+  getRecentErrors(): AppError[] {
+    return [...this.errors];
+  }
+  
+  clearErrors(): void {
+    this.errors = [];
+  }
+  
+  addErrorListener(listener: (error: AppError) => void): () => void {
+    this.errorListeners.push(listener);
     
-    // Generate a key for this error to avoid duplicates
-    const errorKey = `${error.code || 'unknown'}-${error.message}`;
-    const now = Date.now();
-    
-    // Check if we've shown this error recently (within 5 seconds)
-    if (this.recentErrors.has(errorKey)) {
-      const lastTime = this.recentErrors.get(errorKey) || 0;
-      if (now - lastTime < 5000) {
-        // Skip duplicate toast
-        return;
-      }
-    }
-    
-    // Store this error in recent errors
-    this.recentErrors.set(errorKey, now);
-    
-    // Clean up old errors (older than 1 minute)
-    this.recentErrors.forEach((time, key) => {
-      if (now - time > 60000) {
-        this.recentErrors.delete(key);
+    // Return function to remove listener
+    return () => {
+      this.errorListeners = this.errorListeners.filter(l => l !== listener);
+    };
+  }
+  
+  private notifyListeners(error: AppError): void {
+    this.errorListeners.forEach(listener => {
+      try {
+        listener(error);
+      } catch (err) {
+        console.error('Error in error listener:', err);
       }
     });
+  }
+  
+  setNetworkLatency(latency: number): void {
+    this.networkLatency = latency;
+  }
+  
+  getErrorSummary(): { byType: Record<AppErrorType, number>, total: number } {
+    const byType: Record<AppErrorType, number> = {
+      database: 0,
+      network: 0,
+      auth: 0,
+      api: 0,
+      transcription: 0,
+      processing: 0,
+      unknown: 0
+    };
     
-    // Show appropriate toast based on severity
-    switch (error.severity) {
-      case 'info':
-        toast.info(error.message);
-        break;
-      case 'warning':
-        toast.warning(error.message, {
-          description: error.technical,
-          duration: 5000,
-        });
-        break;
-      case 'error':
-        toast.error(error.message, {
-          description: error.technical,
-          duration: 7000,
-          action: error.actionable && error.retry ? {
-            label: "Retry",
-            onClick: () => error.retry?.(),
-          } : undefined,
-        });
-        break;
-      case 'critical':
-        toast.error(error.message, {
-          description: error.technical,
-          duration: 10000,
-          action: error.actionable && error.retry ? {
-            label: "Retry",
-            onClick: () => error.retry?.(),
-          } : undefined,
-        });
-        break;
-      default:
-        toast.error(error.message);
-    }
+    this.errors.forEach(error => {
+      byType[error.type]++;
+    });
+    
+    return {
+      byType,
+      total: this.errors.length
+    };
   }
 }
 
-export const errorHandler = ErrorHandler.getInstance();
-
-export function withErrorHandling<T extends (...args: any[]) => Promise<any>>(
-  fn: T,
-  errorMessage: string = 'Operation failed'
-): (...args: Parameters<T>) => Promise<ReturnType<T>> {
-  return async (...args: Parameters<T>): Promise<ReturnType<T>> => {
-    try {
-      return await fn(...args);
-    } catch (error: any) {
-      errorHandler.handleError({
-        message: errorMessage,
-        technical: error.message || String(error),
-        severity: 'error',
-        code: error.code || 'UNKNOWN_ERROR',
-      });
-      throw error;
-    }
-  };
-}
+// Create a singleton instance
+export const errorHandler = new ErrorHandler();
