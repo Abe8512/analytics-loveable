@@ -61,7 +61,7 @@ serve(async (req) => {
     }
 
     // Process the call data - using UPSERT method to handle both insert and update cases
-    // Using upsert without select to avoid the DISTINCT ORDER BY error
+    // Using upsert without returning to avoid the DISTINCT ORDER BY error
     const { error } = await supabase
       .from('calls')
       .upsert(callData, { 

@@ -88,7 +88,10 @@ export class DatabaseService {
       // Use upsert with no returning to avoid DISTINCT ORDER BY error
       const { error: insertError } = await supabase
         .from('call_transcripts')
-        .upsert(transcriptData, { onConflict: 'id' })
+        .upsert(transcriptData, { 
+          onConflict: 'id',
+          ignoreDuplicates: false
+        });
       
       if (insertError) {
         console.error('Error inserting transcript into database:', insertError);
@@ -115,7 +118,10 @@ export class DatabaseService {
           // Use upsert without returning to avoid DISTINCT ORDER BY error
           const { error: secondError } = await supabase
             .from('call_transcripts')
-            .upsert(updatedData, { onConflict: 'id' })
+            .upsert(updatedData, { 
+              onConflict: 'id',
+              ignoreDuplicates: false 
+            });
             
           if (secondError) {
             console.error('Error on second attempt to insert transcript:', secondError);
@@ -191,7 +197,10 @@ export class DatabaseService {
       // Use upsert without returning to avoid DISTINCT ORDER BY error
       const { error } = await supabase
         .from('calls')
-        .upsert(fixedCallData, { onConflict: 'id' })
+        .upsert(fixedCallData, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
+        });
       
       if (error) {
         console.error('Error updating calls table:', error);
@@ -261,25 +270,31 @@ export class DatabaseService {
         
         if (data) {
           // Use update with explicit id to avoid DISTINCT ORDER BY error
-          await supabase
+          const { error: updateError } = await supabase
             .from('keyword_trends')
             .update({ 
               count: (data.count || 1) + 1,
               last_used: new Date().toISOString()
             })
             .eq('id', data.id);
+            
+          if (updateError) {
+            console.error(`Error updating keyword trend for ${keyword}:`, updateError);
+          }
         } else {
-          // Use upsert to prevent conflicts
-          await supabase
+          // Use insert without returning to avoid DISTINCT ORDER BY error
+          const { error: insertError } = await supabase
             .from('keyword_trends')
-            .upsert({
+            .insert({
               keyword: keyword as string,
               category,
               count: 1,
               last_used: new Date().toISOString()
-            }, { 
-              onConflict: 'keyword,category' 
             });
+            
+          if (insertError) {
+            console.error(`Error inserting keyword trend for ${keyword}:`, insertError);
+          }
         }
       } catch (error) {
         console.error(`Error updating keyword trend for ${keyword}:`, error);
