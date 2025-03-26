@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 const Transcribe = () => {
   const [transcript, setTranscript] = useState('');
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
-  const { saveTranscriptionWithAnalysis } = useWhisperService();
+  const { saveTranscriptionWithAnalysis, getOpenAIKey, getUseLocalWhisper } = useWhisperService();
   const { toast } = useToast();
   
   const handleTranscriptionComplete = async (text: string) => {
@@ -36,17 +36,24 @@ const Transcribe = () => {
     }
   };
   
+  // Check if API key is configured for OpenAI API usage
+  const isConfigured = getUseLocalWhisper() || !!getOpenAIKey();
+  
   return (
     <DashboardLayout>
       <div className="container py-8">
         <h1 className="text-3xl font-bold mb-6">Transcribe Calls</h1>
         
-        <Alert className="mb-6">
+        <Alert className="mb-6" variant={isConfigured ? "default" : "destructive"}>
           <Info className="h-4 w-4" />
-          <AlertTitle>Transcription Service Ready</AlertTitle>
+          <AlertTitle>{isConfigured ? "Transcription Service Ready" : "Configuration Required"}</AlertTitle>
           <AlertDescription>
-            You can upload audio files or record directly from your microphone to transcribe calls.
-            Both local and OpenAI Whisper API transcription methods are available.
+            {isConfigured ? (
+              `You can upload audio files or record directly from your microphone to transcribe calls.
+              Using ${getUseLocalWhisper() ? 'local Whisper model' : 'OpenAI API'} for transcription.`
+            ) : (
+              "Please add your OpenAI API key in Settings before using the transcription service, or enable local Whisper."
+            )}
           </AlertDescription>
         </Alert>
         
@@ -96,10 +103,17 @@ const Transcribe = () => {
               <Button 
                 className="w-full max-w-xs"
                 onClick={() => setIsBulkUploadOpen(true)}
+                disabled={!isConfigured}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Open Bulk Upload
               </Button>
+              
+              {!isConfigured && (
+                <p className="text-destructive text-sm mt-2">
+                  Configure OpenAI API key in Settings first
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -63,7 +63,8 @@ export class DatabaseService {
         }
       }
       
-      // Prepare data with proper typing
+      // Prepare data with proper typing for the database schema
+      // IMPORTANT: Using "keywords" instead of "key_phrases" for call_transcripts table
       const transcriptData = {
         id: transcriptId, // Explicitly set ID to avoid any UUID generation issues
         user_id: finalUserId,
@@ -72,7 +73,7 @@ export class DatabaseService {
         duration,
         call_score: callScore,
         sentiment,
-        keywords,
+        keywords,  // Using keywords field which exists in the table
         transcript_segments: segmentsForStorage,
         created_at: timestamp
       };
@@ -102,13 +103,16 @@ export class DatabaseService {
       // Also update the calls table with similar data for real-time metrics
       try {
         await this.updateCallsTable({
+          id: transcriptId, // Use the same ID for calls as transcripts to link them
           user_id: finalUserId,
           duration: duration || 0,
           sentiment_agent: sentiment === 'positive' ? 0.8 : sentiment === 'negative' ? 0.3 : 0.5,
           sentiment_customer: sentiment === 'positive' ? 0.7 : sentiment === 'negative' ? 0.2 : 0.5,
           talk_ratio_agent: 50 + (Math.random() * 20 - 10), // Random value between 40-60
           talk_ratio_customer: 50 - (Math.random() * 20 - 10), // Random value between 40-60
+          // Use "key_phrases" field for calls table 
           key_phrases: keywords || [],
+          filename: file.name, // Add filename to calls table
           created_at: timestamp // Use the same timestamp for consistency
         });
       } catch (callsError) {

@@ -211,7 +211,8 @@ export class BulkUploadProcessorService {
       );
       
       if (error) {
-        const errorMsg = `Failed to save transcript: ${error instanceof Error ? error.message : String(error)}`;
+        console.error('Failed to save transcript:', error);
+        const errorMsg = `Failed to save transcript: ${error instanceof Error ? error.message : JSON.stringify(error)}`;
         errorHandler.handleError(new Error(errorMsg), 'BulkUploadProcessorService.processTranscriptData.saveError');
         throw new Error(errorMsg);
       }
