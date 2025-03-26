@@ -1,19 +1,19 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
+import { useToast } from '@/hooks/use-toast';
 
-interface AuthContextType {
-  user: any | null;
+export interface AuthContextType {
+  user: User | null;
+  session: Session | null;
   isManager: boolean;
   isAdmin: boolean;
   loading: boolean;
+  isLoading: boolean;
+  isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  session: any | null;
-  
-  // Added missing properties needed by components
-  isAuthenticated: boolean;
-  isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error: any }>;
   logout: () => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<{ error: any }>;
@@ -23,20 +23,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<any | null>(null);
-  const [session, setSession] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
   
+  // Initialize auth state and set up listeners
   useEffect(() => {
-    // Set up auth state listener
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Get initial session
+    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -60,18 +64,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(true);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else if (data.user) {
+        toast({
+          title: "Login successful",
+          description: `Welcome back, ${data.user.email}!`,
+        });
+      }
+      
       return { error };
-    } catch (error) {
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
       return { error };
+    } finally {
+      setLoading(false);
     }
   };
 
   const signOut = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
+      toast({
+        title: "Logout successful",
+        description: "You have been logged out",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Logout failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -82,7 +119,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Add signup method
   const signup = async (email: string, password: string, name: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      setLoading(true);
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -92,15 +130,50 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         },
       });
       
+      if (error) {
+        toast({
+          title: "Signup failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else if (data.user) {
+        toast({
+          title: "Signup successful",
+          description: "Please check your email to confirm your account",
+        });
+        
+        // Try to create a team member entry for this user
+        try {
+          await supabase.from('team_members').insert([
+            {
+              user_id: data.user.id,
+              member_id: data.user.id,
+              name: name,
+              email: email,
+              role: 'member'
+            }
+          ]);
+        } catch (teamError) {
+          console.error('Could not create team member entry:', teamError);
+        }
+      }
+      
       return { error };
-    } catch (error) {
+    } catch (error: any) {
+      toast({
+        title: "Signup failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
       return { error };
+    } finally {
+      setLoading(false);
     }
   };
   
-  // Add method to get managed users (for demo, we'll return a mock list)
+  // Function to get managed users (first from database, fallback to mock data)
   const getManagedUsers = () => {
-    // This is a mock function that would be replaced with real data in a production app
+    // This would typically fetch from the database, but for now we return demo data
     return [
       { id: "1", name: "Alex Johnson", email: "alex@example.com", role: "sales" },
       { id: "2", name: "Maria Garcia", email: "maria@example.com", role: "sales" },

@@ -1,220 +1,164 @@
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
+import { TeamMetricsData, RepMetricsData, getTeamMetrics as getMockTeamMetrics, getRepMetrics as getMockRepMetrics } from './SharedDataService';
 
-// Helper function to get metrics from call transcripts
-export const getMetrics = (data: any[]) => {
-  // Default quality metrics
-  const qualityMetrics = [
-    { name: 'Call Score', score: 76, maxScore: 100, category: 'good' },
-    { name: 'Sentiment', score: 82, maxScore: 100, category: 'excellent' },
-    { name: 'Talk Ratio', score: 63, maxScore: 100, category: 'good' },
-    { name: 'Engagement', score: 58, maxScore: 100, category: 'average' }
-  ];
+export interface AnalyticsData {
+  pipelineData: { name: string; value: number }[];
+  conversionData: { name: string; rate: number }[];
+  revenueData: { name: string; actual: number; target: number }[];
+  productMixData: { name: string; value: number }[];
+}
 
-  // Default outcome stats
-  const outcomeStats = [
-    { outcome: 'Positive Response', count: Math.floor(data.length * 0.6), percentage: 60 },
-    { outcome: 'Follow-up Required', count: Math.floor(data.length * 0.3), percentage: 30 },
-    { outcome: 'No Interest', count: Math.floor(data.length * 0.1), percentage: 10 }
-  ];
+export const getAnalyticsData = async (): Promise<AnalyticsData> => {
+  try {
+    // In a real implementation, we would fetch this data from Supabase
+    // For now, return mock data
+    return {
+      pipelineData: [
+        { name: 'Leads', value: 120 },
+        { name: 'Qualified', value: 85 },
+        { name: 'Proposal', value: 42 },
+        { name: 'Negotiation', value: 28 },
+        { name: 'Closed', value: 18 },
+      ],
+      conversionData: [
+        { name: 'Jan', rate: 32 },
+        { name: 'Feb', rate: 38 },
+        { name: 'Mar', rate: 30 },
+        { name: 'Apr', rate: 42 },
+        { name: 'May', rate: 35 },
+        { name: 'Jun', rate: 48 },
+        { name: 'Jul', rate: 50 },
+        { name: 'Aug', rate: 45 },
+      ],
+      revenueData: [
+        { name: 'Jan', actual: 4000, target: 4500 },
+        { name: 'Feb', actual: 5000, target: 4500 },
+        { name: 'Mar', actual: 3500, target: 4500 },
+        { name: 'Apr', actual: 6000, target: 5000 },
+        { name: 'May', actual: 5500, target: 5000 },
+        { name: 'Jun', actual: 7000, target: 5500 },
+        { name: 'Jul', actual: 6500, target: 5500 },
+        { name: 'Aug', actual: 8000, target: 6000 },
+      ],
+      productMixData: [
+        { name: 'Product A', value: 35 },
+        { name: 'Product B', value: 25 },
+        { name: 'Product C', value: 20 },
+        { name: 'Product D', value: 15 },
+        { name: 'Other', value: 5 },
+      ],
+    };
+  } catch (error) {
+    console.error('Error fetching analytics data:', error);
+    throw error;
+  }
+};
 
-  // Calculate actual time metrics if data is available
-  let totalDuration = 0;
-  const timeOfDayDistribution: Record<string, number> = {
-    'Morning': 0,
-    'Afternoon': 0,
-    'Evening': 0
-  };
+export const getTeamMetrics = async (): Promise<TeamMetricsData> => {
+  try {
+    // First try to get data from Supabase
+    const { data: callMetricsSummary, error } = await supabase
+      .from('call_metrics_summary')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-  data.forEach(item => {
-    if (item.duration) {
-      totalDuration += item.duration;
+    if (error || !callMetricsSummary) {
+      console.warn('No data found in call_metrics_summary, using mock data');
+      return getMockTeamMetrics();
     }
-    
-    if (item.created_at) {
-      const hour = new Date(item.created_at).getHours();
-      if (hour >= 5 && hour < 12) timeOfDayDistribution['Morning']++;
-      else if (hour >= 12 && hour < 18) timeOfDayDistribution['Afternoon']++;
-      else timeOfDayDistribution['Evening']++;
-    }
-  });
 
-  const avgDuration = data.length > 0 ? totalDuration / data.length : 0;
-
-  // Extract keywords from data
-  const keywordMap = new Map<string, number>();
-  data.forEach(item => {
-    if (item.keywords && Array.isArray(item.keywords)) {
-      item.keywords.forEach((keyword: string) => {
-        keywordMap.set(keyword, (keywordMap.get(keyword) || 0) + 1);
-      });
-    }
-  });
-
-  const sortedKeywords = [...keywordMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([keyword, count]) => ({ keyword, count }));
-
-  return {
-    qualityMetrics,
-    outcomeStats,
-    timeMetrics: {
-      avgDuration,
-      totalCallTime: totalDuration,
-      timeOfDayDistribution
-    },
-    topKeywords: sortedKeywords,
-    comparisonMetrics: {
-      vsLastPeriod: {
-        callVolume: 15,
-        avgDuration: -5,
-        positiveOutcomes: 8,
-        sentiment: 12
+    return {
+      totalCalls: callMetricsSummary.total_calls || 0,
+      avgSentiment: callMetricsSummary.avg_sentiment || 0.5,
+      avgTalkRatio: {
+        agent: callMetricsSummary.agent_talk_ratio || 50,
+        customer: callMetricsSummary.customer_talk_ratio || 50
       },
-      vsTeamAverage: {
-        callVolume: 5,
-        avgDuration: 10,
-        positiveOutcomes: -2,
-        sentiment: 7
-      }
-    }
-  };
+      topKeywords: callMetricsSummary.top_keywords || ['pricing', 'features', 'support', 'timeline', 'integration'],
+      performanceScore: callMetricsSummary.performance_score || 0,
+      conversionRate: callMetricsSummary.conversion_rate || 0
+    };
+  } catch (error) {
+    console.error('Error fetching team metrics:', error);
+    return getMockTeamMetrics();
+  }
 };
 
-// Get call distribution data (by weekday)
-export const getCallDistributionData = (data: any[]) => {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const distribution = days.map(day => ({ name: day, calls: 0 }));
-  
-  data.forEach(item => {
-    if (item.created_at) {
-      const dayOfWeek = new Date(item.created_at).getDay();
-      distribution[dayOfWeek].calls++;
+export const getRepMetrics = async (): Promise<RepMetricsData[]> => {
+  try {
+    // First try to get data from Supabase
+    const { data: repMetricsSummary, error } = await supabase
+      .from('rep_metrics_summary')
+      .select('*')
+      .order('success_rate', { ascending: false });
+
+    if (error || !repMetricsSummary || repMetricsSummary.length === 0) {
+      console.warn('No data found in rep_metrics_summary, using mock data');
+      return getMockRepMetrics();
     }
-  });
-  
-  return distribution;
+
+    return repMetricsSummary.map(rep => ({
+      id: rep.rep_id,
+      name: rep.rep_name || 'Unknown',
+      callVolume: rep.call_volume || 0,
+      successRate: rep.success_rate || 0,
+      sentiment: rep.sentiment_score || 0.5,
+      insights: rep.insights || []
+    }));
+  } catch (error) {
+    console.error('Error fetching rep metrics:', error);
+    return getMockRepMetrics();
+  }
 };
 
-// Get call distribution data by hour
-export const getCallDistributionByHour = (data: any[]) => {
-  const hours = Array.from({ length: 24 }, (_, i) => ({ 
-    hour: i < 10 ? `0${i}:00` : `${i}:00`, 
-    count: 0 
-  }));
-  
-  data.forEach(item => {
-    if (item.created_at) {
-      const hour = new Date(item.created_at).getHours();
-      hours[hour].count++;
-    }
-  });
-  
-  return hours;
+// Get sentiment trends over time
+export const getSentimentTrends = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('sentiment_trends_view')
+      .select('*')
+      .order('date', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching sentiment trends:', error);
+    return [];
+  }
 };
 
-// Get sentiment trend data
-export const getSentimentTrendData = (data: any[]) => {
-  // Group by date
-  const dateMap = new Map<string, { positive: number, neutral: number, negative: number }>();
-  
-  data.forEach(item => {
-    if (item.created_at && item.sentiment) {
-      const date = new Date(item.created_at).toISOString().split('T')[0];
-      
-      if (!dateMap.has(date)) {
-        dateMap.set(date, { positive: 0, neutral: 0, negative: 0 });
-      }
-      
-      const entry = dateMap.get(date)!;
-      
-      if (item.sentiment === 'positive') entry.positive++;
-      else if (item.sentiment === 'negative') entry.negative++;
-      else entry.neutral++;
-    }
-  });
-  
-  // Convert map to array and sort by date
-  const result = [...dateMap.entries()]
-    .map(([date, counts]) => ({ date, ...counts }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  
-  return result;
+// Get keyword analytics
+export const getKeywordAnalytics = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('keyword_analysis_view')
+      .select('*')
+      .order('occurrence_count', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching keyword analytics:', error);
+    return [];
+  }
 };
 
-// Get score trend data
-export const getScoreTrendData = (data: any[]) => {
-  // Group by date
-  const dateMap = new Map<string, { total: number, count: number }>();
-  
-  data.forEach(item => {
-    if (item.created_at && item.call_score !== undefined) {
-      const date = new Date(item.created_at).toISOString().split('T')[0];
-      
-      if (!dateMap.has(date)) {
-        dateMap.set(date, { total: 0, count: 0 });
-      }
-      
-      const entry = dateMap.get(date)!;
-      entry.total += item.call_score;
-      entry.count++;
-    }
-  });
-  
-  // Convert map to array, calculate averages and sort by date
-  const result = [...dateMap.entries()]
-    .map(([date, { total, count }]) => ({ 
-      date, 
-      score: count > 0 ? Math.round(total / count) : 0 
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  
-  return result;
-};
+// Get daily call metrics
+export const getDailyCallMetrics = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('daily_call_metrics_view')
+      .select('*')
+      .order('date', { ascending: true });
 
-// Get keyword comparison data
-export const getKeywordComparisonData = (data: any[]) => {
-  // Separate data by sentiment
-  const positiveCalls = data.filter(item => item.sentiment === 'positive');
-  const negativeCalls = data.filter(item => item.sentiment === 'negative');
-  
-  // Extract keywords from positive calls
-  const positiveKeywords = new Map<string, number>();
-  positiveCalls.forEach(item => {
-    if (item.keywords && Array.isArray(item.keywords)) {
-      item.keywords.forEach((keyword: string) => {
-        positiveKeywords.set(keyword, (positiveKeywords.get(keyword) || 0) + 1);
-      });
-    }
-  });
-  
-  // Extract keywords from negative calls
-  const negativeKeywords = new Map<string, number>();
-  negativeCalls.forEach(item => {
-    if (item.keywords && Array.isArray(item.keywords)) {
-      item.keywords.forEach((keyword: string) => {
-        negativeKeywords.set(keyword, (negativeKeywords.get(keyword) || 0) + 1);
-      });
-    }
-  });
-  
-  // Combine and find top keywords
-  const combinedKeywords = new Set([
-    ...positiveKeywords.keys(),
-    ...negativeKeywords.keys()
-  ]);
-  
-  // Create comparison data
-  const comparisonData = Array.from(combinedKeywords)
-    .map(keyword => ({
-      keyword,
-      positive: positiveKeywords.get(keyword) || 0,
-      negative: negativeKeywords.get(keyword) || 0,
-      total: (positiveKeywords.get(keyword) || 0) + (negativeKeywords.get(keyword) || 0)
-    }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 8);
-  
-  return comparisonData;
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching daily call metrics:', error);
+    return [];
+  }
 };

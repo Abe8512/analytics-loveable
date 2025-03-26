@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Card, CardContent, CardDescription, CardHeader, CardTitle 
@@ -12,108 +13,55 @@ import {
   PieChart as RechartsPieChart 
 } from 'recharts';
 import { TeamMetricsData, RepMetricsData } from '@/services/SharedDataService';
-
-// Mock data function that returns data with the correct shape
-const getMockTeamMetrics = (): TeamMetricsData => ({
-  totalCalls: 128,
-  avgSentiment: 0.72,
-  avgTalkRatio: { agent: 55, customer: 45 },
-  topKeywords: ['pricing', 'features', 'support', 'implementation', 'integration'],
-  performanceScore: 72,
-  conversionRate: 45
-});
-
-// Mock rep data with the correct shape
-const getMockRepMetrics = (): RepMetricsData[] => [
-  {
-    id: "1",
-    name: "Alex Johnson",
-    callVolume: 145,
-    successRate: 72,
-    sentiment: 0.85,
-    insights: ["Excellent rapport building", "Good at overcoming objections"]
-  },
-  {
-    id: "2",
-    name: "Maria Garcia",
-    callVolume: 128,
-    successRate: 68,
-    sentiment: 0.79,
-    insights: ["Strong product knowledge", "Could improve closing"]
-  },
-  {
-    id: "3",
-    name: "David Kim",
-    callVolume: 103,
-    successRate: 62,
-    sentiment: 0.72,
-    insights: ["Good discovery questions", "Needs work on follow-up"]
-  }
-];
+import { getTeamMetrics, getRepMetrics, getAnalyticsData, AnalyticsData } from '@/services/AnalyticsService';
 
 const Analytics = () => {
   const { isAdmin, isManager } = useAuth();
   const [activeTab, setActiveTab] = useState('pipeline');
   const [loading, setLoading] = useState(true);
   
-  // Use the mocked data with the correct type structure
-  const [teamMetrics, setTeamMetrics] = useState<TeamMetricsData>(getMockTeamMetrics());
-  const [repMetrics, setRepMetrics] = useState<RepMetricsData[]>(getMockRepMetrics());
+  const [teamMetrics, setTeamMetrics] = useState<TeamMetricsData>({
+    totalCalls: 0,
+    avgSentiment: 0.5,
+    avgTalkRatio: { agent: 50, customer: 50 },
+    topKeywords: [],
+    performanceScore: 0,
+    conversionRate: 0
+  });
+  
+  const [repMetrics, setRepMetrics] = useState<RepMetricsData[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    pipelineData: [],
+    conversionData: [],
+    revenueData: [],
+    productMixData: []
+  });
   
   useEffect(() => {
-    // Simulate API loading
-    setLoading(true);
-    setTimeout(() => {
-      setTeamMetrics(getMockTeamMetrics());
-      setRepMetrics(getMockRepMetrics());
-      setLoading(false);
-    }, 1500);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [teamData, repData, analyticsData] = await Promise.all([
+          getTeamMetrics(),
+          getRepMetrics(),
+          getAnalyticsData()
+        ]);
+        
+        setTeamMetrics(teamData);
+        setRepMetrics(repData);
+        setAnalyticsData(analyticsData);
+      } catch (error) {
+        console.error('Error fetching analytics data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
   }, []);
-  
-  // Pipeline data
-  const pipelineData = [
-    { name: 'Leads', value: 120 },
-    { name: 'Qualified', value: 85 },
-    { name: 'Proposal', value: 42 },
-    { name: 'Negotiation', value: 28 },
-    { name: 'Closed', value: 18 },
-  ];
   
   // Colors for pipeline chart
   const PIPELINE_COLORS = ['#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c'];
-  
-  // Conversion data
-  const conversionData = [
-    { name: 'Jan', rate: 32 },
-    { name: 'Feb', rate: 38 },
-    { name: 'Mar', rate: 30 },
-    { name: 'Apr', rate: 42 },
-    { name: 'May', rate: 35 },
-    { name: 'Jun', rate: 48 },
-    { name: 'Jul', rate: 50 },
-    { name: 'Aug', rate: 45 },
-  ];
-  
-  // Revenue data
-  const revenueData = [
-    { name: 'Jan', actual: 4000, target: 4500 },
-    { name: 'Feb', actual: 5000, target: 4500 },
-    { name: 'Mar', actual: 3500, target: 4500 },
-    { name: 'Apr', actual: 6000, target: 5000 },
-    { name: 'May', actual: 5500, target: 5000 },
-    { name: 'Jun', actual: 7000, target: 5500 },
-    { name: 'Jul', actual: 6500, target: 5500 },
-    { name: 'Aug', actual: 8000, target: 6000 },
-  ];
-  
-  // Product mix data
-  const productMixData = [
-    { name: 'Product A', value: 35 },
-    { name: 'Product B', value: 25 },
-    { name: 'Product C', value: 20 },
-    { name: 'Product D', value: 15 },
-    { name: 'Other', value: 5 },
-  ];
   
   // Colors for product mix chart
   const PRODUCT_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'];
@@ -195,7 +143,7 @@ const Analytics = () => {
                 <Skeleton className="h-[300px] w-full" />
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={pipelineData}>
+                  <BarChart data={analyticsData.pipelineData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -220,7 +168,7 @@ const Analytics = () => {
                 <Skeleton className="h-[300px] w-full" />
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={conversionData}>
+                  <LineChart data={analyticsData.conversionData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -251,7 +199,7 @@ const Analytics = () => {
                 <Skeleton className="h-[300px] w-full" />
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={revenueData}>
+                  <BarChart data={analyticsData.revenueData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -279,7 +227,7 @@ const Analytics = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsPieChart>
                     <Pie
-                      data={productMixData}
+                      data={analyticsData.productMixData}
                       cx="50%"
                       cy="50%"
                       labelLine={true}
@@ -288,7 +236,7 @@ const Analytics = () => {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {productMixData.map((entry, index) => (
+                      {analyticsData.productMixData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={PRODUCT_COLORS[index % PRODUCT_COLORS.length]} />
                       ))}
                     </Pie>
