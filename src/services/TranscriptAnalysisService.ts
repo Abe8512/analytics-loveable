@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { SentimentAnalysisService } from './SentimentAnalysisService';
+import type { Json } from '@/integrations/supabase/types';
 
 // Interfaces for the transcript analysis results
 export interface TranscriptAnalysisResult {
@@ -48,10 +49,32 @@ export class TranscriptAnalysisService {
         return null;
       }
 
-      // Ensure transcript_segments is an array before processing
-      const turns: SpeakerTurn[] = Array.isArray(transcript.transcript_segments) 
-        ? transcript.transcript_segments 
-        : [];
+      // Parse and convert transcript_segments to SpeakerTurn[] if it exists
+      let turns: SpeakerTurn[] = [];
+      if (transcript.transcript_segments) {
+        try {
+          // If transcript_segments is a string, parse it
+          const segments = typeof transcript.transcript_segments === 'string' 
+            ? JSON.parse(transcript.transcript_segments) 
+            : transcript.transcript_segments;
+            
+          // Check if it's an array we can iterate over
+          if (Array.isArray(segments)) {
+            turns = segments.map(segment => {
+              // Ensure each segment has the required SpeakerTurn properties
+              return {
+                speaker: typeof segment.speaker === 'string' && 
+                  (segment.speaker === 'agent' || segment.speaker === 'customer') 
+                  ? segment.speaker : 'agent',
+                text: typeof segment.text === 'string' ? segment.text : '',
+                timestamp: typeof segment.timestamp === 'string' ? segment.timestamp : new Date().toISOString()
+              };
+            });
+          }
+        } catch (e) {
+          console.error('Error parsing transcript segments:', e);
+        }
+      }
       
       // Analyze sentiment for each turn
       const analyzedTurns = turns.map(turn => ({
@@ -129,15 +152,18 @@ export class TranscriptAnalysisService {
     analyzedTurns: SpeakerTurn[]
   ): Promise<void> {
     try {
-      // Update the transcript with the analysis results
+      // Update the transcript with the analysis results - use field names that exist in the database
       const { error } = await supabase
         .from('call_transcripts')
         .update({
-          sentiment_score: analysis.sentimentScore,
+          call_score: Math.round(analysis.sentimentScore * 100), // Convert to 0-100 scale
           key_phrases: analysis.keyPhrases,
-          keyword_frequency: analysis.keywordFrequency,
-          analyzed_turns: analyzedTurns,
-          analyzed_at: new Date().toISOString()
+          keywords: Object.keys(analysis.keywordFrequency).slice(0, 10), // Top 10 keywords
+          transcript_segments: analyzedTurns, // Store the analyzed turns
+          metadata: {
+            ...analysis,
+            analyzed_at: new Date().toISOString()
+          }
         })
         .eq('id', transcriptId);
 
@@ -151,6 +177,10 @@ export class TranscriptAnalysisService {
 
   // Extract key phrases from text (simplified)
   private extractKeyPhrases(text: string): string[] {
+    if (!text || typeof text !== 'string') {
+      return [];
+    }
+    
     const phrases = [];
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
     
@@ -170,6 +200,10 @@ export class TranscriptAnalysisService {
 
   // Calculate keyword frequency
   private calculateKeywordFrequency(text: string): Record<string, number> {
+    if (!text || typeof text !== 'string') {
+      return {};
+    }
+    
     const frequency: Record<string, number> = {};
     const stopWords = ['the', 'a', 'an', 'and', 'but', 'or', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'of', 'is', 'are', 'was', 'were'];
     
