@@ -1,218 +1,156 @@
-import { v4 as uuidv4 } from 'uuid';
-import type { TeamMetricsData, RepMetricsData } from './SharedDataService';
 
-// Flag to control whether mock data should be used
+// Generate mock data for the application when real data is not available
+import { faker } from '@faker-js/faker';
+
+// Define KPI data structure
+export interface KPIData {
+  objectionHandlingScore: number;
+  discoveryQuestionsRate: number;
+  closingTechniquesScore: number;
+  clientEngagementScore: number;
+  painPointIdentificationScore: number;
+  followUpCommitmentRate: number;
+  silencePercentage: number;
+  newCalls: number;
+  totalDuration: number;
+  averageScore: number;
+  positiveRate: number;
+}
+
+// Define chart data structures
+export interface ChartData {
+  objectionHandlingData: Array<{name: string; score: number}>;
+  questionFrequencyData: Array<{name: string; value: number}>;
+  keywordOccurrenceData: Array<{subject: string; A: number}>;
+  talkRatioData: Array<{name: string; agent: number; customer: number}>;
+  silenceDistributionData: Array<{name: string; value: number}>;
+  name: string;
+  calls: number;
+  score: number;
+}
+
+// Flag to control whether to use mock data
 export const USE_MOCK_DATA = true;
 
-// Generate mock data for team metrics
-export const generateMockTeamMetrics = (): TeamMetricsData => {
+// Generate mock KPI data
+export const generateMockKPIData = (): KPIData => {
   return {
-    totalCalls: Math.floor(Math.random() * 200) + 80,
-    avgSentiment: +(Math.random() * 0.4 + 0.5).toFixed(2),
-    avgTalkRatio: {
-      agent: Math.floor(Math.random() * 15) + 45,
-      customer: Math.floor(Math.random() * 15) + 40,
-    },
-    topKeywords: [
-      'pricing',
-      'features',
-      'support',
-      'integration',
-      'implementation',
-      'timeline',
-      'competition',
-      'discount',
-    ].sort(() => Math.random() - 0.5).slice(0, 5),
-    performanceScore: Math.floor(Math.random() * 20) + 65,
-    conversionRate: Math.floor(Math.random() * 25) + 35,
+    objectionHandlingScore: faker.number.int({ min: 60, max: 95 }),
+    discoveryQuestionsRate: faker.number.int({ min: 8, max: 22 }),
+    closingTechniquesScore: faker.number.int({ min: 55, max: 90 }),
+    clientEngagementScore: faker.number.int({ min: 65, max: 95 }),
+    painPointIdentificationScore: faker.number.int({ min: 60, max: 90 }),
+    followUpCommitmentRate: faker.number.int({ min: 55, max: 85 }),
+    silencePercentage: faker.number.int({ min: 5, max: 25 }),
+    newCalls: faker.number.int({ min: 15, max: 45 }),
+    totalDuration: faker.number.int({ min: 2400, max: 7200 }),
+    averageScore: faker.number.int({ min: 65, max: 92 }),
+    positiveRate: faker.number.int({ min: 55, max: 85 })
   };
 };
 
-// List of possible insights for generating rep data
-const POSSIBLE_INSIGHTS = [
-  'Excellent rapport building',
-  'Good at overcoming objections',
-  'Strong product knowledge',
-  'Could improve closing',
-  'Great at discovery questions',
-  'Needs work on follow-up',
-  'Effective at handling price objections',
-  'Should focus more on benefits vs. features',
-  'Good call control',
-  'Needs improvement in time management',
-  'Strong active listening skills',
-  'Could ask more targeted questions',
-];
-
-// Generate mock data for rep metrics
-export const generateMockRepMetrics = (count: number = 5): RepMetricsData[] => {
-  // Fixed rep names to ensure consistency
-  const repNames = [
-    'Alex Johnson',
-    'Maria Garcia',
-    'David Kim',
-    'Sarah Williams',
-    'James Taylor',
-    'Emily Chen',
-    'Robert Martinez',
-    'Lisa Brown',
-    'Michael Singh',
-    'Jennifer Lopez',
-  ];
-
-  return Array.from({ length: Math.min(count, repNames.length) }, (_, i) => {
-    // Pick 2-3 random insights
-    const insights = [...POSSIBLE_INSIGHTS]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.floor(Math.random() * 2) + 2);
-
-    return {
-      id: uuidv4(),
-      name: repNames[i],
-      callVolume: Math.floor(Math.random() * 80) + 80,
-      successRate: Math.floor(Math.random() * 25) + 55,
-      sentiment: +(Math.random() * 0.3 + 0.6).toFixed(2),
-      insights,
-    };
-  });
-};
-
-// Generate mock call transcripts
-export const generateMockTranscripts = (count: number = 10) => {
-  const customers = [
-    'John Smith',
-    'Maria Rodriguez',
-    'David Chen',
-    'Sarah Johnson',
-    'Michael Kim',
-    'Emily Wilson',
-    'Robert Brown',
-    'Jennifer Davis',
-    'William Taylor',
-    'Lisa Martinez',
-  ];
-
-  return Array.from({ length: count }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - Math.floor(Math.random() * 30));
-    
-    const sentiment = Math.random();
-    let sentimentLabel: 'positive' | 'neutral' | 'negative';
-    
-    if (sentiment > 0.6) sentimentLabel = 'positive';
-    else if (sentiment > 0.3) sentimentLabel = 'neutral';
-    else sentimentLabel = 'negative';
-    
-    return {
-      id: uuidv4(),
-      text: 'This is a sample transcript text for demonstration purposes.',
-      created_at: date.toISOString(),
-      user_id: uuidv4(),
-      user_name: 'Demo Sales Rep',
-      customer_name: customers[Math.floor(Math.random() * customers.length)],
-      duration: Math.floor(Math.random() * 1200) + 300, // 5-25 minutes
-      call_score: Math.floor(Math.random() * 40) + 60, // 60-100
-      sentiment: sentimentLabel,
-      keywords: ['pricing', 'features', 'support'].sort(() => Math.random() - 0.5),
-      filename: `call_${i + 1}.mp3`,
-      transcript_segments: [
-        {
-          id: '1',
-          text: 'Hello, how can I help you today?',
-          start: 0,
-          end: 3,
-          speaker: 'Agent',
-        },
-        {
-          id: '2',
-          text: 'Hi, I\'m interested in your product but have some questions about pricing.',
-          start: 3.5,
-          end: 8,
-          speaker: 'Customer',
-        },
-        {
-          id: '3',
-          text: 'I\'d be happy to go over our pricing options with you.',
-          start: 8.5,
-          end: 12,
-          speaker: 'Agent',
-        },
-      ],
-      metadata: {
-        call_type: 'sales',
-        product: 'SaaS Platform',
-        stage: Math.random() > 0.5 ? 'discovery' : 'demo',
-      },
-    };
-  });
-};
-
-// Generate a daily call metrics series for charting
-export const generateDailyCallMetrics = (days: number = 30) => {
-  const today = new Date();
-  const result = [];
+// Generate mock chart data
+export const generateMockChartData = (): ChartData[] => {
+  const result = Array(5).fill(null).map((_, i) => ({
+    name: `Day ${i + 1}`,
+    calls: faker.number.int({ min: 5, max: 20 }),
+    score: faker.number.int({ min: 60, max: 95 })
+  }));
   
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(today.getDate() - i);
-    
-    result.push({
-      date: date.toISOString().split('T')[0],
-      calls: Math.floor(Math.random() * 20) + 5,
-      avgDuration: Math.floor(Math.random() * 300) + 300,
-      avgSentiment: +(Math.random() * 0.4 + 0.5).toFixed(2),
-    });
-  }
+  // Add specific chart data properties
+  const firstItem = result[0] as any;
+  
+  // Objection handling data - last 7 days
+  firstItem.objectionHandlingData = Array(7).fill(null).map((_, i) => ({
+    name: `Day ${i + 1}`,
+    score: faker.number.int({ min: 60, max: 95 })
+  }));
+  
+  // Question frequency by type
+  firstItem.questionFrequencyData = [
+    { name: 'Discovery', value: faker.number.int({ min: 25, max: 40 }) },
+    { name: 'Qualification', value: faker.number.int({ min: 15, max: 30 }) },
+    { name: 'Pain Point', value: faker.number.int({ min: 10, max: 25 }) },
+    { name: 'Closing', value: faker.number.int({ min: 5, max: 20 }) }
+  ];
+  
+  // Keyword occurrence in calls
+  firstItem.keywordOccurrenceData = [
+    { subject: 'Price', A: faker.number.int({ min: 5, max: 10 }) },
+    { subject: 'Feature', A: faker.number.int({ min: 6, max: 12 }) },
+    { subject: 'Support', A: faker.number.int({ min: 4, max: 8 }) },
+    { subject: 'Timeline', A: faker.number.int({ min: 3, max: 7 }) },
+    { subject: 'Integration', A: faker.number.int({ min: 4, max: 9 }) }
+  ];
+  
+  // Talk ratio data - agent vs customer
+  firstItem.talkRatioData = Array(5).fill(null).map((_, i) => {
+    const agentValue = faker.number.int({ min: 45, max: 65 });
+    return {
+      name: `Day ${i + 1}`,
+      agent: agentValue,
+      customer: 100 - agentValue
+    };
+  });
+  
+  // Silence distribution data
+  firstItem.silenceDistributionData = [
+    { name: '1-3 sec', value: faker.number.int({ min: 30, max: 50 }) },
+    { name: '4-6 sec', value: faker.number.int({ min: 20, max: 40 }) },
+    { name: '7-10 sec', value: faker.number.int({ min: 10, max: 30 }) },
+    { name: '11-15 sec', value: faker.number.int({ min: 5, max: 15 }) },
+    { name: '>15 sec', value: faker.number.int({ min: 1, max: 10 }) }
+  ];
   
   return result;
 };
 
-// Generate keyword trends for charting
-export const generateKeywordTrends = () => {
-  const keywords = [
-    'pricing', 
-    'features', 
-    'support', 
-    'implementation', 
-    'integration',
-    'timeline',
-    'competitors',
-    'demo',
-    'discount',
-    'contract'
+// Generate mock sales funnel data
+export const generateMockSalesFunnelData = () => {
+  return [
+    { name: 'Leads', value: faker.number.int({ min: 80, max: 120 }) },
+    { name: 'Qualified', value: faker.number.int({ min: 50, max: 80 }) },
+    { name: 'Proposal', value: faker.number.int({ min: 30, max: 50 }) },
+    { name: 'Negotiation', value: faker.number.int({ min: 15, max: 30 }) },
+    { name: 'Closed Won', value: faker.number.int({ min: 8, max: 20 }) }
   ];
-  
-  return keywords.map(keyword => ({
-    keyword,
-    count: Math.floor(Math.random() * 50) + 10,
-    sentiment: +(Math.random() * 0.6 + 0.3).toFixed(2),
-  })).sort((a, b) => b.count - a.count);
 };
 
-export function generateMockKPIData() {
+// Generate mock analytics data
+export interface AnalyticsData {
+  pipelineData: Array<{name: string; value: number}>;
+  conversionData: Array<{name: string; rate: number}>;
+  revenueData: Array<{name: string; actual: number; target: number}>;
+  productMixData: Array<{name: string; value: number}>;
+}
+
+export const generateMockAnalyticsData = (): AnalyticsData => {
   return {
-    newCalls: Math.floor(Math.random() * 100) + 50,
-    totalDuration: Math.floor(Math.random() * 5000) + 2000,
-    averageScore: Math.floor(Math.random() * 30) + 70,
-    positiveRate: Math.floor(Math.random() * 30) + 70,
+    pipelineData: [
+      { name: 'Discovery', value: faker.number.int({ min: 30, max: 50 }) },
+      { name: 'Qualified', value: faker.number.int({ min: 20, max: 40 }) },
+      { name: 'Proposal', value: faker.number.int({ min: 15, max: 30 }) },
+      { name: 'Negotiation', value: faker.number.int({ min: 10, max: 20 }) },
+      { name: 'Closing', value: faker.number.int({ min: 5, max: 15 }) }
+    ],
+    conversionData: Array(6).fill(null).map((_, i) => ({
+      name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'][i],
+      rate: faker.number.int({ min: 20, max: 40 })
+    })),
+    revenueData: Array(6).fill(null).map((_, i) => {
+      const targetValue = faker.number.int({ min: 50000, max: 100000 });
+      return {
+        name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'][i],
+        target: targetValue,
+        actual: faker.number.int({ min: targetValue * 0.8, max: targetValue * 1.2 })
+      };
+    }),
+    productMixData: [
+      { name: 'Product A', value: faker.number.int({ min: 20, max: 35 }) },
+      { name: 'Product B', value: faker.number.int({ min: 15, max: 30 }) },
+      { name: 'Product C', value: faker.number.int({ min: 10, max: 25 }) },
+      { name: 'Product D', value: faker.number.int({ min: 8, max: 20 }) },
+      { name: 'Product E', value: faker.number.int({ min: 5, max: 15 }) }
+    ]
   };
-}
-
-export function generateMockChartData() {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return days.map(day => ({
-    name: day,
-    calls: Math.floor(Math.random() * 50) + 10,
-    score: Math.floor(Math.random() * 20) + 80,
-  }));
-}
-
-export function generateMockSalesFunnelData() {
-  return [
-    { name: 'Leads', value: Math.floor(Math.random() * 200) + 100 },
-    { name: 'Qualified', value: Math.floor(Math.random() * 150) + 50 },
-    { name: 'Proposal', value: Math.floor(Math.random() * 100) + 20 },
-    { name: 'Negotiation', value: Math.floor(Math.random() * 50) + 10 },
-    { name: 'Closed', value: Math.floor(Math.random() * 20) + 5 },
-  ];
-}
+};

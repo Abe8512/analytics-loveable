@@ -1,285 +1,225 @@
 
-import React, { useContext, useState } from "react";
-import { ThemeContext } from "@/App";
-import { StoredTranscription } from "@/services/WhisperService";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Copy, Download, MessageSquare, LineChart, FileText, Tag } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { AlertTriangle, Award, CheckCircle, Clock, MessageSquare, User, X } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { StoredTranscription } from '@/services/WhisperService';
+import { cn } from '@/lib/utils';
 
-interface TranscriptDetailProps {
+export interface TranscriptDetailProps {
   transcript: StoredTranscription;
+  onDelete?: () => void;
+  onClose?: () => void;
 }
 
-const TranscriptDetail = ({ transcript }: TranscriptDetailProps) => {
-  const { isDarkMode } = useContext(ThemeContext);
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("transcript");
+const TranscriptDetail: React.FC<TranscriptDetailProps> = ({ transcript, onDelete, onClose }) => {
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   
-  const handleCopy = () => {
-    navigator.clipboard.writeText(transcript.text);
-    toast({
-      title: "Copied to clipboard",
-      description: "Transcript text has been copied to your clipboard"
-    });
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return '0:00';
+    
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  const handleDownload = () => {
-    const element = document.createElement("a");
-    const file = new Blob([transcript.text], {type: 'text/plain'});
-    element.href = URL.createObjectURL(file);
-    element.download = `transcript_${transcript.id.slice(0,8)}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    
-    toast({
-      title: "Downloaded",
-      description: "Transcript has been downloaded as a text file"
-    });
+  const getSentimentColor = (sentiment?: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'positive':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'negative':
+        return 'bg-red-100 text-red-800 border-red-300';
+      default:
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+    }
   };
   
-  // Calculate metrics from the transcript
-  const wordCount = transcript.text.split(/\s+/).length;
-  const sentenceCount = transcript.text.split(/[.!?]+/).length;
-  const avgWordsPerSentence = Math.round(wordCount / Math.max(1, sentenceCount));
-  
-  // Generate a simple transcript analysis
-  const generateAnalysis = () => {
-    const text = transcript.text.toLowerCase();
-    
-    // Check for presence of key phrases
-    const keyPhrases = {
-      greeting: text.includes("hello") || text.includes("hi") || text.includes("good morning") || text.includes("good afternoon"),
-      discovery: text.includes("what") || text.includes("how") || text.includes("why") || text.includes("when") || text.includes("where"),
-      valueProposition: text.includes("benefit") || text.includes("value") || text.includes("solution") || text.includes("improve"),
-      objectionHandling: text.includes("concern") || text.includes("issue") || text.includes("problem") || text.includes("worry"),
-      closing: text.includes("next steps") || text.includes("follow up") || text.includes("schedule") || text.includes("appointment"),
-    };
-    
-    // Count questions
-    const questionCount = (text.match(/\?/g) || []).length;
-    
-    return {
-      keyPhrases,
-      questionCount,
-      sentiment: transcript.sentiment || "neutral"
-    };
+  const getSentimentIcon = (sentiment?: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'positive':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'negative':
+        return <AlertTriangle className="h-4 w-4 text-red-500" />;
+      default:
+        return <MessageSquare className="h-4 w-4 text-blue-500" />;
+    }
   };
   
-  const analysis = generateAnalysis();
+  const renderScoreColor = (score?: number) => {
+    if (!score) return 'bg-gray-200';
+    if (score >= 80) return 'bg-green-500';
+    if (score >= 60) return 'bg-amber-500';
+    return 'bg-red-500';
+  };
+  
+  const formatCreatedAt = (date?: string) => {
+    if (!date) return 'Unknown date';
+    try {
+      return formatDistanceToNow(new Date(date), { addSuffix: true });
+    } catch (e) {
+      return 'Invalid date';
+    }
+  };
+  
+  // Use call_score instead of callScore to match the StoredTranscription type
+  const renderScoreText = (score?: number) => {
+    if (!score) return 'No score available';
+    if (score >= 80) return 'Excellent';
+    if (score >= 60) return 'Good';
+    if (score >= 40) return 'Average';
+    return 'Needs improvement';
+  };
   
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap justify-between gap-4">
-        <div>
-          <h3 className="text-xl font-bold mb-2">
-            Call Transcript
-            <Badge className="ml-3" variant={
-              transcript.sentiment === 'positive' ? 'secondary' : 
-              transcript.sentiment === 'negative' ? 'destructive' : 'default'
-            }>
-              {transcript.sentiment === 'positive' ? 'Positive' : 
-               transcript.sentiment === 'negative' ? 'Negative' : 'Neutral'} Sentiment
-            </Badge>
-            
-            {transcript.callScore && (
-              <Badge className="ml-2" variant={
-                transcript.callScore >= 80 ? "secondary" : 
-                transcript.callScore >= 60 ? "default" : "destructive"
-              }>
-                Score: {transcript.callScore}
+    <Dialog open={!!transcript} onOpenChange={() => onClose && onClose()}>
+      <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+        <DialogHeader className="relative mb-4">
+          <DialogTitle className="text-xl">Call Transcript: {transcript.filename || 'Unknown'}</DialogTitle>
+          <DialogDescription>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className="flex items-center gap-1 px-2 py-1">
+                <Clock className="h-3 w-3" />
+                {formatDuration(transcript.duration)}
               </Badge>
-            )}
-          </h3>
+              
+              <Badge variant="outline" className={cn("flex items-center gap-1 px-2 py-1", getSentimentColor(transcript.sentiment))}>
+                {getSentimentIcon(transcript.sentiment)}
+                {transcript.sentiment || 'Unknown sentiment'}
+              </Badge>
+              
+              {transcript.user_name && (
+                <Badge variant="outline" className="flex items-center gap-1 px-2 py-1">
+                  <User className="h-3 w-3" />
+                  {transcript.user_name}
+                </Badge>
+              )}
+              
+              <span className="text-xs text-muted-foreground">
+                {formatCreatedAt(transcript.created_at)}
+              </span>
+            </div>
+          </DialogDescription>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-0 right-0" 
+            onClick={() => onClose && onClose()}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </DialogHeader>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Call Score</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold mb-1">
+                {transcript.call_score || '-'}
+              </div>
+              <Progress value={transcript.call_score} className={cn("h-2", renderScoreColor(transcript.call_score))} />
+              <div className="text-xs text-muted-foreground mt-1">
+                {renderScoreText(transcript.call_score)}
+              </div>
+            </CardContent>
+          </Card>
           
-          <div className="flex flex-wrap gap-3">
-            {transcript.keywords && transcript.keywords.map((keyword, index) => (
-              <Badge key={index} variant="outline" className="bg-primary/10">
-                {keyword}
-              </Badge>
-            ))}
-          </div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Keywords</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-1">
+                {transcript.keywords && transcript.keywords.length > 0 ? (
+                  transcript.keywords.slice(0, 5).map((keyword, index) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {keyword}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-muted-foreground">No keywords detected</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Insights</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              <div className="flex items-start space-x-2">
+                <Award className="h-4 w-4 text-amber-500 mt-0.5" />
+                <div className="text-xs">
+                  {transcript.sentiment === 'positive' ? 
+                    'Positive sentiment detected throughout the call.' : 
+                    transcript.sentiment === 'negative' ?
+                    'Negative sentiment detected, opportunity for improvement.' :
+                    'Neutral tone maintained throughout the call.'}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
         
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleCopy}>
-            <Copy className="h-4 w-4 mr-2" /> Copy
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" /> Download
-          </Button>
+        <div className="bg-muted p-4 rounded-md text-sm whitespace-pre-wrap mb-4 max-h-[300px] overflow-y-auto">
+          {transcript.text || 'No transcript text available.'}
         </div>
-      </div>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="transcript">
-            <FileText className="h-4 w-4 mr-2" /> Transcript
-          </TabsTrigger>
-          <TabsTrigger value="analysis">
-            <LineChart className="h-4 w-4 mr-2" /> Analysis
-          </TabsTrigger>
-          <TabsTrigger value="keywords">
-            <Tag className="h-4 w-4 mr-2" /> Keywords
-          </TabsTrigger>
-        </TabsList>
         
-        <TabsContent value="transcript" className="space-y-4">
-          <div className="p-4 border rounded-lg whitespace-pre-line">
-            {transcript.text}
+        {transcript.metadata && (
+          <div className="mb-4">
+            <h4 className="text-sm font-medium mb-2">Additional Metadata</h4>
+            <div className="bg-muted p-3 rounded-md text-xs">
+              <pre className="whitespace-pre-wrap overflow-x-auto">
+                {JSON.stringify(transcript.metadata, null, 2)}
+              </pre>
+            </div>
           </div>
-        </TabsContent>
+        )}
         
-        <TabsContent value="analysis" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 border rounded-lg">
-              <div className="text-sm text-muted-foreground mb-1">Word Count</div>
-              <div className="text-2xl font-bold">{wordCount}</div>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <div className="text-sm text-muted-foreground mb-1">Call Duration</div>
-              <div className="text-2xl font-bold">
-                {transcript.duration ? `${Math.floor(transcript.duration / 60)}:${(transcript.duration % 60).toString().padStart(2, '0')}` : "Unknown"}
-              </div>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <div className="text-sm text-muted-foreground mb-1">Questions Asked</div>
-              <div className="text-2xl font-bold">{analysis.questionCount}</div>
-            </div>
-          </div>
-          
-          <div className="p-4 border rounded-lg">
-            <h4 className="font-medium mb-3">Call Structure Analysis</h4>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${analysis.keyPhrases.greeting ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span>Greeting</span>
-                </div>
-                <Badge variant={analysis.keyPhrases.greeting ? "secondary" : "destructive"}>
-                  {analysis.keyPhrases.greeting ? "Present" : "Missing"}
-                </Badge>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${analysis.keyPhrases.discovery ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span>Discovery Questions</span>
-                </div>
-                <Badge variant={analysis.keyPhrases.discovery ? "secondary" : "destructive"}>
-                  {analysis.keyPhrases.discovery ? "Present" : "Missing"}
-                </Badge>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${analysis.keyPhrases.valueProposition ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span>Value Proposition</span>
-                </div>
-                <Badge variant={analysis.keyPhrases.valueProposition ? "secondary" : "destructive"}>
-                  {analysis.keyPhrases.valueProposition ? "Present" : "Missing"}
-                </Badge>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${analysis.keyPhrases.objectionHandling ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span>Objection Handling</span>
-                </div>
-                <Badge variant={analysis.keyPhrases.objectionHandling ? "secondary" : "destructive"}>
-                  {analysis.keyPhrases.objectionHandling ? "Present" : "Missing"}
-                </Badge>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${analysis.keyPhrases.closing ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span>Closing/Next Steps</span>
-                </div>
-                <Badge variant={analysis.keyPhrases.closing ? "secondary" : "destructive"}>
-                  {analysis.keyPhrases.closing ? "Present" : "Missing"}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 border rounded-lg">
-            <h4 className="font-medium mb-3">Call Quality Assessment</h4>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>Overall Effectiveness</span>
-                  <span className="font-medium">{transcript.callScore || 50}/100</span>
-                </div>
-                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full ${
-                      (transcript.callScore || 0) >= 80 ? 'bg-green-500' : 
-                      (transcript.callScore || 0) >= 60 ? 'bg-blue-500' : 'bg-red-500'
-                    }`} 
-                    style={{ width: `${transcript.callScore || 50}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>Clarity of Communication</span>
-                  <span className="font-medium">{75}/100</span>
-                </div>
-                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500" style={{ width: '75%' }}></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>Customer Engagement</span>
-                  <span className="font-medium">{
-                    analysis.sentiment === 'positive' ? 85 : 
-                    analysis.sentiment === 'negative' ? 40 : 65
-                  }/100</span>
-                </div>
-                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full ${
-                      analysis.sentiment === 'positive' ? 'bg-green-500' : 
-                      analysis.sentiment === 'negative' ? 'bg-red-500' : 'bg-blue-500'
-                    }`} 
-                    style={{ 
-                      width: `${analysis.sentiment === 'positive' ? 85 : 
-                              analysis.sentiment === 'negative' ? 40 : 65}%` 
-                    }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="keywords" className="space-y-4">
-          {transcript.keywords && transcript.keywords.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {transcript.keywords.map((keyword, index) => (
-                <div key={index} className="p-4 border rounded-lg">
-                  <div className="font-medium mb-1">{keyword}</div>
-                  <div className="text-sm text-muted-foreground">
-                    Appears {Math.floor(Math.random() * 5) + 1} times
-                  </div>
-                </div>
-              ))}
-            </div>
+        <DialogFooter className="gap-2">
+          {!showConfirmDelete ? (
+            <>
+              {onDelete && (
+                <Button 
+                  variant="destructive" 
+                  onClick={() => setShowConfirmDelete(true)}
+                >
+                  Delete Transcript
+                </Button>
+              )}
+              <Button onClick={() => onClose && onClose()}>Close</Button>
+            </>
           ) : (
-            <div className="p-4 border rounded-lg text-center">
-              <MessageSquare className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-50" />
-              <p>No keywords extracted from this transcript</p>
-            </div>
+            <>
+              <div className="text-sm text-red-500 mr-auto">
+                Are you sure? This cannot be undone.
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowConfirmDelete(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  onDelete && onDelete();
+                  setShowConfirmDelete(false);
+                }}
+              >
+                Confirm Delete
+              </Button>
+            </>
           )}
-        </TabsContent>
-      </Tabs>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

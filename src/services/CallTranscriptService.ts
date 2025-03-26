@@ -23,12 +23,15 @@ export interface CallTranscript {
   filename?: string;
   user_name?: string;
   metadata?: any;
+  user_id?: string;
 }
 
 export interface CallTranscriptFilter {
   dateRange?: DataFilters['dateRange'];
   refresh?: boolean;
   force?: boolean;
+  userId?: string;
+  userIds?: string[];
 }
 
 interface UseCallTranscriptsResult {
@@ -63,88 +66,87 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
   const { dispatchEvent } = useEventsStore.getState();
 
   const fetchTranscripts = useCallback(
-    withErrorHandling(
-      async (options?: CallTranscriptFilter) => {
-        try {
-          setLoading(true);
-          setError(null);
+    async (options?: CallTranscriptFilter) => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('Fetching transcripts with filters:', options);
+        
+        let query = supabase
+          .from('call_transcripts')
+          .select('*')
+          .order('created_at', { ascending: false });
           
-          console.log('Fetching transcripts with filters:', options);
-          
-          let query = supabase
-            .from('call_transcripts')
-            .select('*')
-            .order('created_at', { ascending: false });
-            
-          // Apply date filter if provided
-          if (options?.dateRange) {
-            const { from, to } = options.dateRange;
-            query = query.gte('created_at', from.toISOString())
-                         .lte('created_at', to.toISOString());
-          }
-            
-          // If user exists, filter by user_id
-          if (user) {
-            query = query.eq('user_id', user.id);
-          }
-          
-          const { data, error } = await query.limit(10).range(0, 9);
-          
-          if (error) {
-            throw new Error(`Error fetching transcripts: ${error.message}`);
-          }
-          
-          // Properly type and convert the data
-          const typedTranscripts: CallTranscript[] = data?.map((item: any) => ({
-            ...item,
-            sentiment: validateSentiment(item.sentiment),
-            keywords: item.keywords || []
-          })) || [];
-          
-          setTranscripts(typedTranscripts);
-          dispatchEvent('transcript-created');
-          
-          return typedTranscripts;
-        } finally {
-          setLoading(false);
+        // Apply date filter if provided
+        if (options?.dateRange) {
+          const { from, to } = options.dateRange;
+          query = query.gte('created_at', from.toISOString())
+                       .lte('created_at', to.toISOString());
         }
-      },
-      'Failed to fetch call transcripts'
-    ),
-    [user]
+          
+        // Apply user ID filter if provided
+        if (options?.userId) {
+          query = query.eq('user_id', options.userId);
+        } else if (options?.userIds && options.userIds.length > 0) {
+          query = query.in('user_id', options.userIds);
+        } else if (user) {
+          // If no user filter provided but user is logged in, filter by current user
+          query = query.eq('user_id', user.id);
+        }
+        
+        const { data, error } = await query.limit(10).range(0, 9);
+        
+        if (error) {
+          throw new Error(`Error fetching transcripts: ${error.message}`);
+        }
+        
+        // Properly type and convert the data
+        const typedTranscripts: CallTranscript[] = data?.map((item: any) => ({
+          ...item,
+          sentiment: validateSentiment(item.sentiment),
+          keywords: item.keywords || []
+        })) || [];
+        
+        setTranscripts(typedTranscripts);
+        dispatchEvent('transcript-created');
+        
+        return typedTranscripts;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user, dispatchEvent]
   );
 
   const fetchTranscriptById = useCallback(
-    withErrorHandling(
-      async (id: string) => {
-        try {
-          setLoading(true);
-          setError(null);
-          
-          const { data, error } = await supabase
-            .from('call_transcripts')
-            .select('*')
-            .eq('id', id)
-            .single();
-          
-          if (error) {
-            throw new Error(`Error fetching transcript: ${error.message}`);
-          }
-          
-          // Properly convert the data
-          const transcript: CallTranscript = {
-            ...data,
-            sentiment: validateSentiment(data.sentiment),
-            keywords: data.keywords || []
-          };
-          
-          return transcript;
-        } finally {
-          setLoading(false);
+    async (id: string): Promise<CallTranscript | null> => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const { data, error } = await supabase
+          .from('call_transcripts')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (error) {
+          throw new Error(`Error fetching transcript: ${error.message}`);
         }
-      },
-      'Failed to fetch call transcript'
-    ),
+        
+        // Properly convert the data
+        const transcript: CallTranscript = {
+          ...data,
+          sentiment: validateSentiment(data.sentiment),
+          keywords: data.keywords || []
+        };
+        
+        return transcript;
+      } finally {
+        setLoading(false);
+      }
+    },
     []
   );
 

@@ -2,7 +2,7 @@
 import { CallTranscript } from './CallTranscriptService';
 import { supabase } from '@/integrations/supabase/client';
 import { useCallback, useEffect, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { errorHandler } from './ErrorHandlingService';
 import { animationUtils } from '@/utils/animationUtils';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -107,7 +107,18 @@ export const useTranscriptAnalysis = (options?: AnalysisOptions) => {
           throw new Error('Transcript not found');
         }
 
-        setTranscript(data);
+        // Ensure the data from Supabase is cast to the right type
+        const typedTranscript: CallTranscript = {
+          ...data,
+          sentiment: validateSentiment(data.sentiment),
+          keywords: data.keywords || [],
+          id: data.id,
+          call_id: data.call_id,
+          text: data.text,
+          created_at: data.created_at
+        };
+
+        setTranscript(typedTranscript);
 
         // Perform analysis on the transcript text
         const analysisResults = analyzeText(data.text);
@@ -162,6 +173,13 @@ export const useTranscriptAnalysis = (options?: AnalysisOptions) => {
     calculateSpeakingTime,
   };
 };
+
+// Function to validate sentiment values
+function validateSentiment(sentiment: string): "positive" | "neutral" | "negative" {
+  if (sentiment?.toLowerCase() === 'positive') return 'positive';
+  if (sentiment?.toLowerCase() === 'negative') return 'negative';
+  return 'neutral';
+}
 
 // Add a class implementation of TranscriptAnalysisService
 export class TranscriptAnalysisService {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,6 +44,9 @@ const CallActivity = () => {
     callTypes: [] as string[],
   });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [viewType, setViewType] = useState('rep');
+  const [selectedRep, setSelectedRep] = useState<string | null>(null);
+  const [selectedReps, setSelectedReps] = useState<string[]>([]);
   
   const [teamMetrics, teamMetricsLoading] = useRealTimeTeamMetrics();
   const [repMetrics, repMetricsLoading] = useRealTimeRepMetrics(
@@ -52,6 +54,7 @@ const CallActivity = () => {
   );
   
   const [calls, setCalls] = useState<Call[]>([]);
+  const [loading, setLoading] = useState(false);
   
   const { 
     transcripts, 
@@ -59,23 +62,46 @@ const CallActivity = () => {
     fetchTranscripts
   } = useCallTranscripts();
   
-  const refreshData = useCallback(() => {
-    const transcriptFilter: CallTranscriptFilter = {
-      startDate: dateRange?.from,
-      endDate: dateRange?.to,
-      sortBy: 'created_at',
-      sortOrder: 'desc'
-    };
-    
-    if (selectedUser) {
-      transcriptFilter.userId = selectedUser;
-    } else if (filters.teamMembers.length > 0) {
-      transcriptFilter.userIds = filters.teamMembers;
+  const fetchCallData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const filter: CallTranscriptFilter = {
+        dateRange: {
+          from: dateRange?.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          to: dateRange?.to || new Date()
+        }
+      };
+      
+      if (viewType === 'team' && selectedReps.length > 0) {
+        filter.userIds = selectedReps;
+      } else if (selectedRep) {
+        filter.userId = selectedRep;
+      }
+      
+      await fetchTranscripts(filter);
+    } catch (error) {
+      console.error('Error fetching call activity:', error);
+      toast({
+        title: 'Error loading call data',
+        description: 'Could not load call activity data. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
+  }, [dateRange, fetchTranscripts, selectedRep, selectedReps, viewType, toast]);
+  
+  const getTeamMemberName = useCallback((call: CallTranscript) => {
+    if (!call.user_id) return 'Unassigned';
     
-    fetchTranscripts(transcriptFilter);
+    const member = teamMembers.find((m) => m.user_id === call.user_id);
+    return member ? member.name : 'Unknown';
+  }, [teamMembers]);
+  
+  const refreshData = useCallback(() => {
+    fetchCallData();
     setRefreshTrigger(prev => prev + 1);
-  }, [selectedUser, filters, dateRange, fetchTranscripts]);
+  }, [fetchCallData]);
   
   useEventListener('bulk-upload-completed' as any, (data) => {
     console.log('Bulk upload completed event received', data);
@@ -142,13 +168,11 @@ const CallActivity = () => {
     setFilters(newFilters);
   };
 
-  // Convert outcome stats to the format expected by CallOutcomeStats
   const getFormattedMetrics = () => {
     const rawMetrics = getMetrics(transcripts);
     return rawMetrics.outcomeStats.filter(outcome => outcome.outcome !== 'Total');
   };
 
-  // Convert call distribution data to the format expected by CallOutcomeStats
   const getFormattedDistributionData = () => {
     const rawData = getCallDistributionData(transcripts);
     return rawData.map(item => ({
