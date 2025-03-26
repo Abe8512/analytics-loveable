@@ -6,6 +6,12 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Database } from '@/integrations/supabase/types';
 import { errorHandler } from './ErrorHandlingService';
 
+// Define custom RPC function types to extend the built-in ones
+type CustomRPCFunctions = 
+  | "save_call_transcript" 
+  | "save_call" 
+  | "save_keyword_trend";
+
 export class DatabaseService {
   // Save transcript to call_transcripts table
   public async saveTranscriptToDatabase(
@@ -86,8 +92,8 @@ export class DatabaseService {
       });
       
       // Use our new custom RPC function to avoid DISTINCT ORDER BY error
-      const { data: saveResult, error: saveError } = await supabase.rpc(
-        'save_call_transcript',
+      const { data: saveResult, error: saveError } = await (supabase.rpc as any)(
+        'save_call_transcript' as CustomRPCFunctions,
         { p_data: transcriptData }
       );
       
@@ -144,10 +150,13 @@ export class DatabaseService {
   // Check if a column exists in a table
   private async checkColumnExists(table: string, column: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase.rpc('check_column_exists', {
-        p_table_name: table,
-        p_column_name: column
-      });
+      const { data, error } = await supabase.rpc(
+        'check_column_exists',
+        {
+          p_table_name: table,
+          p_column_name: column
+        }
+      );
       
       if (error) {
         console.error(`Error checking if column ${column} exists in ${table}:`, error);
@@ -174,8 +183,8 @@ export class DatabaseService {
       };
       
       // Use our new RPC function to save the call without returning data
-      const { data: saveResult, error: saveError } = await supabase.rpc(
-        'save_call',
+      const { data: saveResult, error: saveError } = await (supabase.rpc as any)(
+        'save_call' as CustomRPCFunctions,
         { p_data: fixedCallData }
       );
       
@@ -233,8 +242,8 @@ export class DatabaseService {
     for (const keyword of keywords.slice(0, 5)) {
       try {
         // Use our new RPC function to save keyword trends properly
-        const { data, error } = await supabase.rpc(
-          'save_keyword_trend', 
+        const { data, error } = await (supabase.rpc as any)(
+          'save_keyword_trend' as CustomRPCFunctions, 
           { 
             p_keyword: keyword as string,
             p_category: category,
@@ -266,11 +275,10 @@ export class DatabaseService {
               const { error: updateError } = await supabase
                 .from('keyword_trends')
                 .update({ 
-                  count: existingData.count + 1,
+                  count: (existingData as any).count + 1,
                   last_used: new Date().toISOString()
                 })
-                .eq('id', existingData.id)
-                .select();
+                .eq('id', existingData.id);
                 
               if (updateError) {
                 console.error(`Error updating keyword trend for ${keyword}:`, updateError);
