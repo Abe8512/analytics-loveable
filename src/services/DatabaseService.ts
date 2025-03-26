@@ -249,7 +249,7 @@ export class DatabaseService {
         // Use simplified approach - first check if exists
         const { data, error: checkError } = await supabase
           .from('keyword_trends')
-          .select('id')
+          .select('id, count')
           .eq('keyword', keyword as string)
           .eq('category', category)
           .maybeSingle();
