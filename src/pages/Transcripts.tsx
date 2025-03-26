@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -61,7 +60,7 @@ const Transcripts = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isDarkMode } = useTheme();
+  const { isDark } = useTheme();
   
   const [transcripts, setTranscripts] = useState<StoredTranscription[]>([]);
   const [filteredTranscripts, setFilteredTranscripts] = useState<StoredTranscription[]>([]);
@@ -73,19 +72,17 @@ const Transcripts = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   
   useEffect(() => {
-    // Check if a specific transcript id was requested in the URL
     const searchParams = new URLSearchParams(location.search);
     const requestedId = searchParams.get('id');
     
     const storedTranscripts = getStoredTranscriptions();
     
-    // Generate sample transcript data if none exists
     if (storedTranscripts.length === 0) {
       const sampleTranscripts: StoredTranscription[] = [
         {
           id: '1',
           text: "Hi, this is John from sales. I'm calling to follow up on our previous conversation about our software solution. Could you tell me more about your current needs?",
-          date: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), // 3 hours ago
+          date: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
           sentiment: 'positive',
           duration: 124,
           call_score: 85,
@@ -94,7 +91,7 @@ const Transcripts = () => {
         {
           id: '2',
           text: "Hello, I'm calling about the issue you reported yesterday. I understand it's been frustrating. Let me see how I can help resolve this problem quickly for you.",
-          date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+          date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
           sentiment: 'neutral',
           duration: 183,
           call_score: 72,
@@ -103,7 +100,7 @@ const Transcripts = () => {
         {
           id: '3',
           text: "I'm disappointed with the service quality. We've had repeated issues with the product and the support has been inadequate. I'd like to speak with a manager.",
-          date: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
+          date: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
           sentiment: 'negative',
           duration: 215,
           call_score: 45,
@@ -114,7 +111,6 @@ const Transcripts = () => {
       setTranscripts(sampleTranscripts);
       setFilteredTranscripts(sampleTranscripts);
       
-      // If an ID was requested, select that transcript
       if (requestedId) {
         const requested = sampleTranscripts.find(t => t.id === requestedId);
         if (requested) {
@@ -122,7 +118,6 @@ const Transcripts = () => {
         }
       }
     } else {
-      // Sort by date (newest first)
       const sortedTranscripts = [...storedTranscripts].sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
@@ -130,7 +125,6 @@ const Transcripts = () => {
       setTranscripts(sortedTranscripts);
       setFilteredTranscripts(sortedTranscripts);
       
-      // If an ID was requested, select that transcript
       if (requestedId) {
         const requested = sortedTranscripts.find(t => t.id === requestedId);
         if (requested) {
@@ -150,14 +144,12 @@ const Transcripts = () => {
     
     let results = [...transcripts];
     
-    // Filter by search query
     if (searchQuery) {
       results = results.filter(transcript => 
         transcript.text.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
-    // Filter by date
     if (selectedDate) {
       const dateString = format(selectedDate, 'yyyy-MM-dd');
       results = results.filter(transcript => {
@@ -166,7 +158,6 @@ const Transcripts = () => {
       });
     }
     
-    // Filter by sentiment
     if (activeFilter) {
       results = results.filter(transcript => 
         transcript.sentiment?.toLowerCase() === activeFilter.toLowerCase()
@@ -179,7 +170,6 @@ const Transcripts = () => {
   const handleTranscriptClick = (transcript: StoredTranscription) => {
     setSelectedTranscript(transcript);
     
-    // Update URL without reload
     navigate(`/transcripts?id=${transcript.id}`, { replace: true });
   };
   
@@ -189,14 +179,11 @@ const Transcripts = () => {
   };
   
   const handleDeleteTranscript = (id: string) => {
-    // Filter out the transcript with the matching id
     const updatedTranscripts = transcripts.filter(t => t.id !== id);
     
-    // Update state
     setTranscripts(updatedTranscripts);
     setFilteredTranscripts(prevFiltered => prevFiltered.filter(t => t.id !== id));
     
-    // If the deleted transcript was selected, clear selection
     if (selectedTranscript && selectedTranscript.id === id) {
       setSelectedTranscript(null);
       navigate('/transcripts', { replace: true });
@@ -228,7 +215,7 @@ const Transcripts = () => {
   };
   
   if (isLoading) {
-    return <BlurredLoading />;
+    return <BlurredLoading isLoading={true}>Loading transcripts...</BlurredLoading>;
   }
   
   return (
@@ -236,7 +223,11 @@ const Transcripts = () => {
       <PageHeader 
         title="Transcripts" 
         description="View and analyze your call transcripts"
-        icon={<Mic className="h-6 w-6 text-primary" />}
+        actions={
+          <div className="flex items-center">
+            <Mic className="h-6 w-6 text-primary mr-2" />
+          </div>
+        }
       />
       
       {selectedTranscript ? (

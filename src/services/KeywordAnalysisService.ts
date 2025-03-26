@@ -1,155 +1,151 @@
 
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { errorHandler } from './ErrorHandlingService';
-import { useDebounce } from '@/hooks/useDebounce';
+import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
+import { useSharedFilters } from "@/contexts/SharedFilterContext";
 
 export interface KeywordAnalysis {
   keyword: string;
   occurrence_count: number;
   avg_sentiment: number;
-  first_occurrence: string;
-  last_occurrence: string;
+  first_occurrence?: string;
+  last_occurrence?: string;
 }
 
 export interface KeywordTrend {
   id: string;
   keyword: string;
-  category: 'positive' | 'neutral' | 'negative';
   count: number;
+  category: "positive" | "neutral" | "negative";
   last_used: string;
-  time_period?: string;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
+  report_date: string;
+  time_period: string;
 }
 
-export interface KeywordFilter {
-  timeRange?: 'day' | 'week' | 'month' | 'year' | 'all';
-  category?: 'positive' | 'neutral' | 'negative' | 'all';
-  minCount?: number;
-  limit?: number;
-}
-
-export const useKeywordAnalysis = () => {
-  const [loading, setLoading] = useState(false);
-  const [topKeywords, setTopKeywords] = useState<KeywordAnalysis[]>([]);
-  const [keywordTrends, setKeywordTrends] = useState<KeywordTrend[]>([]);
-  const [error, setError] = useState<Error | null>(null);
-  const [filter, setFilter] = useState<KeywordFilter>({
-    timeRange: 'all',
-    category: 'all',
-    minCount: 2,
-    limit: 10
-  });
-  
-  const debouncedFilter = useDebounce(filter, 500);
-  
-  const fetchTopKeywords = useCallback(async (options?: KeywordFilter) => {
+export class KeywordAnalysisService {
+  public async getKeywordAnalysis(): Promise<KeywordAnalysis[]> {
     try {
-      setLoading(true);
-      const finalOptions = options || debouncedFilter;
-      
-      let query = supabase
+      const { data, error } = await supabase
         .from('keyword_analysis_view')
         .select('*')
-        .order('occurrence_count', { ascending: false });
-      
-      if (finalOptions.minCount && finalOptions.minCount > 1) {
-        query = query.gte('occurrence_count', finalOptions.minCount);
-      }
-      
-      if (finalOptions.limit && finalOptions.limit > 0) {
-        query = query.limit(finalOptions.limit);
-      }
-      
-      const { data, error } = await query;
+        .order('occurrence_count', { ascending: false })
+        .limit(50);
       
       if (error) {
-        throw new Error(`Error fetching top keywords: ${error.message}`);
+        console.error('Error fetching keyword analysis:', error);
+        return [];
       }
       
-      setTopKeywords(data || []);
-      return data;
+      return data as KeywordAnalysis[];
     } catch (error) {
-      setError(error instanceof Error ? error : new Error('Unknown error in fetchTopKeywords'));
-      errorHandler.handleError(error, 'KeywordAnalysisService.fetchTopKeywords');
-      throw error;
-    } finally {
-      setLoading(false);
+      console.error('Exception in getKeywordAnalysis:', error);
+      return [];
     }
-  }, [debouncedFilter]);
+  }
   
-  const fetchKeywordTrends = useCallback(async (options?: KeywordFilter) => {
+  public async getKeywordTrends(): Promise<KeywordTrend[]> {
     try {
-      setLoading(true);
-      const finalOptions = options || debouncedFilter;
-      
-      let query = supabase
+      const { data, error } = await supabase
         .from('keyword_trends')
         .select('*')
-        .order('count', { ascending: false });
-      
-      if (finalOptions.category && finalOptions.category !== 'all') {
-        query = query.eq('category', finalOptions.category);
-      }
-      
-      if (finalOptions.timeRange && finalOptions.timeRange !== 'all') {
-        query = query.eq('time_period', finalOptions.timeRange);
-      }
-      
-      if (finalOptions.limit && finalOptions.limit > 0) {
-        query = query.limit(finalOptions.limit);
-      }
-      
-      const { data, error } = await query;
+        .order('count', { ascending: false })
+        .limit(50);
       
       if (error) {
-        throw new Error(`Error fetching keyword trends: ${error.message}`);
+        console.error('Error fetching keyword trends:', error);
+        return [];
       }
       
-      setKeywordTrends(data || []);
-      return data;
+      // Convert the category string to the expected enum type
+      const typedData = data.map(item => ({
+        ...item,
+        category: (item.category as "positive" | "neutral" | "negative") || "neutral"
+      }));
+      
+      return typedData;
     } catch (error) {
-      setError(error instanceof Error ? error : new Error('Unknown error in fetchKeywordTrends'));
-      errorHandler.handleError(error, 'KeywordAnalysisService.fetchKeywordTrends');
-      throw error;
-    } finally {
-      setLoading(false);
+      console.error('Exception in getKeywordTrends:', error);
+      return [];
     }
-  }, [debouncedFilter]);
+  }
   
-  // Fetch data when filter changes
+  public extractKeywords(text: string): string[] {
+    if (!text) return [];
+    
+    // Remove common stopwords and punctuation
+    const stopwords = new Set([
+      'a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'from', 'by', 'with', 
+      'in', 'out', 'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+      'do', 'does', 'did', 'of', 'that', 'this', 'these', 'those', 'i', 'you', 'he', 'she', 'it',
+      'we', 'they', 'me', 'him', 'her', 'us', 'them'
+    ]);
+    
+    // Split by spaces, remove stopwords and very short words
+    const words = text.toLowerCase()
+      .replace(/[.,\/#!?$%\^&\*;:{}=\_`~()]/g, "")
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !stopwords.has(word));
+    
+    // Count frequency
+    const frequency: {[key: string]: number} = {};
+    words.forEach(word => {
+      frequency[word] = (frequency[word] || 0) + 1;
+    });
+    
+    // Sort by frequency
+    const sortedWords = Object.keys(frequency).sort((a, b) => frequency[b] - frequency[a]);
+    
+    // Return top keywords
+    return sortedWords.slice(0, 20);
+  }
+}
+
+export const keywordAnalysisService = new KeywordAnalysisService();
+
+export const useKeywordAnalysis = () => {
+  const [keywords, setKeywords] = useState<KeywordAnalysis[]>([]);
+  const [loading, setLoading] = useState(true);
+  
   useEffect(() => {
-    fetchTopKeywords();
+    const fetchKeywords = async () => {
+      setLoading(true);
+      try {
+        const data = await keywordAnalysisService.getKeywordAnalysis();
+        setKeywords(data);
+      } catch (error) {
+        console.error('Error in useKeywordAnalysis:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchKeywords();
+  }, []);
+  
+  return { keywords, loading };
+};
+
+export const useKeywordTrends = () => {
+  const [keywordTrends, setKeywordTrends] = useState<KeywordTrend[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { filters } = useSharedFilters();
+  
+  useEffect(() => {
+    const fetchKeywordTrends = async () => {
+      setLoading(true);
+      try {
+        const data = await keywordAnalysisService.getKeywordTrends();
+        setKeywordTrends(data as KeywordTrend[]);
+      } catch (error) {
+        console.error('Error in useKeywordTrends:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     fetchKeywordTrends();
-  }, [debouncedFilter, fetchTopKeywords, fetchKeywordTrends]);
+  }, [filters.dateRange]);
   
-  return {
-    loading,
-    topKeywords,
-    keywordTrends,
-    error,
-    setFilter,
-    filter,
-    fetchTopKeywords,
-    fetchKeywordTrends
-  };
-};
-
-export const getKeywordSentiment = (avgSentiment: number): 'positive' | 'neutral' | 'negative' => {
-  if (avgSentiment >= 0.6) return 'positive';
-  if (avgSentiment <= 0.4) return 'negative';
-  return 'neutral';
-};
-
-export const getKeywordSentimentColor = (sentiment: 'positive' | 'neutral' | 'negative' | number): string => {
-  if (typeof sentiment === 'number') {
-    sentiment = getKeywordSentiment(sentiment);
-  }
-  
-  switch (sentiment) {
-    case 'positive': return 'text-green-500';
-    case 'negative': return 'text-red-500';
-    default: return 'text-blue-500';
-  }
+  return { keywordTrends, loading };
 };

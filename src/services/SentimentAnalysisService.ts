@@ -1,172 +1,117 @@
 
-import { useState, useCallback, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { errorHandler } from './ErrorHandlingService';
-import { useDebounce } from '@/hooks/useDebounce';
+import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
+import { useSharedFilters } from "@/contexts/SharedFilterContext";
+
+export type SentimentLabel = "positive" | "neutral" | "negative";
+
+export interface SentimentAnalysis {
+  sentiment_label: SentimentLabel;
+  confidence: number;
+  text_segment?: string;
+}
 
 export interface SentimentTrend {
   id: string;
-  sentiment_label: 'positive' | 'neutral' | 'negative';
+  sentiment_label: SentimentLabel;
   confidence: number;
-  user_id?: string;
+  user_id: string;
   recorded_at: string;
 }
 
-export interface SentimentTrendsData {
-  date: string;
-  positive_agent_calls: number;
-  negative_agent_calls: number;
-  positive_customer_calls: number;
-  negative_customer_calls: number;
-  total_calls: number;
-  avg_agent_sentiment: number;
-  avg_customer_sentiment: number;
+export interface SentimentDistribution {
+  positive: number;
+  neutral: number;
+  negative: number;
+  date?: string;
 }
 
-export interface SentimentFilter {
-  timeRange?: 'day' | 'week' | 'month' | 'year' | 'all';
-  userId?: string;
-  startDate?: Date;
-  endDate?: Date;
-  limit?: number;
-}
-
-export const useSentimentAnalysis = () => {
-  const [loading, setLoading] = useState(false);
-  const [sentimentTrends, setSentimentTrends] = useState<SentimentTrend[]>([]);
-  const [trendsByDay, setTrendsByDay] = useState<SentimentTrendsData[]>([]);
-  const [error, setError] = useState<Error | null>(null);
-  const [filter, setFilter] = useState<SentimentFilter>({
-    timeRange: 'month',
-    limit: 30
-  });
-  
-  const debouncedFilter = useDebounce(filter, 500);
-  
-  const fetchSentimentTrends = useCallback(async (options?: SentimentFilter) => {
+export class SentimentAnalysisService {
+  public async getSentimentTrends(): Promise<SentimentTrend[]> {
     try {
-      setLoading(true);
-      const finalOptions = options || debouncedFilter;
-      
-      let query = supabase
+      const { data, error } = await supabase
         .from('sentiment_trends')
         .select('*')
-        .order('recorded_at', { ascending: false });
-      
-      if (finalOptions.userId) {
-        query = query.eq('user_id', finalOptions.userId);
-      }
-      
-      if (finalOptions.startDate) {
-        query = query.gte('recorded_at', finalOptions.startDate.toISOString());
-      }
-      
-      if (finalOptions.endDate) {
-        query = query.lte('recorded_at', finalOptions.endDate.toISOString());
-      }
-      
-      if (finalOptions.limit && finalOptions.limit > 0) {
-        query = query.limit(finalOptions.limit);
-      }
-      
-      const { data, error } = await query;
+        .order('recorded_at', { ascending: false })
+        .limit(100);
       
       if (error) {
-        throw new Error(`Error fetching sentiment trends: ${error.message}`);
+        console.error('Error fetching sentiment trends:', error);
+        return [];
       }
       
-      setSentimentTrends(data || []);
-      return data;
+      // Ensure sentiment_label is always of type SentimentLabel
+      const typedData = data.map(item => ({
+        ...item,
+        sentiment_label: this.validateSentimentLabel(item.sentiment_label)
+      }));
+      
+      return typedData;
     } catch (error) {
-      setError(error instanceof Error ? error : new Error('Unknown error in fetchSentimentTrends'));
-      errorHandler.handleError(error, 'SentimentAnalysisService.fetchSentimentTrends');
-      throw error;
-    } finally {
-      setLoading(false);
+      console.error('Exception in getSentimentTrends:', error);
+      return [];
     }
-  }, [debouncedFilter]);
+  }
   
-  const fetchTrendsByDay = useCallback(async (options?: SentimentFilter) => {
-    try {
-      setLoading(true);
-      const finalOptions = options || debouncedFilter;
-      
-      // Use the sentiment_trends_view to get trends by day
-      let query = supabase
-        .from('sentiment_trends_view')
-        .select('*')
-        .order('date', { ascending: false });
-      
-      if (finalOptions.limit && finalOptions.limit > 0) {
-        query = query.limit(finalOptions.limit);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        throw new Error(`Error fetching trends by day: ${error.message}`);
-      }
-      
-      setTrendsByDay(data || []);
-      return data;
-    } catch (error) {
-      setError(error instanceof Error ? error : new Error('Unknown error in fetchTrendsByDay'));
-      errorHandler.handleError(error, 'SentimentAnalysisService.fetchTrendsByDay');
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedFilter]);
+  private validateSentimentLabel(label: string): SentimentLabel {
+    const validLabels: SentimentLabel[] = ["positive", "neutral", "negative"];
+    return validLabels.includes(label as SentimentLabel) 
+      ? (label as SentimentLabel) 
+      : "neutral";
+  }
   
-  // Fetch data when filter changes
+  public analyzeSentiment(text: string): SentimentLabel {
+    // This is a simple placeholder implementation
+    // In a real app, this would call an NLP service or ML model
+    if (!text) return "neutral";
+    
+    const lowerText = text.toLowerCase();
+    const positiveWords = ['great', 'excellent', 'awesome', 'good', 'happy', 'pleased', 'thank'];
+    const negativeWords = ['bad', 'poor', 'terrible', 'awful', 'unhappy', 'disappointed', 'issue', 'problem'];
+    
+    let positiveScore = 0;
+    let negativeScore = 0;
+    
+    positiveWords.forEach(word => {
+      const regex = new RegExp('\\b' + word + '\\b', 'g');
+      const matches = lowerText.match(regex);
+      if (matches) positiveScore += matches.length;
+    });
+    
+    negativeWords.forEach(word => {
+      const regex = new RegExp('\\b' + word + '\\b', 'g');
+      const matches = lowerText.match(regex);
+      if (matches) negativeScore += matches.length;
+    });
+    
+    if (positiveScore > negativeScore + 1) return "positive";
+    if (negativeScore > positiveScore + 1) return "negative";
+    return "neutral";
+  }
+}
+
+export const sentimentAnalysisService = new SentimentAnalysisService();
+
+export const useSentimentTrends = () => {
+  const [sentimentTrends, setSentimentTrends] = useState<SentimentTrend[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { filters } = useSharedFilters();
+  
   useEffect(() => {
+    const fetchSentimentTrends = async () => {
+      setLoading(true);
+      try {
+        const data = await sentimentAnalysisService.getSentimentTrends();
+        setSentimentTrends(data);
+      } catch (error) {
+        console.error('Error in useSentimentTrends:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     fetchSentimentTrends();
-    fetchTrendsByDay();
-  }, [debouncedFilter, fetchSentimentTrends, fetchTrendsByDay]);
+  }, [filters.dateRange]);
   
-  return {
-    loading,
-    sentimentTrends,
-    trendsByDay,
-    error,
-    setFilter,
-    filter,
-    fetchSentimentTrends,
-    fetchTrendsByDay
-  };
-};
-
-export const getSentimentColor = (
-  sentiment: 'positive' | 'neutral' | 'negative' | number
-): string => {
-  if (typeof sentiment === 'number') {
-    if (sentiment >= 0.6) return 'text-green-500';
-    if (sentiment <= 0.4) return 'text-red-500';
-    return 'text-blue-500';
-  }
-  
-  switch (sentiment) {
-    case 'positive': return 'text-green-500';
-    case 'negative': return 'text-red-500';
-    default: return 'text-blue-500';
-  }
-};
-
-export const calculateSentimentRatio = (
-  trends: SentimentTrend[]
-): { positive: number; neutral: number; negative: number; total: number } => {
-  if (!trends || trends.length === 0) {
-    return { positive: 0, neutral: 0, negative: 0, total: 0 };
-  }
-  
-  const counts = trends.reduce(
-    (acc, trend) => {
-      acc[trend.sentiment_label] += 1;
-      acc.total += 1;
-      return acc;
-    }, 
-    { positive: 0, neutral: 0, negative: 0, total: 0 }
-  );
-  
-  return counts;
+  return { sentimentTrends, loading };
 };

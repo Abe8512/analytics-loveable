@@ -1,195 +1,161 @@
 
-import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { errorHandler } from './ErrorHandlingService';
-import type { DataFilters } from '@/contexts/SharedFilterContext';
-import { useEventsStore } from './events';
-
-export interface CallTranscript {
-  id: string;
-  call_id: string;
-  text: string;
-  created_at: string;
-  customer_name?: string;
-  duration?: number;
-  end_time?: string;
-  sentiment: "positive" | "neutral" | "negative";
-  speaker_count?: number;
-  start_time?: string;
-  assigned_to?: string;
-  call_score?: number;
-  keywords?: string[];
-  filename?: string;
-  user_name?: string;
-  metadata?: any;
-  user_id?: string;
-}
+import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
+import { CallTranscript } from "@/types/call";
+import { useEventListener } from "@/services/EventsService";
+import { useSharedFilters } from "@/contexts/SharedFilterContext";
+import { StoredTranscription, getStoredTranscriptions } from "@/services/WhisperService";
 
 export interface CallTranscriptFilter {
-  dateRange?: DataFilters['dateRange'];
-  refresh?: boolean;
-  force?: boolean;
-  userId?: string;
-  userIds?: string[];
+  dateRange?: { from: Date; to: Date };
+  repId?: string;
+  sentiment?: string;
 }
 
-interface UseCallTranscriptsResult {
+export interface UseCallTranscriptsResult {
   transcripts: CallTranscript[] | null;
   loading: boolean;
   error: Error | null;
-  fetchTranscripts: (options?: CallTranscriptFilter) => Promise<void>;
-  fetchTranscriptById: (id: string) => Promise<CallTranscript | null>;
+  totalCount: number;
+  fetchTranscripts: (options?: CallTranscriptFilter) => Promise<CallTranscript[]>;
 }
-
-// Helper for error handling
-const withErrorHandling = <T extends (...args: any[]) => Promise<any>>(
-  fn: T, 
-  errorMessage: string
-) => {
-  return async (...args: Parameters<T>): Promise<ReturnType<T>> => {
-    try {
-      return await fn(...args);
-    } catch (error) {
-      console.error(errorMessage, error);
-      errorHandler.handleError(error, errorMessage);
-      throw error;
-    }
-  };
-};
 
 export const useCallTranscripts = (): UseCallTranscriptsResult => {
   const [transcripts, setTranscripts] = useState<CallTranscript[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
-  const { user } = useAuth();
-  const { dispatchEvent } = useEventsStore.getState();
-
-  const fetchTranscripts = useCallback(
-    async (options?: CallTranscriptFilter) => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        console.log('Fetching transcripts with filters:', options);
-        
-        let query = supabase
-          .from('call_transcripts')
-          .select('*')
-          .order('created_at', { ascending: false });
-          
-        // Apply date filter if provided
-        if (options?.dateRange) {
-          const { from, to } = options.dateRange;
-          query = query.gte('created_at', from.toISOString())
-                       .lte('created_at', to.toISOString());
-        }
-          
-        // Apply user ID filter if provided
-        if (options?.userId) {
-          query = query.eq('user_id', options.userId);
-        } else if (options?.userIds && options.userIds.length > 0) {
-          query = query.in('user_id', options.userIds);
-        } else if (user) {
-          // If no user filter provided but user is logged in, filter by current user
-          query = query.eq('user_id', user.id);
-        }
-        
-        const { data, error } = await query.limit(10).range(0, 9);
-        
-        if (error) {
-          throw new Error(`Error fetching transcripts: ${error.message}`);
-        }
-        
-        // Properly type and convert the data
-        const typedTranscripts: CallTranscript[] = data?.map((item: any) => ({
-          ...item,
-          sentiment: validateSentiment(item.sentiment),
-          keywords: item.keywords || []
-        })) || [];
-        
-        setTranscripts(typedTranscripts);
-        dispatchEvent('transcript-created');
-        
-        return typedTranscripts;
-      } finally {
-        setLoading(false);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const { filters } = useSharedFilters();
+  
+  const fetchTranscripts = async (options?: CallTranscriptFilter): Promise<CallTranscript[]> => {
+    setLoading(true);
+    
+    try {
+      // We'll first try to get data from Supabase
+      let query = supabase
+        .from('call_transcripts')
+        .select('*', { count: 'exact' });
+      
+      // Apply date range filter if provided
+      if (options?.dateRange) {
+        const fromDate = options.dateRange.from.toISOString();
+        const toDate = options.dateRange.to.toISOString();
+        query = query.gte('created_at', fromDate).lte('created_at', toDate);
       }
-    },
-    [user, dispatchEvent]
-  );
-
-  const fetchTranscriptById = useCallback(
-    async (id: string): Promise<CallTranscript | null> => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const { data, error } = await supabase
-          .from('call_transcripts')
-          .select('*')
-          .eq('id', id)
-          .single();
-        
-        if (error) {
-          throw new Error(`Error fetching transcript: ${error.message}`);
-        }
-        
-        // Properly convert the data
-        const transcript: CallTranscript = {
-          ...data,
-          sentiment: validateSentiment(data.sentiment),
-          keywords: data.keywords || []
-        };
-        
-        return transcript;
-      } finally {
-        setLoading(false);
+      
+      // Apply rep filter if provided
+      if (options?.repId) {
+        query = query.eq('user_id', options.repId);
       }
-    },
-    []
-  );
-
+      
+      // Apply sentiment filter if provided
+      if (options?.sentiment) {
+        query = query.eq('sentiment', options.sentiment);
+      }
+      
+      const { data, error, count } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching transcripts from database:', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+      
+      if (data && data.length > 0) {
+        setTranscripts(data as CallTranscript[]);
+        setTotalCount(count || data.length);
+        setLoading(false);
+        return data as CallTranscript[];
+      }
+      
+      // If no data in database or error, fall back to local storage
+      console.log('Falling back to local storage for transcripts');
+      const localTranscripts = getStoredTranscriptions();
+      
+      if (localTranscripts.length === 0) {
+        // Generate sample data if nothing is available
+        const sampleTranscripts = generateSampleTranscripts();
+        setTranscripts(sampleTranscripts as unknown as CallTranscript[]);
+        setTotalCount(sampleTranscripts.length);
+        setLoading(false);
+        return sampleTranscripts as unknown as CallTranscript[];
+      }
+      
+      setTranscripts(localTranscripts as unknown as CallTranscript[]);
+      setTotalCount(localTranscripts.length);
+      setLoading(false);
+      return localTranscripts as unknown as CallTranscript[];
+      
+    } catch (err) {
+      console.error('Error in fetchTranscripts:', err);
+      setError(err as Error);
+      setLoading(false);
+      return [];
+    }
+  };
+  
+  // Initial data loading
+  useEffect(() => {
+    fetchTranscripts({
+      dateRange: filters.dateRange
+    });
+  }, [filters.dateRange]);
+  
+  // Listen for transcript events
+  useEventListener('transcript-created', () => {
+    fetchTranscripts({
+      dateRange: filters.dateRange
+    });
+  });
+  
+  useEventListener('transcriptions-updated', () => {
+    fetchTranscripts({
+      dateRange: filters.dateRange
+    });
+  });
+  
   return {
     transcripts,
     loading,
     error,
-    fetchTranscripts,
-    fetchTranscriptById
+    totalCount,
+    fetchTranscripts
   };
 };
 
-// Function to validate sentiment values
-function validateSentiment(sentiment: string): "positive" | "neutral" | "negative" {
-  if (sentiment?.toLowerCase() === 'positive') return 'positive';
-  if (sentiment?.toLowerCase() === 'negative') return 'negative';
-  return 'neutral';
-}
-
-// For simpler usage without the hook
-export const fetchTranscriptsByDateRange = async (
-  dateRange: { from: Date; to: Date }
-): Promise<CallTranscript[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('call_transcripts')
-      .select('*')
-      .gte('created_at', dateRange.from.toISOString())
-      .lte('created_at', dateRange.to.toISOString())
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      throw new Error(`Error fetching transcripts: ${error.message}`);
+function generateSampleTranscripts(): StoredTranscription[] {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const twoDaysAgo = new Date(now);
+  twoDaysAgo.setDate(now.getDate() - 2);
+  
+  return [
+    {
+      id: '1',
+      text: "Hi, this is John from sales. I'm calling to follow up on our previous conversation about our software solution. Could you tell me more about your current needs?",
+      date: now.toISOString(),
+      sentiment: 'positive',
+      duration: 124,
+      call_score: 85,
+      keywords: ['software', 'needs', 'solution']
+    },
+    {
+      id: '2',
+      text: "Hello, I'm calling about the issue you reported yesterday. I understand it's been frustrating. Let me see how I can help resolve this problem quickly for you.",
+      date: yesterday.toISOString(),
+      sentiment: 'neutral',
+      duration: 183,
+      call_score: 72,
+      keywords: ['issue', 'problem', 'help']
+    },
+    {
+      id: '3',
+      text: "I'm disappointed with the service quality. We've had repeated issues with the product and the support has been inadequate. I'd like to speak with a manager.",
+      date: twoDaysAgo.toISOString(),
+      sentiment: 'negative',
+      duration: 215,
+      call_score: 45,
+      keywords: ['disappointed', 'issues', 'inadequate']
     }
-    
-    // Ensure we return properly formatted data
-    return (data || []).map(item => ({
-      ...item,
-      sentiment: validateSentiment(item.sentiment),
-      keywords: item.keywords || []
-    }));
-  } catch (error) {
-    errorHandler.handleError(error, 'fetchTranscriptsByDateRange');
-    throw error;
-  }
-};
+  ];
+}

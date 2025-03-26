@@ -1,156 +1,140 @@
 
-// Generate mock data for the application when real data is not available
 import { faker } from '@faker-js/faker';
+import { format, subDays } from 'date-fns';
+import type { TeamPerformanceMetric } from '@/components/CallActivity/TeamPerformanceOverview';
+import type { KeywordAnalysis } from '@/services/KeywordAnalysisService';
+import type { SentimentTrend } from '@/services/SentimentAnalysisService';
 
-// Define KPI data structure
-export interface KPIData {
-  objectionHandlingScore: number;
-  discoveryQuestionsRate: number;
-  closingTechniquesScore: number;
-  clientEngagementScore: number;
-  painPointIdentificationScore: number;
-  followUpCommitmentRate: number;
-  silencePercentage: number;
-  newCalls: number;
-  totalDuration: number;
-  averageScore: number;
-  positiveRate: number;
-}
-
-// Define chart data structures
-export interface ChartData {
-  objectionHandlingData: Array<{name: string; score: number}>;
-  questionFrequencyData: Array<{name: string; value: number}>;
-  keywordOccurrenceData: Array<{subject: string; A: number}>;
-  talkRatioData: Array<{name: string; agent: number; customer: number}>;
-  silenceDistributionData: Array<{name: string; value: number}>;
-  name: string;
-  calls: number;
-  score: number;
-}
-
-// Flag to control whether to use mock data
 export const USE_MOCK_DATA = true;
 
-// Generate mock KPI data
-export const generateMockKPIData = (): KPIData => {
-  return {
-    objectionHandlingScore: faker.number.int({ min: 60, max: 95 }),
-    discoveryQuestionsRate: faker.number.int({ min: 8, max: 22 }),
-    closingTechniquesScore: faker.number.int({ min: 55, max: 90 }),
-    clientEngagementScore: faker.number.int({ min: 65, max: 95 }),
-    painPointIdentificationScore: faker.number.int({ min: 60, max: 90 }),
-    followUpCommitmentRate: faker.number.int({ min: 55, max: 85 }),
-    silencePercentage: faker.number.int({ min: 5, max: 25 }),
-    newCalls: faker.number.int({ min: 15, max: 45 }),
-    totalDuration: faker.number.int({ min: 2400, max: 7200 }),
-    averageScore: faker.number.int({ min: 65, max: 92 }),
-    positiveRate: faker.number.int({ min: 55, max: 85 })
-  };
-};
-
-// Generate mock chart data
-export const generateMockChartData = (): ChartData[] => {
-  const result = Array(5).fill(null).map((_, i) => ({
-    name: `Day ${i + 1}`,
-    calls: faker.number.int({ min: 5, max: 20 }),
-    score: faker.number.int({ min: 60, max: 95 })
-  }));
-  
-  // Add specific chart data properties
-  const firstItem = result[0] as any;
-  
-  // Objection handling data - last 7 days
-  firstItem.objectionHandlingData = Array(7).fill(null).map((_, i) => ({
-    name: `Day ${i + 1}`,
-    score: faker.number.int({ min: 60, max: 95 })
-  }));
-  
-  // Question frequency by type
-  firstItem.questionFrequencyData = [
-    { name: 'Discovery', value: faker.number.int({ min: 25, max: 40 }) },
-    { name: 'Qualification', value: faker.number.int({ min: 15, max: 30 }) },
-    { name: 'Pain Point', value: faker.number.int({ min: 10, max: 25 }) },
-    { name: 'Closing', value: faker.number.int({ min: 5, max: 20 }) }
-  ];
-  
-  // Keyword occurrence in calls
-  firstItem.keywordOccurrenceData = [
-    { subject: 'Price', A: faker.number.int({ min: 5, max: 10 }) },
-    { subject: 'Feature', A: faker.number.int({ min: 6, max: 12 }) },
-    { subject: 'Support', A: faker.number.int({ min: 4, max: 8 }) },
-    { subject: 'Timeline', A: faker.number.int({ min: 3, max: 7 }) },
-    { subject: 'Integration', A: faker.number.int({ min: 4, max: 9 }) }
-  ];
-  
-  // Talk ratio data - agent vs customer
-  firstItem.talkRatioData = Array(5).fill(null).map((_, i) => {
-    const agentValue = faker.number.int({ min: 45, max: 65 });
-    return {
-      name: `Day ${i + 1}`,
-      agent: agentValue,
-      customer: 100 - agentValue
-    };
-  });
-  
-  // Silence distribution data
-  firstItem.silenceDistributionData = [
-    { name: '1-3 sec', value: faker.number.int({ min: 30, max: 50 }) },
-    { name: '4-6 sec', value: faker.number.int({ min: 20, max: 40 }) },
-    { name: '7-10 sec', value: faker.number.int({ min: 10, max: 30 }) },
-    { name: '11-15 sec', value: faker.number.int({ min: 5, max: 15 }) },
-    { name: '>15 sec', value: faker.number.int({ min: 1, max: 10 }) }
-  ];
-  
-  return result;
-};
-
-// Generate mock sales funnel data
-export const generateMockSalesFunnelData = () => {
-  return [
-    { name: 'Leads', value: faker.number.int({ min: 80, max: 120 }) },
-    { name: 'Qualified', value: faker.number.int({ min: 50, max: 80 }) },
-    { name: 'Proposal', value: faker.number.int({ min: 30, max: 50 }) },
-    { name: 'Negotiation', value: faker.number.int({ min: 15, max: 30 }) },
-    { name: 'Closed Won', value: faker.number.int({ min: 8, max: 20 }) }
-  ];
-};
-
-// Generate mock analytics data
-export interface AnalyticsData {
-  pipelineData: Array<{name: string; value: number}>;
-  conversionData: Array<{name: string; rate: number}>;
-  revenueData: Array<{name: string; actual: number; target: number}>;
-  productMixData: Array<{name: string; value: number}>;
+export interface ChartData {
+  name: string;
+  value: number;
+  calls?: number;
+  score?: number;
+  objectionHandlingData?: { name: string; value: number }[];
+  questionFrequencyData?: { name: string; value: number }[];
+  keywordOccurrenceData?: { name: string; value: number }[];
+  talkRatioData?: { name: string; value: number }[];
+  silenceDistributionData?: { name: string; value: number }[];
 }
 
-export const generateMockAnalyticsData = (): AnalyticsData => {
-  return {
-    pipelineData: [
-      { name: 'Discovery', value: faker.number.int({ min: 30, max: 50 }) },
-      { name: 'Qualified', value: faker.number.int({ min: 20, max: 40 }) },
-      { name: 'Proposal', value: faker.number.int({ min: 15, max: 30 }) },
-      { name: 'Negotiation', value: faker.number.int({ min: 10, max: 20 }) },
-      { name: 'Closing', value: faker.number.int({ min: 5, max: 15 }) }
-    ],
-    conversionData: Array(6).fill(null).map((_, i) => ({
-      name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'][i],
-      rate: faker.number.int({ min: 20, max: 40 })
-    })),
-    revenueData: Array(6).fill(null).map((_, i) => {
-      const targetValue = faker.number.int({ min: 50000, max: 100000 });
-      return {
-        name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'][i],
-        target: targetValue,
-        actual: faker.number.int({ min: targetValue * 0.8, max: targetValue * 1.2 })
-      };
-    }),
-    productMixData: [
-      { name: 'Product A', value: faker.number.int({ min: 20, max: 35 }) },
-      { name: 'Product B', value: faker.number.int({ min: 15, max: 30 }) },
-      { name: 'Product C', value: faker.number.int({ min: 10, max: 25 }) },
-      { name: 'Product D', value: faker.number.int({ min: 8, max: 20 }) },
-      { name: 'Product E', value: faker.number.int({ min: 5, max: 15 }) }
-    ]
-  };
+export const generateRandomChartData = (count: number = 5): ChartData[] => {
+  const data: ChartData[] = [];
+  
+  const categories = ['Product Features', 'Pricing', 'Integrations', 'Support', 'Timeline'];
+  
+  for (let i = 0; i < count; i++) {
+    data.push({
+      name: categories[i % categories.length],
+      value: faker.number.int({ min: 10, max: 100 }),
+      calls: faker.number.int({ min: 5, max: 50 }),
+      score: faker.number.int({ min: 30, max: 95 }),
+      objectionHandlingData: [
+        { name: 'Price', value: faker.number.int({ min: 1, max: 10 }) },
+        { name: 'Features', value: faker.number.int({ min: 1, max: 10 }) },
+        { name: 'Competition', value: faker.number.int({ min: 1, max: 10 }) }
+      ],
+      questionFrequencyData: [
+        { name: 'Open-ended', value: faker.number.int({ min: 5, max: 25 }) },
+        { name: 'Closed', value: faker.number.int({ min: 5, max: 20 }) },
+        { name: 'Follow-up', value: faker.number.int({ min: 2, max: 15 }) }
+      ],
+      keywordOccurrenceData: [
+        { name: 'Solution', value: faker.number.int({ min: 2, max: 12 }) },
+        { name: 'Problem', value: faker.number.int({ min: 1, max: 10 }) },
+        { name: 'Value', value: faker.number.int({ min: 1, max: 8 }) },
+        { name: 'Timeline', value: faker.number.int({ min: 1, max: 6 }) }
+      ],
+      talkRatioData: [
+        { name: 'Agent', value: faker.number.int({ min: 40, max: 70 }) },
+        { name: 'Customer', value: faker.number.int({ min: 30, max: 60 }) }
+      ],
+      silenceDistributionData: [
+        { name: '0-5s', value: faker.number.int({ min: 5, max: 20 }) },
+        { name: '5-10s', value: faker.number.int({ min: 3, max: 15 }) },
+        { name: '10s+', value: faker.number.int({ min: 1, max: 8 }) }
+      ]
+    });
+  }
+  
+  return data;
+};
+
+export const generateMockSentimentTrends = (days: number = 14): SentimentTrend[] => {
+  const trends: SentimentTrend[] = [];
+  const sentiments: ["positive", "neutral", "negative"] = ["positive", "neutral", "negative"];
+  
+  for (let i = 0; i < days; i++) {
+    const date = subDays(new Date(), i);
+    
+    // Generate 3-5 sentiment records per day
+    const recordsPerDay = faker.number.int({ min: 3, max: 6 });
+    
+    for (let j = 0; j < recordsPerDay; j++) {
+      const sentiment = sentiments[faker.number.int({ min: 0, max: 2 })];
+      const confidence = faker.number.float({ min: 0.6, max: 0.95 });
+      
+      trends.push({
+        id: faker.string.uuid(),
+        sentiment_label: sentiment,
+        confidence: confidence,
+        user_id: faker.string.uuid(),
+        recorded_at: date.toISOString()
+      });
+    }
+  }
+  
+  return trends;
+};
+
+export const generateMockKeywordAnalysis = (count: number = 20): KeywordAnalysis[] => {
+  const keywords: KeywordAnalysis[] = [];
+  const commonKeywords = [
+    'pricing', 'features', 'integration', 'timeline', 'support',
+    'solution', 'contract', 'problem', 'implementation', 'team',
+    'budget', 'competition', 'alternatives', 'decision-maker', 'value',
+    'roi', 'demo', 'follow-up', 'partnership', 'scalability'
+  ];
+  
+  for (let i = 0; i < count; i++) {
+    const keyword = i < commonKeywords.length 
+      ? commonKeywords[i] 
+      : faker.word.noun();
+    
+    keywords.push({
+      keyword,
+      occurrence_count: faker.number.int({ min: 5, max: 50 }),
+      avg_sentiment: faker.number.float({ min: 0.1, max: 0.9 }),
+      first_occurrence: subDays(new Date(), faker.number.int({ min: 1, max: 30 })).toISOString(),
+      last_occurrence: subDays(new Date(), faker.number.int({ min: 0, max: 5 })).toISOString()
+    });
+  }
+  
+  // Sort by occurrence count (descending)
+  return keywords.sort((a, b) => b.occurrence_count - a.occurrence_count);
+};
+
+export const generateMockTeamMetrics = (): TeamPerformanceMetric[] => {
+  const teamMembers = [
+    { id: '1', name: 'Alex Johnson' },
+    { id: '2', name: 'Sam Wilson' },
+    { id: '3', name: 'Taylor Smith' },
+    { id: '4', name: 'Jordan Lee' },
+    { id: '5', name: 'Casey Morgan' }
+  ];
+  
+  return teamMembers.map(member => ({
+    rep_id: member.id,
+    rep_name: member.name,
+    call_volume: faker.number.int({ min: 25, max: 120 }),
+    avg_call_duration: faker.number.int({ min: 180, max: 900 }),
+    sentiment_score: faker.number.float({ min: 0.3, max: 0.9 }),
+    success_rate: faker.number.float({ min: 0.2, max: 0.85 }),
+    avg_talk_ratio: faker.number.float({ min: 0.4, max: 0.7 }),
+    objection_handling_score: faker.number.int({ min: 50, max: 95 }),
+    positive_language_score: faker.number.int({ min: 50, max: 95 }),
+    top_keywords: Array.from({ length: 3 }, () => faker.word.noun()),
+    last_call_date: subDays(new Date(), faker.number.int({ min: 0, max: 5 })).toISOString()
+  }));
 };

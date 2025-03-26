@@ -21,7 +21,8 @@ const KeywordTrendsVisualizer: React.FC<KeywordTrendsVisualizerProps> = ({
   const barChartData = keywords.slice(0, 10).map(item => ({
     keyword: item.keyword,
     count: item.occurrence_count,
-    sentiment: parseFloat((item.avg_sentiment * 100).toFixed(1))
+    sentiment: parseFloat((item.avg_sentiment * 100).toFixed(1)),
+    first_occurrence: item.first_occurrence
   }));
   
   // Custom tooltip for the chart
