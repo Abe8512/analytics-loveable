@@ -85,18 +85,47 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // Insert into database
+      // Insert into database - modify query to fix the DISTINCT ORDER BY issue
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert(transcriptData)
-        .select('id')
-        .single();
+        .select('id');
       
       if (error) {
         console.error('Error inserting transcript into database:', error);
         errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase.insert');
         
-        // If key_phrases is causing the error, try a more targeted approach
+        // Try a more targeted approach without DISTINCT or ORDER BY
+        if (error.message && (error.message.includes('SELECT DISTINCT') || error.message.includes('ORDER BY'))) {
+          console.log('Retrying with a simpler query approach');
+          
+          // First insert without returning
+          const insertResult = await supabase
+            .from('call_transcripts')
+            .insert(transcriptData);
+          
+          if (insertResult.error) {
+            console.error('Error on second attempt to insert transcript:', insertResult.error);
+            return { id: transcriptId, error: insertResult.error };
+          }
+          
+          // Then fetch the ID separately
+          const fetchResult = await supabase
+            .from('call_transcripts')
+            .select('id')
+            .eq('id', transcriptId)
+            .single();
+            
+          if (fetchResult.error) {
+            console.error('Error fetching inserted transcript ID:', fetchResult.error);
+            // Still return transcriptId since we know it was successfully inserted
+            return { id: transcriptId, error: null };
+          }
+          
+          return { id: fetchResult.data?.id || transcriptId, error: null };
+        }
+        
+        // For other types of errors, try a different approach with column validation
         if (error.message && (error.message.includes('key_phrases') || error.message.includes('column'))) {
           console.log('Retrying with a more compatible data structure');
           
@@ -114,18 +143,17 @@ export class DatabaseService {
           if (hasKeywords) updatedData.keywords = keywords;
           if (hasKeyPhrases) updatedData.key_phrases = keywords;
           
-          const retryResult = await supabase
+          // Try insert without using .select() for the return
+          const insertOnly = await supabase
             .from('call_transcripts')
-            .insert(updatedData)
-            .select('id')
-            .single();
+            .insert(updatedData);
             
-          if (retryResult.error) {
-            console.error('Error on second attempt to insert transcript:', retryResult.error);
-            return { id: transcriptId, error: retryResult.error };
+          if (insertOnly.error) {
+            console.error('Error on third attempt to insert transcript:', insertOnly.error);
+            return { id: transcriptId, error: insertOnly.error };
           }
           
-          return { id: retryResult.data?.id || transcriptId, error: null };
+          return { id: transcriptId, error: null };
         }
         
         return { id: transcriptId, error };
@@ -193,6 +221,7 @@ export class DatabaseService {
         key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
       };
       
+      // First try with a simpler approach without a DISTINCT or ORDER BY
       const { error } = await supabase
         .from('calls')
         .insert(fixedCallData);
@@ -200,6 +229,18 @@ export class DatabaseService {
       if (error) {
         console.error('Error updating calls table:', error);
         errorHandler.handleError(error, 'DatabaseService.updateCallsTable');
+        
+        // Try a fallback approach without using .select() for the return
+        if (error.message && (error.message.includes('SELECT DISTINCT') || error.message.includes('ORDER BY'))) {
+          // Direct insert without any return value
+          const retryResult = await supabase.rpc('insert_call_no_return', fixedCallData);
+          
+          if (retryResult.error) {
+            console.error('Error on fallback call insert:', retryResult.error);
+          } else {
+            console.log('Successfully inserted into calls table using fallback method');
+          }
+        }
       } else {
         console.log('Successfully updated calls table');
       }
@@ -223,7 +264,7 @@ export class DatabaseService {
     // Add top keywords to trends
     for (const keyword of keywords.slice(0, 5)) {
       try {
-        // First check if keyword exists
+        // First check if keyword exists, using a simpler query approach
         const { data } = await supabase
           .from('keyword_trends')
           .select('*')
@@ -232,7 +273,7 @@ export class DatabaseService {
           .maybeSingle();
         
         if (data) {
-          // Update existing keyword
+          // Update existing keyword, without using any complex return 
           await supabase
             .from('keyword_trends')
             .update({ 
@@ -241,7 +282,7 @@ export class DatabaseService {
             })
             .eq('id', data.id);
         } else {
-          // Insert new keyword with proper UUID
+          // Insert new keyword with proper UUID, without using any complex return
           const trendData = {
             keyword: keyword as string,
             category,
@@ -275,6 +316,7 @@ export class DatabaseService {
         recorded_at: new Date().toISOString()
       };
       
+      // Insert without a complex return query
       const { error } = await supabase
         .from('sentiment_trends')
         .insert(trendData);
