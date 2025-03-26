@@ -364,9 +364,9 @@ export const useWhisperService = () => {
       console.log(`Starting transcription for file: ${file.name} (${file.size} bytes)`);
       
       if (useLocalWhisper) {
-        // Real implementation for local Whisper using HuggingFace transformers
+        // Local Whisper using HuggingFace transformers
         try {
-          // First, try to load the transformers package
+          // Load the transformers package
           console.log("Attempting to load transformers package...");
           const { pipeline } = await import('@huggingface/transformers');
           console.log("Successfully loaded transformers package, now loading ASR model...");
@@ -380,7 +380,7 @@ export const useWhisperService = () => {
           const transcriber = await pipeline(
             "automatic-speech-recognition",
             "openai/whisper-small"
-            // Remove the 'quantized' option as it's not in the PretrainedModelOptions type
+            // Removed the 'quantized' option as it's not in the PretrainedModelOptions type
           );
           
           // Convert file to a format that the model can use
@@ -404,15 +404,19 @@ export const useWhisperService = () => {
           // Clean up
           URL.revokeObjectURL(fileUrl);
           
-          // Handle the output which might be an array or single object
           // Fix the text property access by checking the type
           let transcriptionText = '';
           if (Array.isArray(output)) {
             // If it's an array, join the texts
-            transcriptionText = output.map(item => item.text || '').join(' ');
-          } else {
-            // If it's a single object
-            transcriptionText = output.text || '';
+            transcriptionText = output.map(item => {
+              // Check if the item has a text property
+              return typeof item === 'object' && item !== null && 'text' in item
+                ? (item as { text: string }).text
+                : '';
+            }).join(' ');
+          } else if (typeof output === 'object' && output !== null && 'text' in output) {
+            // If it's a single object with text property
+            transcriptionText = (output as { text: string }).text;
           }
           
           // Create segments

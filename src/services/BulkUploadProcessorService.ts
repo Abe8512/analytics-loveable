@@ -14,6 +14,8 @@ export class BulkUploadProcessorService {
   private processingFile = false;
   private maxFileSize = 25 * 1024 * 1024; // 25MB limit to prevent memory issues
   private supportedFormats = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/m4a', 'audio/mp4', 'audio/ogg', 'audio/webm'];
+  private retryCount = 3;
+  private retryDelay = 1000;
   
   constructor(whisperService: any) {
     this.whisperService = whisperService;
@@ -74,7 +76,11 @@ export class BulkUploadProcessorService {
         size: file.size
       });
       
-      // Phase 1: Transcribe the audio file
+      // Phase 1: Optimize audio if possible
+      updateStatus('processing', 15, 'Preparing audio file...', undefined);
+      const optimizedFile = await this.optimizeAudioIfPossible(file);
+      
+      // Phase 2: Transcribe the audio file with retries
       console.log('Transcribing audio...');
       updateStatus('processing', 20, 'Transcribing audio...', undefined);
       
@@ -94,9 +100,9 @@ export class BulkUploadProcessorService {
         }
       }
 
-      // Real transcription
-      console.log('Calling whisperService.transcribeAudio with file:', file.name);
-      const result = await this.whisperService.transcribeAudio(file);
+      // Real transcription with retries
+      console.log('Calling whisperService.transcribeAudio with file:', optimizedFile.name);
+      const result = await this.transcribeWithRetries(optimizedFile);
       console.log('Transcription completed successfully:', result ? 'Has result' : 'No result');
 
       if (!result || !result.text) {
@@ -107,7 +113,7 @@ export class BulkUploadProcessorService {
         return null;
       }
       
-      // Phase 2: Process transcription
+      // Phase 3: Process transcription
       console.log('Processing transcription result:', result);
       updateStatus('processing', 50, result.text, undefined);
       
@@ -128,6 +134,52 @@ export class BulkUploadProcessorService {
     } finally {
       // Always release the processing lock when done
       this.processingFile = false;
+    }
+  }
+  
+  // Transcribe with retry logic
+  private async transcribeWithRetries(file: File): Promise<WhisperTranscriptionResponse> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= this.retryCount; attempt++) {
+      try {
+        console.log(`Transcription attempt ${attempt}/${this.retryCount}`);
+        return await this.whisperService.transcribeAudio(file);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.error(`Transcription attempt ${attempt} failed:`, error);
+        
+        // If this isn't the last attempt, wait before retrying
+        if (attempt < this.retryCount) {
+          const delay = this.retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // If we've exhausted all retries, throw the last error
+    throw lastError || new Error("Transcription failed after multiple attempts");
+  }
+  
+  // Optimize audio file if possible (in browser this is limited, but we can do basic validation)
+  private async optimizeAudioIfPossible(file: File): Promise<File> {
+    try {
+      // In a browser environment, we're limited in audio processing compared to the Python example
+      // In a real app, you'd use Web Audio API for more processing or send to a backend
+      
+      // For now, just validate the file and return it as is
+      // In a production app, consider using Audio Worklet or Web Audio API for optimization
+      
+      // In the future, could implement:
+      // - Conversion to proper format using AudioContext
+      // - Basic gain normalization
+      // - Sample rate conversion
+      
+      return file;
+    } catch (error) {
+      console.warn('Audio optimization failed, using original file:', error);
+      return file;
     }
   }
   

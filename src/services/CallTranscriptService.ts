@@ -1,11 +1,12 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CallTranscript } from "@/types/call";
 import { useEventListener } from "@/services/events/hooks";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { StoredTranscription, getStoredTranscriptions } from "@/services/WhisperService";
 import { EventType } from "@/services/events/types";
+import { errorHandler } from "@/services/ErrorHandlingService";
 
 export interface CallTranscriptFilter {
   dateRange?: { from: Date; to: Date };
@@ -28,11 +29,28 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
   const [error, setError] = useState<Error | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
   const { filters } = useSharedFilters();
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const CACHE_TTL = 60000; // 1 minute cache TTL
   
-  const fetchTranscripts = async (options?: CallTranscriptFilter): Promise<CallTranscript[]> => {
+  const fetchTranscripts = useCallback(async (options?: CallTranscriptFilter): Promise<CallTranscript[]> => {
     setLoading(true);
     
+    // Check if we can use cached data and force isn't set
+    const now = new Date();
+    if (
+      !options?.force && 
+      transcripts && 
+      lastFetch && 
+      now.getTime() - lastFetch.getTime() < CACHE_TTL
+    ) {
+      console.log('Using cached transcript data');
+      setLoading(false);
+      return transcripts;
+    }
+    
     try {
+      console.log('Fetching transcript data with options:', options);
+      
       // Try to get data from Supabase
       let query = supabase
         .from('call_transcripts')
@@ -59,15 +77,18 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       
       if (error) {
         console.error('Error fetching transcripts from database:', error);
+        errorHandler.handleError(error, 'CallTranscriptService.fetchTranscripts.databaseError');
         throw new Error(`Database error: ${error.message}`);
       }
       
       if (data && data.length > 0) {
         console.log(`Fetched ${data.length} transcripts from database`);
-        setTranscripts(data as CallTranscript[]);
-        setTotalCount(count || data.length);
+        const formattedData = data as CallTranscript[];
+        setTranscripts(formattedData);
+        setTotalCount(count || formattedData.length);
+        setLastFetch(now);
         setLoading(false);
-        return data as CallTranscript[];
+        return formattedData;
       }
       
       // If no data in database, fall back to local storage
@@ -78,6 +99,7 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
         console.log('No transcripts available in local storage');
         setTranscripts([]);
         setTotalCount(0);
+        setLastFetch(now);
         setLoading(false);
         return [];
       }
@@ -92,38 +114,46 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
         call_score: t.call_score || 50,
         keywords: t.keywords || [],
         filename: t.filename || "Unknown",
-        transcript_segments: t.transcript_segments 
+        transcript_segments: t.transcript_segments,
+        user_id: t.speakerName || 'anonymous'
       })) as CallTranscript[];
       
+      console.log(`Using ${formattedTranscripts.length} transcripts from local storage`);
       setTranscripts(formattedTranscripts);
       setTotalCount(formattedTranscripts.length);
+      setLastFetch(now);
       setLoading(false);
       return formattedTranscripts;
     } catch (err) {
       console.error('Error in fetchTranscripts:', err);
+      errorHandler.handleError(err, 'CallTranscriptService.fetchTranscripts');
       setError(err as Error);
       setLoading(false);
       return [];
     }
-  };
+  }, [transcripts, lastFetch]);
   
   // Initial data loading
   useEffect(() => {
     fetchTranscripts({
       dateRange: filters.dateRange
     });
-  }, [filters.dateRange]);
+  }, [filters.dateRange, fetchTranscripts]);
   
   // Listen for transcript events
   useEventListener('transcript-created' as EventType, () => {
+    console.log('Received transcript-created event, refreshing data');
     fetchTranscripts({
-      dateRange: filters.dateRange
+      dateRange: filters.dateRange,
+      force: true
     });
   });
   
   useEventListener('transcripts-updated' as EventType, () => {
+    console.log('Received transcriptions-updated event, refreshing data');
     fetchTranscripts({
-      dateRange: filters.dateRange
+      dateRange: filters.dateRange,
+      force: true
     });
   });
   

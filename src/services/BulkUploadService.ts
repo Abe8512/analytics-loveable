@@ -97,6 +97,7 @@ export const useBulkUploadService = () => {
         return;
       }
       
+      // Process files one by one
       for (let i = 0; i < queuedFiles.length; i++) {
         const file = queuedFiles[i];
         console.log(`Processing file ${i+1}/${queuedFiles.length}: ${file.file.name}`);
@@ -117,6 +118,7 @@ export const useBulkUploadService = () => {
             });
           }
           
+          // Small delay between files to prevent overloading the API
           if (i < queuedFiles.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 300));
           }
@@ -131,10 +133,13 @@ export const useBulkUploadService = () => {
       console.log('All files processed, refreshing history and transcript data');
       await debouncedLoadHistory();
       
+      // Force refresh transcripts to show latest data
       await fetchTranscripts({ force: true });
       
+      // Notify other components that transcriptions have been updated
       window.dispatchEvent(new CustomEvent('transcriptions-updated'));
       
+      // Dispatch custom event for cross-component communication
       dispatchEvent('bulk-upload-completed', {
         fileCount: files.length,
         fileIds: files.map(f => f.id),
