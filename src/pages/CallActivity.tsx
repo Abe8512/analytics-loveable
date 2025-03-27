@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,9 +19,10 @@ const CallActivity = () => {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string | null>(null);
   const { refreshTranscripts } = useBulkUploadService();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Handle tab changes
-  const handleTabChange = (value: string) => {
+  const handleTabChange = useCallback((value: string) => {
     setActiveTab(value);
     // Reset selections when changing tabs
     if (value === "team-members") {
@@ -29,26 +30,65 @@ const CallActivity = () => {
     } else if (value === "recent-calls") {
       setSelectedTeamMemberId(null);
     }
-  };
+  }, []);
   
-  const handleBulkUploadOpen = () => {
+  const handleBulkUploadOpen = useCallback(() => {
     setIsBulkUploadOpen(true);
-  };
+  }, []);
   
-  const handleBulkUploadClose = () => {
+  const handleBulkUploadClose = useCallback(() => {
     setIsBulkUploadOpen(false);
-    refreshTranscripts({ force: true });
-  };
+    setIsRefreshing(true);
+    refreshTranscripts({ force: true })
+      .finally(() => {
+        setIsRefreshing(false);
+      });
+  }, [refreshTranscripts]);
   
-  const handleCallSelect = (callId: string) => {
+  const handleCallSelect = useCallback((callId: string) => {
     setSelectedCallId(callId);
     console.log(`Selected call: ${callId}`);
-  };
+  }, []);
   
-  const handleTeamMemberSelect = (teamMemberId: string) => {
+  const handleTeamMemberSelect = useCallback((teamMemberId: string) => {
     setSelectedTeamMemberId(teamMemberId);
     console.log(`Selected team member: ${teamMemberId}`);
-  };
+  }, []);
+
+  const refreshAllData = useCallback(() => {
+    setIsRefreshing(true);
+    refreshTranscripts({ force: true })
+      .finally(() => {
+        setIsRefreshing(false);
+      });
+  }, [refreshTranscripts]);
+  
+  // Memoize TabsContent to prevent re-renders
+  const tabContent = useMemo(() => {
+    return (
+      <>
+        <TabsContent value="recent-calls" className="space-y-6">
+          <RecentCallsTable 
+            onCallSelect={handleCallSelect}
+            selectedCallId={selectedCallId} 
+            isAdmin={true}
+          />
+        </TabsContent>
+        
+        <TabsContent value="team-members" className="space-y-6">
+          <TeamMembersTable 
+            selectedUserId={selectedTeamMemberId}
+            onTeamMemberSelect={handleTeamMemberSelect}
+            limit={10}
+          />
+        </TabsContent>
+        
+        <TabsContent value="sentiment-analysis" className="space-y-6">
+          <SentimentAnalysisTable limit={10} />
+        </TabsContent>
+      </>
+    );
+  }, [handleCallSelect, selectedCallId, handleTeamMemberSelect, selectedTeamMemberId]);
   
   return (
     <DashboardLayout>
@@ -64,13 +104,15 @@ const CallActivity = () => {
           <Button 
             variant="outline" 
             className="hidden sm:flex items-center gap-2"
-            onClick={() => {
-              // Implement export functionality
-              console.log("Export data");
-            }}
+            disabled={isRefreshing}
+            onClick={refreshAllData}
           >
-            <Download className="h-4 w-4" />
-            Export
+            {isRefreshing ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current"></div>
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
           
           <Button 
@@ -114,25 +156,7 @@ const CallActivity = () => {
           </TabsList>
         </div>
         
-        <TabsContent value="recent-calls" className="space-y-6">
-          <RecentCallsTable 
-            onCallSelect={handleCallSelect}
-            selectedCallId={selectedCallId} 
-            isAdmin={true}
-          />
-        </TabsContent>
-        
-        <TabsContent value="team-members" className="space-y-6">
-          <TeamMembersTable 
-            selectedUserId={selectedTeamMemberId}
-            onTeamMemberSelect={handleTeamMemberSelect}
-            limit={10}
-          />
-        </TabsContent>
-        
-        <TabsContent value="sentiment-analysis" className="space-y-6">
-          <SentimentAnalysisTable limit={10} />
-        </TabsContent>
+        {tabContent}
       </Tabs>
     </DashboardLayout>
   );

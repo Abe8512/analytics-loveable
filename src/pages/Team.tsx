@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,9 +20,9 @@ const Team = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { teamMembers, isLoading, refreshTeamMembers } = teamService.useTeamMembers();
+  const { teamMembers, isLoading, refreshTeamMembers, error } = teamService.useTeamMembers();
 
-  const handleAddMember = async (e: React.FormEvent) => {
+  const handleAddMember = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!newMemberName.trim()) {
@@ -44,6 +44,11 @@ const Team = () => {
         user_id: uuidv4() // Generate a proper UUID for user_id
       });
       
+      toast({
+        title: "Success",
+        description: `${newMemberName} added to the team`,
+      });
+      
       // Clear form
       setNewMemberName('');
       setNewMemberEmail('');
@@ -59,11 +64,15 @@ const Team = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [newMemberName, newMemberEmail, newMemberRole, toast]);
   
-  const handleRemoveMember = async (id: string) => {
+  const handleRemoveMember = useCallback(async (id: string) => {
     try {
       await teamService.removeTeamMember(id);
+      toast({
+        title: "Success",
+        description: "Team member removed",
+      });
     } catch (error) {
       console.error("Error removing team member:", error);
       toast({
@@ -72,7 +81,7 @@ const Team = () => {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
   
   return (
     <ProtectedRoute>
@@ -86,10 +95,22 @@ const Team = () => {
               disabled={isLoading}
               className="flex items-center"
             >
-              <RefreshCw className="mr-2 h-4 w-4" />
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-neon-purple mr-2"></div>
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
               Refresh
             </Button>
           </div>
+          
+          {error && (
+            <div className="bg-red-100 text-red-800 p-4 rounded-md">
+              <p className="font-semibold">Error loading team members</p>
+              <p className="text-sm">{error.message}</p>
+              <p className="text-sm mt-2">Try refreshing or check your connection.</p>
+            </div>
+          )}
           
           {isLoading ? (
             <div className="flex items-center justify-center p-8">

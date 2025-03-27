@@ -1,6 +1,8 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { TeamMember } from '@/services/TeamService';
+import { EventsService } from '@/services/EventsService';
 
 // Type definitions to fix import errors across the app
 export interface TeamMetricsData {
@@ -31,6 +33,31 @@ export interface DataFilters {
   };
   repIds?: string[];
 }
+
+// Sync managed users with team members
+export const syncManagedUsersWithTeamMembers = (teamMembers: TeamMember[]) => {
+  try {
+    if (!teamMembers || teamMembers.length === 0) return;
+    
+    // Convert team members to the format expected by managed users
+    const managedUsers = teamMembers.map(member => ({
+      id: member.id,
+      name: member.name,
+      email: member.email || '',
+      role: member.role || 'Sales Rep'
+    }));
+    
+    // Store in session storage
+    sessionStorage.setItem('managedUsers', JSON.stringify(managedUsers));
+    
+    // Dispatch event to notify other components
+    EventsService.dispatchEvent('MANAGED_USERS_UPDATED', managedUsers);
+    
+    console.log(`Synced ${managedUsers.length} managed users with team members`);
+  } catch (err) {
+    console.error("Error syncing managed users with team members:", err);
+  }
+};
 
 // Hook to get managed users (for other components that might still need it)
 export const getManagedUsers = () => {

@@ -1,13 +1,12 @@
 
-// Create and export a dedicated EventsService file for proper imports
 import { 
   dispatchEvent, 
   addEventListener, 
   removeEventListener, 
-  useEventListener, 
-  EVENT_TYPES,
+  EVENT_TYPES
 } from './store';
 import type { EventType, EventPayload } from './types';
+import { useEventListener } from './hooks';
 
 // Create a proper EventsService class to match the imports in other files
 class EventsServiceClass {
@@ -15,8 +14,8 @@ class EventsServiceClass {
     return dispatchEvent(type, payload);
   }
 
-  addEventListener(type: EventType, callback: (payload: EventPayload) => void) {
-    return addEventListener(type, callback);
+  addEventListener(type: EventType, listener: (payload: EventPayload) => void) {
+    return addEventListener(type, listener);
   }
 
   removeEventListener(type: EventType, listener: (payload: EventPayload) => void) {

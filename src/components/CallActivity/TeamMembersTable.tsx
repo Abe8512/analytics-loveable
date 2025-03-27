@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -25,8 +25,8 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   
-  const fetchTeamMembers = async () => {
-    setIsLoading(true);
+  const fetchTeamMembers = useCallback(async () => {
+    if (isLoading === false) setIsLoading(true);
     try {
       const members = await teamService.getTeamMembers();
       // Apply limit if specified
@@ -43,13 +43,22 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [limit, toast]);
   
   useEffect(() => {
     fetchTeamMembers();
-  }, [limit]);
+  }, [fetchTeamMembers]);
   
   // Listen for team member events to refresh the table
+  useEventListener('TEAM_MEMBER_ADDED', () => {
+    fetchTeamMembers();
+  });
+  
+  useEventListener('TEAM_MEMBER_REMOVED', () => {
+    fetchTeamMembers();
+  });
+
+  // Also listen for newer event naming convention
   useEventListener('team-member-added', () => {
     fetchTeamMembers();
   });
@@ -58,19 +67,19 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
     fetchTeamMembers();
   });
 
-  const handleRowClick = (memberId: string) => {
+  const handleRowClick = useCallback((memberId: string) => {
     if (onTeamMemberSelect) {
       onTeamMemberSelect(memberId);
     }
-  };
+  }, [onTeamMemberSelect]);
 
-  const getInitials = (name: string) => {
+  const getInitials = useMemo(() => (name: string) => {
     return name
       .split(' ')
       .map((part) => part.charAt(0))
       .join('')
       .toUpperCase();
-  };
+  }, []);
 
   if (isLoading) {
     return (
