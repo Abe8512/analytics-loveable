@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Phone, BarChart, Trash } from "lucide-react";
 
-interface TeamMember {
+export interface TeamMember {
   id: string;
   name: string;
   email: string;
@@ -13,7 +13,7 @@ interface TeamMember {
   avatar?: string;
 }
 
-interface TeamMemberCardProps {
+export interface TeamMemberCardProps {
   member: TeamMember;
   onDelete: () => void;
 }

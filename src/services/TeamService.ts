@@ -1,268 +1,343 @@
 
-import { useState, useEffect } from 'react';
-import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from 'uuid';
-import { dispatchEvent } from './events/store';
-import { EventType } from './events/types';
-import { addEventListener, removeEventListener } from './events/store';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { dispatchEvent } from '@/services/events/store';
+import { EventType } from '@/services/events/types';
+import { errorHandler } from './ErrorHandlingService';
+import { toast } from 'sonner';
+import { useEventsStore } from './events';
 
-// Define the team member interface
-interface TeamMember {
+export interface TeamMember {
   id: string;
   name: string;
-  email: string; // Making email required to match supabase schema
+  email?: string;
   role?: string;
   avatar_url?: string;
-  member_id?: string;
-  user_id: string; // Making user_id required to match supabase schema
+  user_id: string;
 }
 
-// Helper function to generate demo team members
-const generateDemoTeamMembers = (): TeamMember[] => {
-  return [
-    {
-      id: "demo-1",
-      name: "John Doe",
-      email: "john@example.com",
-      role: "Sales Rep",
-      member_id: "d1",
-      user_id: "demo-user-1"
-    },
-    {
-      id: "demo-2",
-      name: "Jane Smith",
-      email: "jane@example.com",
-      role: "Sales Manager",
-      member_id: "d2",
-      user_id: "demo-user-2"
-    },
-    {
-      id: "demo-3",
-      name: "Dave Wilson",
-      email: "dave@example.com",
-      role: "Sales Rep",
-      member_id: "d3",
-      user_id: "demo-user-3"
-    }
-  ];
-};
-
-// Check if the team_members table exists in Supabase
-const isTeamMembersTableMissing = async (): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from('team_members')
-      .select('id')
-      .limit(1);
-    
-    // If there's an error that mentions the relation doesn't exist, the table is missing
-    return error?.message.includes('relation "team_members" does not exist') || false;
-  } catch (error) {
-    console.error("Error checking if team_members table exists:", error);
-    return true; // Assume missing if we can't check
-  }
-};
-
-// Get team members from localStorage
-const getStoredTeamMembers = (): TeamMember[] => {
-  try {
-    const storedTeamMembers = localStorage.getItem('teamMembers');
-    if (storedTeamMembers) {
-      return JSON.parse(storedTeamMembers);
-    }
-  } catch (error) {
-    console.error("Error retrieving team members from localStorage:", error);
+class TeamService {
+  private teamMembersCache: TeamMember[] | null = null;
+  private isTeamMembersTableMissing: boolean = false;
+  private lastChecked: number = 0;
+  private CHECK_INTERVAL = 600000; // 10 minutes
+  
+  constructor() {
+    // Initialize service
+    console.log('TeamService initialized');
   }
   
-  // Return demo data if nothing in localStorage
-  const demoMembers = generateDemoTeamMembers();
-  localStorage.setItem('teamMembers', JSON.stringify(demoMembers));
-  return demoMembers;
-};
-
-// Save team members to localStorage
-const storeTeamMembers = (teamMembers: TeamMember[]): void => {
-  try {
-    localStorage.setItem('teamMembers', JSON.stringify(teamMembers));
-  } catch (error) {
-    console.error("Error storing team members in localStorage:", error);
-  }
-};
-
-// Add a team member (to Supabase if available, otherwise localStorage)
-const addTeamMember = async (member: Omit<Partial<TeamMember>, 'id'>): Promise<TeamMember | null> => {
-  try {
-    const newMember: TeamMember = {
-      ...member,
-      id: uuidv4(),
-      user_id: member.user_id || uuidv4(), // Ensure user_id is set
-      email: member.email || `${member.name?.toLowerCase().replace(' ', '.')}@example.com` || '', // Ensure email is set
-      name: member.name || '',
-    };
-    
-    const tableMissing = await isTeamMembersTableMissing();
-    
-    if (!tableMissing) {
-      // Add to Supabase
-      const { data, error } = await supabase
-        .from('team_members')
-        .insert([newMember])
-        .select()
-        .single();
-      
-      if (error) {
-        console.error("Error adding team member to Supabase:", error);
-        throw error;
-      }
-      
-      // Dispatch event for components to refresh
-      dispatchEvent('team-member-added' as EventType, { data });
-      
-      return data;
-    } else {
-      // Add to localStorage
-      const teamMembers = getStoredTeamMembers();
-      teamMembers.push(newMember);
-      storeTeamMembers(teamMembers);
-      
-      // Dispatch event for components to refresh
-      dispatchEvent('team-member-added' as EventType, { data: newMember });
-      
-      return newMember;
+  async checkTeamMembersTable(): Promise<boolean> {
+    // Only check if we haven't checked recently or if we previously found it missing
+    const now = Date.now();
+    if (!this.isTeamMembersTableMissing && now - this.lastChecked < this.CHECK_INTERVAL) {
+      return !this.isTeamMembersTableMissing;
     }
-  } catch (error) {
-    console.error("Error adding team member:", error);
-    return null;
-  }
-};
-
-// Remove a team member (from Supabase if available, otherwise localStorage)
-const removeTeamMember = async (id: string): Promise<boolean> => {
-  try {
-    const tableMissing = await isTeamMembersTableMissing();
     
-    if (!tableMissing) {
-      // Remove from Supabase
+    try {
+      this.lastChecked = now;
+      
+      // Try to query the table to see if it exists
       const { error } = await supabase
         .from('team_members')
-        .delete()
-        .eq('id', id);
-      
-      if (error) {
-        console.error("Error removing team member from Supabase:", error);
-        throw error;
+        .select('id')
+        .limit(1);
+        
+      // If there's a specific error about the table not existing
+      if (error && (
+        error.message.includes('does not exist') || 
+        error.message.includes('relation "team_members" does not exist')
+      )) {
+        console.log('team_members table does not exist');
+        this.isTeamMembersTableMissing = true;
+        return false;
       }
-    } 
-    
-    // Always update localStorage too
-    const teamMembers = getStoredTeamMembers();
-    const filteredMembers = teamMembers.filter(member => member.id !== id);
-    storeTeamMembers(filteredMembers);
-    
-    // Dispatch event for components to refresh
-    dispatchEvent('team-member-removed' as EventType, { id });
-    
-    return true;
-  } catch (error) {
-    console.error("Error removing team member:", error);
-    return false;
+        
+      // If we get here, the table exists
+      this.isTeamMembersTableMissing = false;
+      return true;
+    } catch (error) {
+      console.error('Error checking team_members table:', error);
+      // Assume the table doesn't exist on error
+      this.isTeamMembersTableMissing = true;
+      return false;
+    }
   }
-};
-
-// Get all team members (from Supabase if available, otherwise localStorage)
-const getTeamMembers = async (): Promise<TeamMember[]> => {
-  try {
-    const tableMissing = await isTeamMembersTableMissing();
-    
-    if (!tableMissing) {
-      // Get from Supabase
+  
+  async getTeamMembers(): Promise<TeamMember[]> {
+    try {
+      // Check if the team_members table exists
+      const tableExists = await this.checkTeamMembersTable();
+      
+      if (!tableExists) {
+        console.log('Using local storage fallback for team members');
+        return this.getStoredTeamMembers();
+      }
+      
+      // Fetch from database
       const { data, error } = await supabase
         .from('team_members')
-        .select('*');
-      
+        .select('*')
+        .order('created_at', { ascending: false });
+        
       if (error) {
-        console.error("Error fetching team members from Supabase:", error);
-        throw error;
+        console.error('Error fetching team members:', error);
+        errorHandler.handleError(error, 'TeamService.getTeamMembers');
+        
+        // Fallback to local storage
+        return this.getStoredTeamMembers();
       }
       
-      if (data.length === 0) {
-        // If no data in Supabase, use demo data and store it
-        const demoMembers = generateDemoTeamMembers();
+      if (data && data.length > 0) {
+        // Update cache
+        this.teamMembersCache = data;
         
-        // Store in both localStorage and Supabase
-        storeTeamMembers(demoMembers);
+        // Also store in local storage as backup
+        localStorage.setItem('team_members', JSON.stringify(data));
         
-        try {
-          // Insert demo members one by one to avoid type mismatch issues
-          for (const member of demoMembers) {
-            await supabase
-              .from('team_members')
-              .insert([member]);
-          }
-        } catch (insertError) {
-          console.error("Error inserting demo team members:", insertError);
+        return data;
+      }
+      
+      // If no data in database, try local storage
+      return this.getStoredTeamMembers();
+    } catch (error) {
+      console.error('Exception in getTeamMembers:', error);
+      return this.getStoredTeamMembers();
+    }
+  }
+  
+  getStoredTeamMembers(): TeamMember[] {
+    try {
+      // Try to get from cache first
+      if (this.teamMembersCache) {
+        return this.teamMembersCache;
+      }
+      
+      // Try to get from local storage
+      const stored = localStorage.getItem('team_members');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        this.teamMembersCache = parsed;
+        return parsed;
+      }
+      
+      // If nothing in local storage, create demo data
+      const demoData: TeamMember[] = [
+        {
+          id: '1',
+          name: 'Sarah Johnson',
+          email: 'sarah.johnson@example.com',
+          role: 'Sales Manager',
+          user_id: 'user-1'
+        },
+        {
+          id: '2',
+          name: 'Michael Chen',
+          email: 'michael.chen@example.com',
+          role: 'Senior Sales Rep',
+          user_id: 'user-2'
+        },
+        {
+          id: '3',
+          name: 'Jessica Rodriguez',
+          email: 'jessica.r@example.com',
+          role: 'Sales Rep',
+          user_id: 'user-3'
+        }
+      ];
+      
+      // Store demo data
+      localStorage.setItem('team_members', JSON.stringify(demoData));
+      this.teamMembersCache = demoData;
+      
+      return demoData;
+    } catch (error) {
+      console.error('Error getting stored team members:', error);
+      return [];
+    }
+  }
+  
+  async addTeamMember(member: Omit<TeamMember, 'id'>): Promise<TeamMember> {
+    try {
+      // Check if the team_members table exists
+      const tableExists = await this.checkTeamMembersTable();
+      
+      if (tableExists) {
+        // Add to database
+        const { data, error } = await supabase
+          .from('team_members')
+          .insert({
+            name: member.name,
+            email: member.email,
+            role: member.role,
+            user_id: member.user_id
+          })
+          .select();
+          
+        if (error) {
+          console.error('Error adding team member to database:', error);
+          errorHandler.handleError(error, 'TeamService.addTeamMember');
+          
+          // Fallback to local storage
+          return this.addTeamMemberToLocalStorage(member);
         }
         
-        return demoMembers;
+        if (data && data.length > 0) {
+          // Invalidate cache
+          this.teamMembersCache = null;
+          
+          // Dispatch event
+          dispatchEvent('TEAM_MEMBER_ADDED' as EventType, { member: data[0] });
+          
+          return data[0];
+        }
       }
       
-      return data;
-    } else {
-      // Get from localStorage
-      return getStoredTeamMembers();
+      // Fallback to local storage
+      return this.addTeamMemberToLocalStorage(member);
+    } catch (error) {
+      console.error('Exception in addTeamMember:', error);
+      return this.addTeamMemberToLocalStorage(member);
     }
-  } catch (error) {
-    console.error("Error fetching team members:", error);
-    return getStoredTeamMembers(); // Fallback to localStorage
   }
-};
-
-// React hook for team members
-const useTeamMembers = () => {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
   
-  const refreshTeamMembers = async () => {
+  private addTeamMemberToLocalStorage(member: Omit<TeamMember, 'id'>): TeamMember {
     try {
-      setIsLoading(true);
-      const members = await getTeamMembers();
-      setTeamMembers(members);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setIsLoading(false);
+      // Get current members
+      const members = this.getStoredTeamMembers();
+      
+      // Create new member with generated ID
+      const newMember: TeamMember = {
+        ...member,
+        id: `local-${Date.now()}`
+      };
+      
+      // Add to list
+      const updatedMembers = [newMember, ...members];
+      
+      // Update local storage
+      localStorage.setItem('team_members', JSON.stringify(updatedMembers));
+      
+      // Update cache
+      this.teamMembersCache = updatedMembers;
+      
+      // Dispatch event
+      dispatchEvent('TEAM_MEMBER_ADDED' as EventType, { member: newMember });
+      
+      return newMember;
+    } catch (error) {
+      console.error('Error adding team member to local storage:', error);
+      throw error;
     }
-  };
+  }
   
-  useEffect(() => {
-    refreshTeamMembers();
-    
-    // Add event listeners
-    const removeAddedListener = addEventListener('team-member-added' as EventType, () => {
-      refreshTeamMembers();
-    });
-    
-    const removeRemovedListener = addEventListener('team-member-removed' as EventType, () => {
-      refreshTeamMembers();
-    });
-    
-    // Cleanup function
-    return () => {
-      if (removeAddedListener) removeAddedListener();
-      if (removeRemovedListener) removeRemovedListener();
-    };
-  }, []);
+  async removeTeamMember(id: string): Promise<void> {
+    try {
+      // Check if the team_members table exists
+      const tableExists = await this.checkTeamMembersTable();
+      
+      if (tableExists && !id.startsWith('local-')) {
+        // Remove from database
+        const { error } = await supabase
+          .from('team_members')
+          .delete()
+          .eq('id', id);
+          
+        if (error) {
+          console.error('Error removing team member from database:', error);
+          errorHandler.handleError(error, 'TeamService.removeTeamMember');
+          
+          // Fallback to local storage
+          this.removeTeamMemberFromLocalStorage(id);
+          return;
+        }
+        
+        // Invalidate cache
+        this.teamMembersCache = null;
+        
+        // Also remove from local storage if it exists there
+        this.removeTeamMemberFromLocalStorage(id);
+        
+        // Dispatch event
+        dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, { id });
+        
+        return;
+      }
+      
+      // Fallback to local storage
+      this.removeTeamMemberFromLocalStorage(id);
+    } catch (error) {
+      console.error('Exception in removeTeamMember:', error);
+      this.removeTeamMemberFromLocalStorage(id);
+    }
+  }
   
-  return { teamMembers, isLoading, error, refreshTeamMembers };
-};
+  private removeTeamMemberFromLocalStorage(id: string): void {
+    try {
+      // Get current members
+      const members = this.getStoredTeamMembers();
+      
+      // Filter out the member to remove
+      const updatedMembers = members.filter(member => member.id !== id);
+      
+      // Update local storage
+      localStorage.setItem('team_members', JSON.stringify(updatedMembers));
+      
+      // Update cache
+      this.teamMembersCache = updatedMembers;
+      
+      // Dispatch event
+      dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, { id });
+    } catch (error) {
+      console.error('Error removing team member from local storage:', error);
+      throw error;
+    }
+  }
+  
+  useTeamMembers() {
+    const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<Error | null>(null);
+    const eventsStore = useEventsStore.getState();
+    
+    const refreshTeamMembers = useCallback(async () => {
+      try {
+        setIsLoading(true);
+        const members = await teamService.getTeamMembers();
+        setTeamMembers(members);
+        setError(null);
+      } catch (err) {
+        console.error('Error refreshing team members:', err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        toast.error('Failed to load team members');
+      } finally {
+        setIsLoading(false);
+      }
+    }, []);
+    
+    useEffect(() => {
+      refreshTeamMembers();
+      
+      // Set up event listeners
+      const unsubscribe = useEventsStore.subscribe((state) => {
+        // Listen for team member added event
+        state.addEventListener('TEAM_MEMBER_ADDED' as EventType, () => {
+          refreshTeamMembers();
+        });
+        
+        // Listen for team member removed event
+        state.addEventListener('TEAM_MEMBER_REMOVED' as EventType, () => {
+          refreshTeamMembers();
+        });
+      });
+      
+      return () => {
+        unsubscribe();
+      };
+    }, [refreshTeamMembers]);
+    
+    return { teamMembers, isLoading, error, refreshTeamMembers };
+  }
+}
 
-export const teamService = {
-  getTeamMembers,
-  addTeamMember,
-  removeTeamMember,
-  useTeamMembers
-};
-
-export default teamService;
+export const teamService = new TeamService();

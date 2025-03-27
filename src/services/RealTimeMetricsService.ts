@@ -1,252 +1,295 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { TeamMetric, RepMetric, MetricsHookResult, RepMetricDb, TeamMetricDb } from './RealTimeMetrics.types';
-import { addEventListener } from '@/services/events/store';
-import { EventType } from '@/services/events/types';
+import { errorHandler } from './ErrorHandlingService';
+import { useToast } from '@/hooks/use-toast';
+import { EventType, useEventsStore } from './events';
 
-// Helper to check if table exists
-const isTableMissing = async (tableName: string): Promise<boolean> => {
-  try {
-    // Use a safer approach that doesn't rely on dynamic table names
-    const { data, error } = await supabase
-      .rpc('check_table_exists', { table_name: tableName });
-    
-    // If the function doesn't exist or returns an error, consider the table missing
-    if (error) {
-      console.error(`Error checking if ${tableName} table exists:`, error);
-      return true;
-    }
-    
-    return !data;
-  } catch (error) {
-    console.error(`Error checking if ${tableName} table exists:`, error);
-    return true; // Assume missing if we can't check
-  }
-};
+export interface TeamMetric {
+  team_name: string;
+  call_count: number;
+  avg_sentiment: number;
+  avg_duration: number;
+  conversion_rate: number;
+  success_rate: number;
+  date?: string;
+}
 
-// Convert database rep metrics to the application model
-const convertRepDbMetricsToAppMetrics = (repMetrics: RepMetricDb[]): RepMetric[] => {
-  return repMetrics.map(metric => ({
-    id: metric.id,
-    rep_name: metric.rep_name,
-    call_count: metric.call_volume || 0,
-    avg_sentiment: metric.sentiment_score || 0.5,
-    avg_duration: 300, // Default 5 minutes in seconds
-    conversion_rate: metric.success_rate || 0.4,
-  }));
-};
+export interface RepMetric {
+  rep_name: string;
+  rep_id: string;
+  call_count: number;
+  avg_sentiment: number;
+  avg_duration: number;
+  conversion_rate: number;
+  success_rate: number;
+  top_keywords?: string[];
+}
 
-// Convert database team metrics to the application model
-const convertTeamDbMetricsToAppMetrics = (teamMetrics: TeamMetricDb[]): TeamMetric[] => {
-  return teamMetrics.map(metric => ({
-    id: metric.id,
-    team_name: metric.team_name || 'Unknown Team',
-    call_count: metric.call_volume || 0,
-    avg_sentiment: metric.sentiment_score || 0.5,
-    avg_duration: 300, // Default 5 minutes in seconds
-    conversion_rate: metric.success_rate || 0.4,
-  }));
-};
-
-// Generate mock team metrics
-const generateMockTeamMetrics = (): TeamMetric[] => {
-  return [
-    {
-      id: "team1",
-      team_name: "Sales Team Alpha",
-      call_count: 128,
-      avg_sentiment: 0.75,
-      avg_duration: 325,
-      conversion_rate: 0.45
-    },
-    {
-      id: "team2",
-      team_name: "Sales Team Beta",
-      call_count: 96,
-      avg_sentiment: 0.68,
-      avg_duration: 298,
-      conversion_rate: 0.38
-    },
-    {
-      id: "team3",
-      team_name: "Sales Team Gamma",
-      call_count: 152,
-      avg_sentiment: 0.82,
-      avg_duration: 345,
-      conversion_rate: 0.52
-    }
-  ];
-};
-
-// Generate mock rep metrics
-const generateMockRepMetrics = (): RepMetric[] => {
-  return [
-    {
-      id: "rep1",
-      rep_name: "John Doe",
-      call_count: 45,
-      avg_sentiment: 0.78,
-      avg_duration: 310,
-      conversion_rate: 0.48
-    },
-    {
-      id: "rep2",
-      rep_name: "Jane Smith",
-      call_count: 38,
-      avg_sentiment: 0.82,
-      avg_duration: 295,
-      conversion_rate: 0.52
-    },
-    {
-      id: "rep3",
-      rep_name: "Dave Wilson",
-      call_count: 42,
-      avg_sentiment: 0.71,
-      avg_duration: 325,
-      conversion_rate: 0.40
-    }
-  ];
-};
-
-/**
- * React hook for team metrics
- */
-export const useTeamMetrics = (): MetricsHookResult<TeamMetric> => {
-  const [metrics, setMetrics] = useState<TeamMetric[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export const useRealTimeMetrics = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [repMetrics, setRepMetrics] = useState<RepMetric[]>([]);
+  const [teamMetrics, setTeamMetrics] = useState<TeamMetric[]>([]);
   const [error, setError] = useState<Error | null>(null);
-
-  const fetchMetrics = useCallback(async () => {
-    setIsLoading(true);
-    
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const { toast } = useToast();
+  
+  const checkTableExists = useCallback(async (tableName: string): Promise<boolean> => {
     try {
-      // Check if table exists first
-      const tableMissing = await isTableMissing('team_metrics_summary');
+      // Use the SQL function to check if the table exists
+      const { data, error } = await supabase.rpc('check_table_exists', {
+        table_name: tableName
+      });
       
-      if (tableMissing) {
-        // Use mock data if table doesn't exist
-        setMetrics(generateMockTeamMetrics());
-        setError(null);
-      } else {
-        // Fetch from database using a direct query instead of RPC
-        const { data, error: fetchError } = await supabase
-          .from('team_metrics_summary')
-          .select('*');
-        
-        if (fetchError) {
-          throw new Error(`Failed to fetch team metrics: ${fetchError.message}`);
-        }
-        
-        if (data && Array.isArray(data) && data.length > 0) {
-          setMetrics(convertTeamDbMetricsToAppMetrics(data as TeamMetricDb[]));
-        } else {
-          // Use mock data if no records found
-          setMetrics(generateMockTeamMetrics());
-        }
-        setError(null);
+      if (error) {
+        console.error('Error checking if table exists:', error);
+        return false;
       }
-    } catch (err) {
-      console.error('Error fetching team metrics:', err);
-      setError(err as Error);
       
-      // Fallback to mock data on error
-      setMetrics(generateMockTeamMetrics());
-    } finally {
-      setIsLoading(false);
+      return !!data;
+    } catch (err) {
+      console.error(`Error checking if ${tableName} exists:`, err);
+      return false;
     }
   }, []);
-
-  useEffect(() => {
-    fetchMetrics();
-  }, [fetchMetrics]);
-
-  // Listen for events that should trigger a refresh
-  useEffect(() => {
-    const removeCallUpdatedListener = addEventListener('call-updated' as EventType, () => {
-      fetchMetrics();
-    });
-
-    const removeTeamMemberAddedListener = addEventListener('team-member-added' as EventType, () => {
-      fetchMetrics();
-    });
-
-    return () => {
-      if (removeCallUpdatedListener) removeCallUpdatedListener();
-      if (removeTeamMemberAddedListener) removeTeamMemberAddedListener();
-    };
-  }, [fetchMetrics]);
-
-  return { metrics, isLoading, error, refresh: fetchMetrics };
-};
-
-/**
- * React hook for rep metrics
- */
-export const useRepMetrics = (): MetricsHookResult<RepMetric> => {
-  const [metrics, setMetrics] = useState<RepMetric[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchMetrics = useCallback(async () => {
-    setIsLoading(true);
-    
+  
+  const refreshTeamMetrics = useCallback(async () => {
     try {
-      // Check if table exists first
-      const tableMissing = await isTableMissing('rep_metrics_summary');
+      setIsLoading(true);
       
-      if (tableMissing) {
-        // Use mock data if table doesn't exist
-        setMetrics(generateMockRepMetrics());
-        setError(null);
-      } else {
-        // Fetch from database if table exists
-        const { data, error: fetchError } = await supabase
-          .from('rep_metrics_summary')
-          .select('*');
-        
-        if (fetchError) {
-          throw new Error(`Failed to fetch rep metrics: ${fetchError.message}`);
-        }
-        
-        if (data && Array.isArray(data) && data.length > 0) {
-          setMetrics(convertRepDbMetricsToAppMetrics(data as RepMetricDb[]));
-        } else {
-          // Use mock data if no records found
-          setMetrics(generateMockRepMetrics());
-        }
-        setError(null);
+      // Check if call_metrics_summary table exists
+      const callMetricsTableExists = await checkTableExists('call_metrics_summary');
+      
+      if (!callMetricsTableExists) {
+        console.log('call_metrics_summary table does not exist, using demo data');
+        // Return demo team metrics data
+        setTeamMetrics([
+          {
+            team_name: 'Sales Team',
+            call_count: 156,
+            avg_sentiment: 0.72,
+            avg_duration: 324,
+            conversion_rate: 28,
+            success_rate: 65,
+            date: new Date().toISOString()
+          }
+        ]);
+        setIsLoading(false);
+        return;
       }
-    } catch (err) {
-      console.error('Error fetching rep metrics:', err);
-      setError(err as Error);
       
-      // Fallback to mock data on error
-      setMetrics(generateMockRepMetrics());
-    } finally {
+      // Fetch call metrics data from call_metrics_summary table
+      const { data: callMetricsData, error: callMetricsError } = await supabase
+        .from('call_metrics_summary')
+        .select('*')
+        .order('report_date', { ascending: false })
+        .limit(30);
+        
+      if (callMetricsError) {
+        console.error('Error fetching call metrics:', callMetricsError);
+        throw callMetricsError;
+      }
+      
+      // Map database records to TeamMetric interface
+      const mappedTeamMetrics: TeamMetric[] = callMetricsData.map(record => ({
+        team_name: 'Sales Team',
+        call_count: record.total_calls || 0,
+        avg_sentiment: record.avg_sentiment || 0.5,
+        avg_duration: record.avg_duration || 0,
+        conversion_rate: record.conversion_rate || 0,
+        success_rate: record.performance_score || 50,
+        date: record.report_date
+      }));
+      
+      setTeamMetrics(mappedTeamMetrics);
+      setLastRefreshed(new Date());
       setIsLoading(false);
+    } catch (err) {
+      console.error('Error refreshing team metrics:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setIsLoading(false);
+      errorHandler.handleError(err, 'RealTimeMetricsService.refreshTeamMetrics');
     }
-  }, []);
-
-  useEffect(() => {
-    fetchMetrics();
-  }, [fetchMetrics]);
-
-  // Listen for events that should trigger a refresh
-  useEffect(() => {
-    const removeCallUpdatedListener = addEventListener('call-updated' as EventType, () => {
-      fetchMetrics();
-    });
-
-    const removeTeamMemberAddedListener = addEventListener('team-member-added' as EventType, () => {
-      fetchMetrics();
-    });
-
+  }, [checkTableExists]);
+  
+  const refreshRepMetrics = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      
+      // Check if rep_metrics_summary table exists
+      const repMetricsTableExists = await checkTableExists('rep_metrics_summary');
+      
+      if (!repMetricsTableExists) {
+        console.log('rep_metrics_summary table does not exist, using demo data');
+        // Return demo rep metrics data
+        setRepMetrics([
+          {
+            rep_name: 'Sarah Johnson',
+            rep_id: 'user-1',
+            call_count: 42,
+            avg_sentiment: 0.78,
+            avg_duration: 340,
+            conversion_rate: 32,
+            success_rate: 76,
+            top_keywords: ['pricing', 'demo', 'features']
+          },
+          {
+            rep_name: 'Michael Chen',
+            rep_id: 'user-2',
+            call_count: 38,
+            avg_sentiment: 0.68,
+            avg_duration: 290,
+            conversion_rate: 24,
+            success_rate: 62,
+            top_keywords: ['support', 'integration', 'timeline']
+          }
+        ]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Fetch rep metrics data
+      const { data: repMetricsData, error: repMetricsError } = await supabase
+        .from('rep_metrics_summary')
+        .select('*')
+        .order('updated_at', { ascending: false });
+        
+      if (repMetricsError) {
+        console.error('Error fetching rep metrics:', repMetricsError);
+        throw repMetricsError;
+      }
+      
+      // Map database records to RepMetric interface
+      const mappedRepMetrics: RepMetric[] = repMetricsData.map(record => ({
+        rep_name: record.rep_name || `Rep ${record.rep_id.substring(0, 5)}`,
+        rep_id: record.rep_id,
+        call_count: record.call_volume || 0,
+        avg_sentiment: record.sentiment_score || 0.5,
+        avg_duration: 0, // Not available in the original data
+        conversion_rate: 0, // Not available in the original data
+        success_rate: record.success_rate || 0,
+        top_keywords: record.top_keywords || []
+      }));
+      
+      setRepMetrics(mappedRepMetrics);
+      setLastRefreshed(new Date());
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Error refreshing rep metrics:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setIsLoading(false);
+      errorHandler.handleError(err, 'RealTimeMetricsService.refreshRepMetrics');
+    }
+  }, [checkTableExists]);
+  
+  const setupRealtimeSubscription = useCallback(() => {
+    console.log('Setting up realtime subscription for metrics...');
+    
+    // Subscribe to changes in call_metrics_summary table
+    const channel = supabase
+      .channel('metrics-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'call_metrics_summary'
+      }, () => {
+        console.log('Call metrics changed, refreshing data...');
+        refreshTeamMetrics();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'rep_metrics_summary'
+      }, () => {
+        console.log('Rep metrics changed, refreshing data...');
+        refreshRepMetrics();
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to realtime metrics changes');
+        } else {
+          console.warn('Realtime subscription status:', status);
+        }
+      });
+      
+    // Cleanup function to remove the channel when the component unmounts
     return () => {
-      if (removeCallUpdatedListener) removeCallUpdatedListener();
-      if (removeTeamMemberAddedListener) removeTeamMemberAddedListener();
+      supabase.removeChannel(channel);
     };
-  }, [fetchMetrics]);
-
-  return { metrics, isLoading, error, refresh: fetchMetrics };
+  }, [refreshTeamMetrics, refreshRepMetrics]);
+  
+  // Initial fetch of data
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        await Promise.all([
+          refreshTeamMetrics(),
+          refreshRepMetrics()
+        ]);
+      } catch (err) {
+        console.error('Error fetching initial metrics data:', err);
+        toast({
+          title: 'Error loading metrics',
+          description: 'Failed to load performance metrics data',
+          variant: 'destructive',
+        });
+      }
+    };
+    
+    fetchInitialData();
+    
+    // Set up event listeners for metrics updates
+    const unsubscribe = useEventsStore.subscribe((state) => {
+      state.addEventListener('calls-updated' as EventType, () => {
+        console.log('Calls updated event received, refreshing metrics...');
+        refreshTeamMetrics();
+        refreshRepMetrics();
+      });
+    });
+    
+    // Set up realtime subscription
+    const unsubscribeRealtime = setupRealtimeSubscription();
+    
+    return () => {
+      unsubscribe();
+      unsubscribeRealtime();
+    };
+  }, [refreshTeamMetrics, refreshRepMetrics, setupRealtimeSubscription, toast]);
+  
+  // Function to manually refresh data
+  const refreshData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await Promise.all([
+        refreshTeamMetrics(),
+        refreshRepMetrics()
+      ]);
+      setLastRefreshed(new Date());
+      setIsLoading(false);
+      
+      toast({
+        title: 'Metrics Refreshed',
+        description: 'Performance metrics have been updated',
+      });
+    } catch (err) {
+      console.error('Error refreshing metrics data:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setIsLoading(false);
+      
+      toast({
+        title: 'Refresh Failed',
+        description: 'Could not update performance metrics',
+        variant: 'destructive',
+      });
+    }
+  }, [refreshTeamMetrics, refreshRepMetrics, toast]);
+  
+  return {
+    teamMetrics,
+    repMetrics,
+    isLoading,
+    error,
+    lastRefreshed,
+    refreshData
+  };
 };
