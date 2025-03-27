@@ -8,9 +8,10 @@ import { Trash2 } from 'lucide-react';
 export interface TeamMember {
   id: string;
   name: string;
-  email: string;
-  role: string;
+  email?: string;
+  role?: string;
   avatar?: string;
+  avatar_url?: string; // Add this for compatibility with different prop formats
 }
 
 export interface TeamMemberCardProps {
@@ -26,6 +27,9 @@ const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, onDelete }) => 
       .join('')
       .toUpperCase();
   };
+
+  // Use avatar or avatar_url, whichever is available
+  const avatarSrc = member.avatar || member.avatar_url;
 
   return (
     <Card className="overflow-hidden">
@@ -43,8 +47,8 @@ const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, onDelete }) => 
       <CardContent className="p-4 pt-2">
         <div className="flex items-center space-x-3">
           <Avatar>
-            {member.avatar ? (
-              <AvatarImage src={member.avatar} alt={member.name} />
+            {avatarSrc ? (
+              <AvatarImage src={avatarSrc} alt={member.name} />
             ) : null}
             <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
           </Avatar>
