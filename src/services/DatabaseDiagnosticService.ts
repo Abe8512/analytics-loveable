@@ -1,207 +1,164 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-interface ConnectionResult {
+interface DatabaseDiagnosticResult {
   connected: boolean;
-  timestamp: string;
+  timestamp?: string;
   version?: string;
-  error?: string;
-}
-
-interface TableResult {
-  name: string;
-  exists: boolean;
-  required: boolean;
-  rowCount: number;
-  error?: string;
-}
-
-interface DiagnosticResults {
-  tables: any[];
-  functions: any[];
-  storage: {
-    buckets: string[];
-    fileCount: number;
-  };
-  uploadPathWorkingCorrectly: boolean;
-  errors: string[];
+  tables?: string[];
+  errors?: string[];
+  fixesApplied?: boolean;
 }
 
 export class DatabaseDiagnosticService {
-  private supabase = supabase;
-  
-  constructor() {}
-  
-  checkConnection = async (): Promise<ConnectionResult> => {
+  /**
+   * Run diagnostics on the database connection
+   */
+  public async runDiagnostic(): Promise<DatabaseDiagnosticResult> {
     try {
-      const { data, error } = await this.supabase.rpc('check_connection');
+      // Check basic connection
+      const connectionResult = await this.checkConnection();
       
-      if (error) {
-        return { 
-          connected: false, 
-          error: error.message,
-          timestamp: new Date().toISOString() 
+      if (!connectionResult.connected) {
+        return {
+          connected: false,
+          errors: ['Could not connect to database']
         };
       }
       
-      // Handle response data safely
-      let connected = false;
-      let timestamp = new Date().toISOString();
-      let version = '';
+      // Get list of tables
+      const { data: tables, error: tablesError } = await supabase
+        .from('information_schema.tables')
+        .select('table_name')
+        .eq('table_schema', 'public')
+        .eq('table_type', 'BASE TABLE');
       
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        connected = Boolean(data.connected);
-        timestamp = String(data.timestamp || timestamp);
-        version = String(data.version || '');
+      if (tablesError) {
+        return {
+          ...connectionResult,
+          errors: [`Error fetching tables: ${tablesError.message}`]
+        };
       }
       
-      return { 
-        connected,
-        timestamp,
-        version
-      };
-    } catch (err) {
-      return { 
-        connected: false, 
-        error: err instanceof Error ? err.message : 'Unknown error',
-        timestamp: new Date().toISOString() 
-      };
-    }
-  };
-  
-  validateFixes = async (): Promise<{success: boolean, results: Record<string, boolean>}> => {
-    try {
-      const { data, error } = await this.supabase.rpc('validate_database_fixes');
-      
-      if (error) {
-        throw new Error(`Error validating fixes: ${error.message}`);
-      }
-      
-      // Safe handling of the response
-      let results: Record<string, boolean> = {};
-      let success = false;
-      
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        // Extract boolean values safely
-        Object.entries(data).forEach(([key, value]) => {
-          if (typeof value === 'boolean') {
-            results[key] = value;
-          }
-        });
-        
-        // Check if all_fixes_applied is true
-        success = Boolean(data.all_fixes_applied);
-      }
-      
-      return { success, results };
-    } catch (err) {
-      console.error('Error validating fixes:', err);
-      return { 
-        success: false, 
-        results: { error: false } 
-      };
-    }
-  };
-  
-  checkTables = async (): Promise<TableResult[]> => {
-    try {
-      const tables = [
-        { name: 'call_transcripts', required: true },
-        { name: 'calls', required: true },
-        { name: 'keyword_trends', required: false },
-        { name: 'sentiment_trends', required: false },
-        { name: 'schema_migrations', required: false },
-        { name: 'team_members', required: false }
-      ];
-      
-      const results: TableResult[] = [];
-      
-      for (const table of tables) {
-        try {
-          // Use the any type assertion to avoid TypeScript errors
-          const { count, error } = await this.supabase
-            .from(table.name as any)
-            .select('*', { count: 'exact', head: true });
-          
-          results.push({
-            name: table.name,
-            exists: !error,
-            required: table.required,
-            rowCount: count || 0,
-            error: error ? error.message : undefined
-          });
-        } catch (tableError) {
-          results.push({
-            name: table.name,
-            exists: false,
-            required: table.required,
-            rowCount: 0,
-            error: tableError instanceof Error ? tableError.message : 'Unknown error checking table'
-          });
-        }
-      }
-      
-      return results;
-    } catch (err) {
-      console.error('Error checking tables:', err);
-      return [];
-    }
-  };
-
-  // Add the missing runDiagnostic method
-  runDiagnostic = async (): Promise<DiagnosticResults> => {
-    try {
-      const tables = await this.checkTables();
-      
-      // Mock functions data for now, implement actual check later
-      const functions = [
-        { functionName: 'check_connection', isWorking: true },
-        { functionName: 'validate_database_fixes', isWorking: true }
-      ];
-      
-      // Check storage buckets (simplified)
-      const storageBuckets = ['uploads', 'avatars', 'transcripts'];
-      
-      const errors: string[] = [];
-      
-      // Add errors for missing required tables
-      tables.forEach(table => {
-        if (table.required && !table.exists) {
-          errors.push(`Required table '${table.name}' is missing`);
-        }
-      });
+      // Check if database fixes have been applied
+      const fixesResult = await this.checkDatabaseFixes();
       
       return {
-        tables: tables.map(t => ({
-          tableName: t.name,
-          columnCount: 0, // We would need another query to get this
-          rowCount: t.rowCount,
-          hasRLS: true // Simplified for now
-        })),
-        functions,
-        storage: {
-          buckets: storageBuckets,
-          fileCount: 0 // We would need to query this
-        },
-        uploadPathWorkingCorrectly: true,
-        errors
+        ...connectionResult,
+        tables: tables?.map(t => t.table_name) || [],
+        fixesApplied: fixesResult.fixesApplied,
+        errors: fixesResult.errors
       };
     } catch (error) {
-      console.error('Error running diagnostic:', error);
+      console.error('Error running database diagnostic:', error);
       return {
-        tables: [],
-        functions: [],
-        storage: { buckets: [], fileCount: 0 },
-        uploadPathWorkingCorrectly: false,
-        errors: [error instanceof Error ? error.message : 'Unknown error']
+        connected: false,
+        errors: [error instanceof Error ? error.message : 'Unknown error occurred']
       };
     }
-  };
-
-  // Add the missing formatResults method
-  formatResults = (results: DiagnosticResults): string => {
-    return JSON.stringify(results, null, 2);
-  };
+  }
+  
+  /**
+   * Format diagnostic results for display
+   */
+  public formatResults(results: DatabaseDiagnosticResult): string {
+    let output = '';
+    
+    output += `Connection: ${results.connected ? '✅' : '❌'}\n`;
+    if (results.timestamp) {
+      output += `Timestamp: ${results.timestamp}\n`;
+    }
+    if (results.version) {
+      output += `Version: ${results.version}\n`;
+    }
+    
+    if (results.tables && results.tables.length > 0) {
+      output += `\nTables (${results.tables.length}):\n`;
+      output += results.tables.map(t => `- ${t}`).join('\n');
+    }
+    
+    if (results.fixesApplied !== undefined) {
+      output += `\n\nDatabase Fixes: ${results.fixesApplied ? '✅ Applied' : '❌ Not Applied'}\n`;
+    }
+    
+    if (results.errors && results.errors.length > 0) {
+      output += `\nErrors:\n`;
+      output += results.errors.map(e => `- ${e}`).join('\n');
+    }
+    
+    return output;
+  }
+  
+  /**
+   * Check basic database connection
+   */
+  private async checkConnection(): Promise<DatabaseDiagnosticResult> {
+    try {
+      const { data, error } = await supabase
+        .rpc('check_connection');
+      
+      if (error) {
+        return {
+          connected: false,
+          errors: [error.message]
+        };
+      }
+      
+      // Handle response based on whether it's an object or array
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        return {
+          connected: data.connected === true,
+          timestamp: data.timestamp as string,
+          version: data.version as string
+        };
+      }
+      
+      return {
+        connected: true
+      };
+    } catch (error) {
+      console.error('Error checking connection:', error);
+      return {
+        connected: false,
+        errors: [error instanceof Error ? error.message : 'Unknown error occurred']
+      };
+    }
+  }
+  
+  /**
+   * Check if database fixes have been applied
+   */
+  private async checkDatabaseFixes(): Promise<{fixesApplied: boolean, errors?: string[]}> {
+    try {
+      const { data, error } = await supabase
+        .rpc('validate_database_fixes');
+      
+      if (error) {
+        return {
+          fixesApplied: false,
+          errors: [error.message]
+        };
+      }
+      
+      // Handle response based on whether it's an object or array
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        return {
+          fixesApplied: data.all_fixes_applied === true
+        };
+      }
+      
+      return {
+        fixesApplied: false,
+        errors: ['Invalid response from validate_database_fixes']
+      };
+    } catch (error) {
+      console.error('Error checking database fixes:', error);
+      return {
+        fixesApplied: false,
+        errors: [error instanceof Error ? error.message : 'Unknown error occurred']
+      };
+    }
+  }
 }
 
 export const databaseDiagnosticService = new DatabaseDiagnosticService();

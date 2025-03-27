@@ -116,8 +116,10 @@ const processAudioFile = async (file: File, teamMember: string): Promise<Process
     const fileName = file.name;
     const fileExtension = fileName.split('.').pop() || 'unknown';
     
-    // Read the file content as text
-    const fileContent = await file.text();
+    // Clean the file content to remove null bytes
+    let fileContent = await file.text();
+    // Remove null bytes and other problematic characters that could cause Unicode escape sequence issues
+    fileContent = fileContent.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     
     // Extract audio file duration
     const audioDuration = await getAudioDuration(file);

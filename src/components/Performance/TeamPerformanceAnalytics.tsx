@@ -23,7 +23,7 @@ export const TeamPerformanceAnalytics: React.FC<TeamPerformanceAnalyticsProps> =
     name: member.name,
     'Call Volume': member.calls,
     'Success Rate': member.successRate,
-    'Sentiment Score': parseFloat(member.avgSentiment) * 100,
+    'Sentiment Score': member.avgSentiment * 100, // Convert to percentage
     'Conversion Rate': member.conversionRate * 100
   }));
 

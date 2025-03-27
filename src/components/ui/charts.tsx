@@ -1,151 +1,157 @@
 
+// Create missing charts components referenced in Analytics.tsx
 import React from 'react';
 import {
-  LineChart as RechartsLineChart,
-  BarChart as RechartsBarChart,
-  AreaChart as RechartsAreaChart,
-  PieChart as RechartsPieChart,
+  LineChart,
   Line,
+  BarChart,
   Bar,
-  Area,
+  PieChart,
   Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
-  Cell,
-  ResponsiveContainer
+  ResponsiveContainer,
+  AreaChart,
+  Area
 } from 'recharts';
 
-// Common chart colors
-const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-interface ChartProps {
+interface LineChartProps {
   data: any[];
+  xKey: string;
+  lines: {
+    key: string;
+    color: string;
+    name?: string;
+  }[];
   height?: number;
 }
 
-// Bar Chart
-interface BarChartProps extends ChartProps {
-  xField: string;
-  yField: string;
-  barColor?: string;
-}
-
-export const BarChart: React.FC<BarChartProps> = ({
-  data,
-  xField,
-  yField,
-  barColor = '#4f46e5',
-  height = 300
-}) => {
+export const LineChartComponent: React.FC<LineChartProps> = ({ data, xKey, lines, height = 300 }) => {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <RechartsBarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+      <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey={xField} />
+        <XAxis dataKey={xKey} />
         <YAxis />
         <Tooltip />
         <Legend />
-        <Bar dataKey={yField} fill={barColor} />
-      </RechartsBarChart>
+        {lines.map((line, index) => (
+          <Line 
+            key={index}
+            type="monotone" 
+            dataKey={line.key} 
+            stroke={line.color} 
+            name={line.name || line.key} 
+            activeDot={{ r: 8 }} 
+          />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   );
 };
 
-// Line Chart
-interface LineChartProps extends ChartProps {
-  xField: string;
-  yField: string;
-  lineColor?: string;
+interface BarChartProps {
+  data: any[];
+  xKey: string;
+  bars: {
+    key: string;
+    color: string;
+    name?: string;
+  }[];
+  height?: number;
 }
 
-export const LineChart: React.FC<LineChartProps> = ({
-  data,
-  xField,
-  yField,
-  lineColor = '#10b981',
-  height = 300
-}) => {
+export const BarChartComponent: React.FC<BarChartProps> = ({ data, xKey, bars, height = 300 }) => {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <RechartsLineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+      <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey={xField} />
+        <XAxis dataKey={xKey} />
         <YAxis />
         <Tooltip />
         <Legend />
-        <Line type="monotone" dataKey={yField} stroke={lineColor} activeDot={{ r: 8 }} />
-      </RechartsLineChart>
+        {bars.map((bar, index) => (
+          <Bar 
+            key={index} 
+            dataKey={bar.key} 
+            fill={bar.color} 
+            name={bar.name || bar.key} 
+          />
+        ))}
+      </BarChart>
     </ResponsiveContainer>
   );
 };
 
-// Area Chart
-interface AreaChartProps extends ChartProps {
-  xField: string;
-  yField: string;
-  areaColor?: string;
-  lineColor?: string;
+interface PieChartProps {
+  data: {
+    name: string;
+    value: number;
+    color: string;
+  }[];
+  height?: number;
 }
 
-export const AreaChart: React.FC<AreaChartProps> = ({
-  data,
-  xField,
-  yField,
-  areaColor = 'rgba(79, 70, 229, 0.2)',
-  lineColor = '#4f46e5',
-  height = 300
-}) => {
+export const PieChartComponent: React.FC<PieChartProps> = ({ data, height = 300 }) => {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <RechartsAreaChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey={xField} />
-        <YAxis />
-        <Tooltip />
-        <Legend />
-        <Area type="monotone" dataKey={yField} stroke={lineColor} fill={areaColor} />
-      </RechartsAreaChart>
-    </ResponsiveContainer>
-  );
-};
-
-// Pie Chart
-interface PieChartProps extends ChartProps {
-  nameField: string;
-  valueField: string;
-  colors?: string[];
-}
-
-export const PieChart: React.FC<PieChartProps> = ({
-  data,
-  nameField,
-  valueField,
-  colors = COLORS,
-  height = 300
-}) => {
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <RechartsPieChart>
+      <PieChart>
         <Pie
           data={data}
           cx="50%"
           cy="50%"
           labelLine={false}
           outerRadius={80}
-          dataKey={valueField}
-          nameKey={nameField}
+          fill="#8884d8"
+          dataKey="value"
           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
         >
           {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+            <Cell key={`cell-${index}`} fill={entry.color} />
           ))}
         </Pie>
+        <Tooltip formatter={(value) => `${value}`} />
+        <Legend />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+};
+
+interface AreaChartProps {
+  data: any[];
+  xKey: string;
+  areas: {
+    key: string;
+    color: string;
+    name?: string;
+  }[];
+  height?: number;
+}
+
+export const AreaChartComponent: React.FC<AreaChartProps> = ({ data, xKey, areas, height = 300 }) => {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey={xKey} />
+        <YAxis />
         <Tooltip />
         <Legend />
-      </RechartsPieChart>
+        {areas.map((area, index) => (
+          <Area 
+            key={index} 
+            type="monotone" 
+            dataKey={area.key} 
+            fill={area.color} 
+            stroke={area.color}
+            name={area.name || area.key} 
+          />
+        ))}
+      </AreaChart>
     </ResponsiveContainer>
   );
 };

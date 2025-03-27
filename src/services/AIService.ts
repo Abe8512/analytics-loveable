@@ -1,6 +1,6 @@
 
 interface SentimentAnalysisResult {
-  sentiment: string;
+  sentiment: "positive" | "neutral" | "negative"; // Ensuring the type is correct
   sentimentScore: number;
   keywords: string[];
   keyPhrases: string[];
@@ -45,9 +45,10 @@ export const getSentimentScore = async (text: string): Promise<SentimentAnalysis
     const keyPhrases = ['customer service', 'product quality', 'delivery time']
       .filter(() => Math.random() > 0.5);
     
-    let sentiment = 'neutral';
-    if (clampedScore > 0.6) sentiment = 'positive';
-    if (clampedScore < 0.4) sentiment = 'negative';
+    // Ensure the sentiment conforms to the expected type
+    let sentiment: "positive" | "neutral" | "negative" = "neutral";
+    if (clampedScore > 0.6) sentiment = "positive";
+    if (clampedScore < 0.4) sentiment = "negative";
     
     return {
       sentiment,
@@ -58,7 +59,7 @@ export const getSentimentScore = async (text: string): Promise<SentimentAnalysis
   } catch (error) {
     console.error('Error in sentiment analysis:', error);
     return {
-      sentiment: 'neutral',
+      sentiment: "neutral",
       sentimentScore: 0.5,
       keywords: [],
       keyPhrases: []

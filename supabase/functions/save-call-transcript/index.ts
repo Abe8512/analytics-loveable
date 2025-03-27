@@ -32,12 +32,21 @@ serve(async (req) => {
       )
     }
 
+    // Clean up text to prevent Unicode escape sequence issues
+    const cleanText = data.text.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    
     console.log('Processing call transcript data:', {
       id: data.id || 'auto-generated',
       user_id: data.user_id || 'anonymous',
       filename: data.filename || 'unnamed_recording.mp3',
-      text_length: data.text ? data.text.length : 0
+      text_length: cleanText ? cleanText.length : 0
     })
+
+    // Process sentiment value to ensure it's one of the allowed values
+    let sentiment = data.sentiment || 'neutral'
+    if (!['positive', 'negative', 'neutral'].includes(sentiment)) {
+      sentiment = 'neutral'
+    }
 
     // Direct insert to the call_transcripts table
     const { data: insertData, error } = await supabase
@@ -45,10 +54,10 @@ serve(async (req) => {
       .insert({
         id: data.id || undefined,
         user_id: data.user_id || 'anonymous',
-        text: data.text,
+        text: cleanText,
         filename: data.filename || 'unnamed_recording.mp3',
         duration: data.duration || 0,
-        sentiment: data.sentiment || 'neutral',
+        sentiment: sentiment,
         keywords: data.keywords || [],
         key_phrases: data.key_phrases || [],
         call_score: data.call_score || 50,

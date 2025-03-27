@@ -103,13 +103,19 @@ export const useBulkUploadService = () => {
         console.log(`Processing file ${i+1}/${queuedFiles.length}: ${file.file.name}`);
         
         try {
-          await bulkUploadProcessor.processFile(
-            file.file,
-            (status, progress, result, error, transcriptId) => {
-              console.log(`File ${file.file.name} status update: ${status}, progress: ${progress}%, result: ${result?.slice(0, 50)}${result?.length > 50 ? '...' : ''}`);
-              updateFileStatus(file.id, status, progress, result, error, transcriptId);
-            }
-          );
+          // Define a callback function that accepts multiple parameters
+          const progressCallback = (
+            status: UploadStatus, 
+            progress: number, 
+            result?: string, 
+            error?: string, 
+            transcriptId?: string
+          ) => {
+            console.log(`File ${file.file.name} status update: ${status}, progress: ${progress}%, result: ${result?.slice(0, 50)}${result?.length > 50 ? '...' : ''}`);
+            updateFileStatus(file.id, status, progress, result, error, transcriptId);
+          };
+          
+          await bulkUploadProcessor.processFile(file.file, progressCallback);
           
           if (i < queuedFiles.length - 1) {
             toast.success(`Processed file ${i+1}/${queuedFiles.length}`, {
