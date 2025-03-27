@@ -6,57 +6,88 @@ import { supabase } from '@/integrations/supabase/client';
  */
 export const realtimeService = {
   /**
-   * Enable realtime functionality for a table via RPC function
+   * Enable realtime functionality for a table
    */
   enableRealtimeForTable: async (tableName: string) => {
     try {
       console.log(`Enabling realtime for table: ${tableName}`);
       
-      // First, set the table to full replica mode to capture all columns in change events
-      const { error: replicaError } = await supabase.rpc('set_replica_identity_full_for_table', {
-        table_name: tableName
-      });
+      // Set the table to REPLICA IDENTITY FULL directly
+      const { data, error } = await supabase.rpc(
+        'execute_sql',
+        { query_text: `ALTER TABLE ${tableName} REPLICA IDENTITY FULL` }
+      );
       
-      if (replicaError) {
-        console.error(`Error setting replica identity for ${tableName}:`, replicaError);
-        throw replicaError;
+      if (error) {
+        console.error(`Error setting replica identity for ${tableName}:`, error);
+        return { table: tableName, success: false, error };
       }
       
-      // Then, add the table to the realtime publication
-      const { error: pubError } = await supabase.rpc('add_table_to_realtime_publication', {
-        table_name: tableName
-      });
+      // Add the table to the realtime publication
+      const { data: pubData, error: pubError } = await supabase.rpc(
+        'execute_sql',
+        { 
+          query_text: `
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+                CREATE PUBLICATION supabase_realtime;
+              END IF;
+              
+              IF NOT EXISTS (
+                SELECT 1 FROM pg_publication_tables 
+                WHERE pubname = 'supabase_realtime' 
+                AND schemaname = 'public' 
+                AND tablename = '${tableName}'
+              ) THEN
+                ALTER PUBLICATION supabase_realtime ADD TABLE ${tableName};
+              END IF;
+            END
+            $$;
+          `
+        }
+      );
       
       if (pubError) {
         console.error(`Error adding ${tableName} to publication:`, pubError);
-        throw pubError;
+        return { table: tableName, success: false, error: pubError };
       }
       
       console.log(`Successfully enabled realtime for ${tableName}`);
-      return { success: true };
+      return { table: tableName, success: true };
     } catch (error) {
       console.error(`Failed to enable realtime for ${tableName}:`, error);
-      return { success: false, error };
+      return { table: tableName, success: false, error };
     }
   },
   
   /**
-   * Check if a table has realtime enabled using our custom SQL function
+   * Check if a table has realtime enabled
    */
   checkRealtimeEnabled: async (tableName: string) => {
     try {
-      // This uses our new SQL function to check if the table is in the realtime publication
-      const { data, error } = await supabase.rpc('check_table_in_publication', {
-        table_name: tableName,
-        publication_name: 'supabase_realtime'
-      });
+      // Query to check if the table is in the realtime publication
+      const { data, error } = await supabase.rpc(
+        'execute_sql_with_results',
+        { 
+          query_text: `
+            SELECT EXISTS (
+              SELECT 1 FROM pg_publication_tables
+              WHERE pubname = 'supabase_realtime'
+              AND schemaname = 'public'
+              AND tablename = '${tableName}'
+            ) as in_publication
+          `
+        }
+      );
       
       if (error) {
         console.error(`Error checking realtime status for ${tableName}:`, error);
         return { enabled: false, error };
       }
       
-      return { enabled: !!data };
+      const result = data && data[0] ? data[0].in_publication : false;
+      return { enabled: !!result };
     } catch (error) {
       console.error(`Failed to check realtime status for ${tableName}:`, error);
       return { enabled: false, error };

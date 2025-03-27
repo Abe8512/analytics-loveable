@@ -235,29 +235,7 @@ export type Database = {
           user_id?: string | null
           user_name?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "fk_call_transcripts_calls"
-            columns: ["call_id"]
-            isOneToOne: false
-            referencedRelation: "call_details_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_call_transcripts_calls"
-            columns: ["call_id"]
-            isOneToOne: false
-            referencedRelation: "calls"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_call_transcripts_calls"
-            columns: ["call_id"]
-            isOneToOne: false
-            referencedRelation: "sentiment_analysis_results"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       calls: {
         Row: {
@@ -280,7 +258,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           customer_engagement?: number | null
-          duration: number
+          duration?: number
           filename?: string | null
           filler_word_count?: number | null
           id?: string
@@ -598,127 +576,6 @@ export type Database = {
           last_triggered: string | null
           threshold: number | null
           triggers_count: number | null
-        }
-        Relationships: []
-      }
-      call_details_view: {
-        Row: {
-          created_at: string | null
-          filename: string | null
-          id: string | null
-          sentiment_agent: number | null
-          sentiment_customer: number | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          filename?: string | null
-          id?: string | null
-          sentiment_agent?: number | null
-          sentiment_customer?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          filename?: string | null
-          id?: string | null
-          sentiment_agent?: number | null
-          sentiment_customer?: number | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      daily_call_metrics_view: {
-        Row: {
-          active_reps: number | null
-          avg_agent_sentiment: number | null
-          avg_agent_talk_ratio: number | null
-          avg_customer_sentiment: number | null
-          avg_customer_talk_ratio: number | null
-          avg_duration: number | null
-          call_count: number | null
-          date: string | null
-          total_duration: number | null
-        }
-        Relationships: []
-      }
-      keyword_analysis_view: {
-        Row: {
-          avg_sentiment: number | null
-          first_occurrence: string | null
-          keyword: string | null
-          last_occurrence: string | null
-          occurrence_count: number | null
-        }
-        Relationships: []
-      }
-      rep_performance_view: {
-        Row: {
-          avg_call_duration: number | null
-          call_volume: number | null
-          id: string | null
-          insights: string[] | null
-          last_call_date: string | null
-          negative_calls: number | null
-          neutral_calls: number | null
-          positive_calls: number | null
-          rep_id: string | null
-          rep_name: string | null
-          sentiment_score: number | null
-          success_rate: number | null
-          time_period: string | null
-          top_keywords: string[] | null
-          total_calls: number | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
-      sentiment_analysis_results: {
-        Row: {
-          created_at: string | null
-          duration: number | null
-          filename: string | null
-          id: string | null
-          sentiment_agent: number | null
-          sentiment_customer: number | null
-          talk_ratio_agent: number | null
-          talk_ratio_customer: number | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          duration?: number | null
-          filename?: string | null
-          id?: string | null
-          sentiment_agent?: number | null
-          sentiment_customer?: number | null
-          talk_ratio_agent?: number | null
-          talk_ratio_customer?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          duration?: number | null
-          filename?: string | null
-          id?: string | null
-          sentiment_agent?: number | null
-          sentiment_customer?: number | null
-          talk_ratio_agent?: number | null
-          talk_ratio_customer?: number | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      sentiment_trends_view: {
-        Row: {
-          avg_agent_sentiment: number | null
-          avg_customer_sentiment: number | null
-          date: string | null
-          negative_agent_calls: number | null
-          negative_customer_calls: number | null
-          positive_agent_calls: number | null
-          positive_customer_calls: number | null
-          total_calls: number | null
         }
         Relationships: []
       }

@@ -7,6 +7,7 @@ import { databaseDiagnosticService } from '@/services/DatabaseDiagnosticService'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { toast } from 'sonner';
 
 const DatabaseDiagnostic = () => {
   const [isRunning, setIsRunning] = useState(false);
@@ -17,11 +18,22 @@ const DatabaseDiagnostic = () => {
     setIsRunning(true);
     
     try {
+      toast.info("Running database diagnostic...");
       const diagnosticResults = await databaseDiagnosticService.runDiagnostic();
       setResults(diagnosticResults);
       setFormattedResults(databaseDiagnosticService.formatResults(diagnosticResults));
+      
+      // Show toast based on results
+      if (diagnosticResults.errors.length === 0) {
+        toast.success("Database diagnostic completed successfully");
+      } else {
+        toast.warning(`Database diagnostic found ${diagnosticResults.errors.length} issues`);
+      }
     } catch (error) {
       console.error('Error running diagnostic:', error);
+      toast.error("Failed to run database diagnostic", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
     } finally {
       setIsRunning(false);
     }
@@ -76,7 +88,7 @@ const DatabaseDiagnostic = () => {
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">{results.functions.length}</p>
-                    <p className="text-muted-foreground">RPC functions found</p>
+                    <p className="text-muted-foreground">Functions found</p>
                   </CardContent>
                 </Card>
                 <Card>
