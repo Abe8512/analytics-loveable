@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Phone, User, BarChart } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useTeamMetrics } from '@/services/RealTimeMetricsService';
-import { useEventListener } from '@/services/events/hooks';
+import { useEventListener } from '@/services/EventsService';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 const Index = () => {
@@ -21,7 +22,9 @@ const Index = () => {
   });
 
   useEventListener('CALL_UPDATED', (data: any) => {
-    setLatestCall(data);
+    if (data && data.data) {
+      setLatestCall(data.data);
+    }
   });
 
   return (

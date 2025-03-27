@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -6,38 +7,44 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Phone, User, UserCheck, Clock } from 'lucide-react';
 import { teamService } from '@/services/TeamService';
-import { useEventListener } from '@/services/events/hooks';
+import { useEventListener } from '@/services/EventsService';
 import { EVENT_TYPES } from '@/services/EventsService';
 
 interface CallActivityProps {
-  selectedUserId: string | null;
+  selectedUserId?: string | null;
+  onTeamMemberSelect?: (id: string) => void;
+  limit?: number;
 }
 
-const TeamMembersTable: React.FC<CallActivityProps> = ({ selectedUserId }) => {
+const TeamMembersTable: React.FC<CallActivityProps> = ({ 
+  selectedUserId, 
+  onTeamMemberSelect,
+  limit 
+}) => {
   const [teamMembers, setTeamMembers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   
+  const fetchTeamMembers = async () => {
+    setIsLoading(true);
+    try {
+      const members = await teamService.getTeamMembers();
+      setTeamMembers(members);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load team members');
+      toast({
+        title: "Error",
+        description: "Failed to load team members",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   useEffect(() => {
-    const fetchTeamMembers = async () => {
-      setIsLoading(true);
-      try {
-        const members = await teamService.getTeamMembers();
-        setTeamMembers(members);
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load team members');
-        toast({
-          title: "Error",
-          description: "Failed to load team members",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     fetchTeamMembers();
   }, []);
   
@@ -48,6 +55,12 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({ selectedUserId }) => {
   useEventListener(EVENT_TYPES.TEAM_MEMBER_REMOVED, () => {
     fetchTeamMembers();
   });
+
+  const handleRowClick = (memberId: string) => {
+    if (onTeamMemberSelect) {
+      onTeamMemberSelect(memberId);
+    }
+  };
 
   if (isLoading) {
     return <div className="text-center py-4">Loading team members...</div>;
@@ -75,7 +88,11 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({ selectedUserId }) => {
           </TableHeader>
           <TableBody>
             {teamMembers.map((member) => (
-              <TableRow key={member.id}>
+              <TableRow 
+                key={member.id}
+                className={selectedUserId === member.id ? 'bg-accent/40' : 'hover:bg-accent/20'}
+                onClick={() => handleRowClick(member.id)}
+              >
                 <TableCell>
                   <Avatar>
                     <AvatarImage src={member.avatar_url || ""} alt={member.name} />

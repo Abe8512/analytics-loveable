@@ -119,3 +119,7 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
     }
   }
 }));
+
+// Export the addEventListener function for external use
+export const addEventListener = useEventsStore.getState().addEventListener;
+export const dispatchEvent = useEventsStore.getState().dispatchEvent;

@@ -1,10 +1,14 @@
 
 import { useEffect } from 'react';
-import { addEventListener } from './index';
+import { addEventListener } from './store';
+import { EventType, EventPayload } from './types';
 
-export const useEventListener = (eventType: string, callback: Function) => {
+/**
+ * React hook for subscribing to events
+ */
+export const useEventListener = (eventType: EventType | string, callback: (payload?: EventPayload) => void) => {
   useEffect(() => {
-    const removeListener = addEventListener(eventType, callback);
+    const removeListener = addEventListener(eventType as EventType, callback);
     return removeListener;
   }, [eventType, callback]);
 };

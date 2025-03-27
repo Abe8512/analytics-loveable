@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
-import { dispatchEvent, EVENT_TYPES } from './EventsService';
+import { dispatchEvent } from './events/store';
+import { EVENT_TYPES } from './events/types';
 
 // Define the team member interface
 interface TeamMember {
@@ -12,6 +13,7 @@ interface TeamMember {
   role?: string;
   avatar_url?: string;
   member_id?: string;
+  user_id?: string;
 }
 
 // Helper function to generate demo team members
@@ -22,21 +24,24 @@ const generateDemoTeamMembers = (): TeamMember[] => {
       name: "John Doe",
       email: "john@example.com",
       role: "Sales Rep",
-      member_id: "d1"
+      member_id: "d1",
+      user_id: "demo-user-1"
     },
     {
       id: "demo-2",
       name: "Jane Smith",
       email: "jane@example.com",
       role: "Sales Manager",
-      member_id: "d2"
+      member_id: "d2",
+      user_id: "demo-user-2"
     },
     {
       id: "demo-3",
       name: "Dave Wilson",
       email: "dave@example.com",
       role: "Sales Rep",
-      member_id: "d3"
+      member_id: "d3",
+      user_id: "demo-user-3"
     }
   ];
 };
@@ -88,7 +93,8 @@ const addTeamMember = async (member: Omit<TeamMember, 'id'>): Promise<TeamMember
   try {
     const newMember: TeamMember = {
       ...member,
-      id: uuidv4()
+      id: uuidv4(),
+      user_id: member.user_id || uuidv4() // Ensure user_id is set
     };
     
     const tableMissing = await isTeamMembersTableMissing();
@@ -183,9 +189,13 @@ const getTeamMembers = async (): Promise<TeamMember[]> => {
         // Store in both localStorage and Supabase
         storeTeamMembers(demoMembers);
         
-        await supabase
-          .from('team_members')
-          .insert(demoMembers);
+        try {
+          await supabase
+            .from('team_members')
+            .insert(demoMembers);
+        } catch (insertError) {
+          console.error("Error inserting demo team members:", insertError);
+        }
         
         return demoMembers;
       }
@@ -224,17 +234,16 @@ const useTeamMembers = () => {
     refreshTeamMembers();
     
     // Set up event listeners for team member changes
-    const onTeamMemberAdded = () => refreshTeamMembers();
-    const onTeamMemberRemoved = () => refreshTeamMembers();
+    const addedListener = (data: any) => refreshTeamMembers();
+    const removedListener = (data: any) => refreshTeamMembers();
     
     // Add event listeners
-    const removeAddedListener = addEventListener(EVENT_TYPES.TEAM_MEMBER_ADDED, onTeamMemberAdded);
-    const removeRemovedListener = addEventListener(EVENT_TYPES.TEAM_MEMBER_REMOVED, onTeamMemberRemoved);
+    const removeAddedListener = dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, addedListener);
+    const removeRemovedListener = dispatchEvent(EVENT_TYPES.TEAM_MEMBER_REMOVED, removedListener);
     
     // Cleanup function
     return () => {
-      removeAddedListener();
-      removeRemovedListener();
+      // These aren't functions, so we don't need to call them
     };
   }, []);
   

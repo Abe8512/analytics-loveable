@@ -124,6 +124,7 @@ const CallActivity = () => {
         
         <TabsContent value="team-members" className="space-y-6">
           <TeamMembersTable 
+            selectedUserId={selectedTeamMemberId}
             onTeamMemberSelect={handleTeamMemberSelect}
             limit={10}
           />

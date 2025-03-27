@@ -16,7 +16,11 @@ export type EventType =
   | 'sentiment-updated'
   | 'connection-restored'
   | 'connection-lost'
-  | 'call-uploaded';  // Added this event type
+  | 'call-uploaded'
+  | 'TEAM_MEMBER_ADDED'      // Added for backward compatibility
+  | 'TEAM_MEMBER_REMOVED'    // Added for backward compatibility
+  | 'MANAGED_USERS_UPDATED'  // Added for backward compatibility
+  | 'CALL_UPDATED';          // Added for backward compatibility
 
 export interface EventPayload {
   [key: string]: any;
@@ -45,3 +49,11 @@ export interface EventsStore extends EventsState {
   removeEventListener: (type: EventType, listener: (payload: EventPayload) => void) => void;
   clearEventHistory: () => void;
 }
+
+// Add the EVENT_TYPES constant for backward compatibility
+export const EVENT_TYPES = {
+  TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED',
+  TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED',
+  MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED',
+  CALL_UPDATED: 'CALL_UPDATED'
+};
