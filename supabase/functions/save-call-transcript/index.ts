@@ -32,48 +32,40 @@ serve(async (req) => {
       )
     }
 
-    // Use RPC function to save the call transcript (handles conflict issues)
-    const { data: saveResult, error: rpcError } = await supabase.rpc(
-      'save_call_transcript',
-      { p_data: data }
-    )
+    // Direct insert to the call_transcripts table
+    const { data: insertData, error } = await supabase
+      .from('call_transcripts')
+      .insert({
+        id: data.id || undefined,
+        user_id: data.user_id || 'anonymous',
+        text: data.text,
+        filename: data.filename || 'unnamed_recording.mp3',
+        duration: data.duration || 0,
+        sentiment: data.sentiment || 'neutral',
+        keywords: data.keywords || [],
+        call_score: data.call_score || 50,
+        metadata: data.metadata || {}
+      })
+      .select()
     
-    if (rpcError) {
-      console.error('Error using save_call_transcript RPC:', rpcError)
-      
-      // Fallback to direct insert
-      const { data: insertData, error } = await supabase
-        .from('call_transcripts')
-        .insert(data)
-      
-      if (error) {
-        console.error('Fallback insert also failed:', error)
-        return new Response(
-          JSON.stringify({ error: error.message }),
-          { 
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
-            status: 500 
-          }
-        )
-      }
-      
+    if (error) {
+      console.error('Error inserting call transcript:', error)
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Call transcript saved successfully (fallback)',
-          id: data.id
-        }),
+        JSON.stringify({ error: error.message }),
         { 
-          headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
+          status: 500 
         }
       )
     }
+    
+    // The trigger function will automatically create a corresponding call record
     
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: 'Call transcript saved successfully',
-        id: saveResult?.id || data.id
+        id: insertData && insertData.length > 0 ? insertData[0].id : data.id
       }),
       { 
         headers: { 'Content-Type': 'application/json', ...corsHeaders } 

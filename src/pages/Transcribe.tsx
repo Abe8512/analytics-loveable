@@ -38,8 +38,8 @@ const Transcribe = () => {
           setDatabaseStatus('ready');
           
           // Check realtime status for call_transcripts table
-          const realtimeEnabled = await realtimeService.checkRealtimeEnabled('call_transcripts');
-          setRealtimeStatus(realtimeEnabled.enabled ? 'enabled' : 'disabled');
+          const status = await realtimeService.checkRealtimeEnabled('call_transcripts');
+          setRealtimeStatus(status.enabled ? 'enabled' : 'disabled');
         }
       } catch (err) {
         console.error('Error checking database connection:', err);

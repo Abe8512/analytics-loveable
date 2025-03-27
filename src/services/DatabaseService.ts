@@ -1,307 +1,211 @@
 
-import { supabase, generateAnonymousUserId } from "@/integrations/supabase/client";
-import { transcriptAnalysisService } from './TranscriptAnalysisService';
-import { WhisperTranscriptionResponse } from "@/services/WhisperService";
-import { v4 as uuidv4 } from 'uuid';
-import { errorHandler } from './ErrorHandlingService';
+import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from "uuid";
 
+interface CallTranscriptInput {
+  text: string;
+  user_id?: string;
+  call_id?: string;
+  filename?: string;
+  duration?: number;
+  call_score?: number;
+  sentiment?: 'positive' | 'neutral' | 'negative';
+  keywords?: string[];
+  key_phrases?: string[];
+  transcript_segments?: any;
+  metadata?: any;
+}
+
+interface CallInput {
+  user_id?: string;
+  filename?: string;
+  duration?: number;
+  sentiment_agent?: number;
+  sentiment_customer?: number;
+  talk_ratio_agent?: number;
+  talk_ratio_customer?: number;
+  key_phrases?: string[];
+}
+
+interface KeywordTrendInput {
+  keyword: string;
+  category?: string;
+  count?: number;
+}
+
+interface AlertInput {
+  alert_name: string;
+  alert_type: string;
+  threshold: number;
+  description?: string;
+}
+
+/**
+ * Service for database operations like saving calls and transcripts
+ */
 export class DatabaseService {
-  // Save transcript to call_transcripts table
-  public async saveTranscriptToDatabase(
-    result: WhisperTranscriptionResponse, 
-    file: File, 
-    userId: string | null,
-    numSpeakers: number
-  ): Promise<{ id: string; error: any }> {
+  /**
+   * Save a call transcript to the database
+   */
+  public async saveCallTranscript(input: CallTranscriptInput) {
     try {
-      console.log('DatabaseService: Saving transcript to database:', {
-        filename: file.name,
-        textLength: result.text.length,
-        numSpeakers
-      });
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .insert({
+          id: uuidv4(),
+          user_id: input.user_id || 'anonymous',
+          call_id: input.call_id,
+          filename: input.filename,
+          text: input.text,
+          duration: input.duration || 0,
+          call_score: input.call_score || 50,
+          sentiment: input.sentiment || 'neutral',
+          keywords: input.keywords || [],
+          key_phrases: input.key_phrases || [],
+          transcript_segments: input.transcript_segments || null,
+          metadata: input.metadata || {},
+          created_at: new Date().toISOString()
+        })
+        .select();
       
-      // Process the transcription into segments by speaker
-      const transcriptSegments = numSpeakers > 1 
-        ? transcriptAnalysisService.splitBySpeaker(result.text, result.segments, numSpeakers)
-        : undefined;
-      
-      // Generate sentiment and keywords
-      const sentiment = transcriptAnalysisService.analyzeSentiment(result.text);
-      const keywords = transcriptAnalysisService.extractKeywords(result.text);
-      const callScore = transcriptAnalysisService.generateCallScore(result.text, sentiment);
-      
-      // Calculate duration if possible
-      const duration = await this.calculateAudioDuration(file);
-      
-      // If no assigned userId, try to get current user from auth
-      // If neither is available, use 'anonymous-{randomId}' to ensure uniqueness
-      let finalUserId = userId;
-      if (!finalUserId) {
-        console.log('No userId provided, checking auth system');
-        const { data: { user } } = await supabase.auth.getUser();
-        finalUserId = user?.id || generateAnonymousUserId();
-      }
-      
-      console.log(`Saving transcript with user_id: ${finalUserId}`);
-      
-      // Create timestamp for consistent usage
-      const timestamp = new Date().toISOString();
-      
-      // Create a unique ID for the transcript using proper UUID format
-      const transcriptId = uuidv4();
-      console.log(`Generated transcript ID: ${transcriptId}`);
-      
-      // Prepare transcript segments for storage
-      let segmentsForStorage = null;
-      if (transcriptSegments && transcriptSegments.length > 0) {
-        try {
-          segmentsForStorage = JSON.stringify(transcriptSegments);
-        } catch (error) {
-          console.error('Error stringifying transcript segments:', error);
-          errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase.stringifySegments');
-        }
-      }
-      
-      // Prepare data with proper typing for the database schema
-      const transcriptData = {
-        id: transcriptId,
-        user_id: finalUserId,
-        filename: file.name,
-        text: result.text,
-        duration,
-        call_score: callScore,
-        sentiment,
-        keywords: keywords,  // Store in keywords field
-        key_phrases: keywords, // Also store in key_phrases field
-        transcript_segments: segmentsForStorage,
-        created_at: timestamp
-      };
-      
-      console.log('Transcript data prepared for database insert:', {
-        id: transcriptId,
-        filename: file.name,
-        textLength: result.text.length,
-        segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
-      });
-      
-      // Try using the edge function first
-      try {
-        const response = await supabase.functions.invoke('save-call-transcript', {
-          body: { data: transcriptData }
+      if (error) {
+        console.error('Error saving call transcript:', error);
+        
+        // Try the edge function as a fallback
+        const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
+          body: { 
+            data: {
+              id: uuidv4(),
+              user_id: input.user_id || 'anonymous',
+              text: input.text,
+              filename: input.filename,
+              duration: input.duration || 0,
+              sentiment: input.sentiment || 'neutral',
+              keywords: input.keywords || [],
+              call_score: input.call_score || 50,
+              created_at: new Date().toISOString()
+            }
+          }
         });
         
-        if (response.error) {
-          throw new Error(response.error.message || 'Edge function error');
+        if (edgeFunctionResult.error) {
+          throw new Error(`Edge function error: ${edgeFunctionResult.error.message}`);
         }
         
-        console.log('Successfully saved transcript using edge function:', response.data);
-        return { id: transcriptId, error: null };
-      } catch (edgeFunctionError) {
-        console.error('Edge function error:', edgeFunctionError);
-        errorHandler.handleError(edgeFunctionError, 'DatabaseService.saveTranscriptToDatabase.edgeFunction');
-        
-        // Fallback to RPC function
-        try {
-          console.log('Falling back to RPC function...');
-          const { data: rpcResult, error: rpcError } = await supabase.rpc(
-            'save_call_transcript',
-            { p_data: transcriptData }
-          );
-          
-          if (rpcError) {
-            console.error('RPC function error:', rpcError);
-            throw rpcError;
-          }
-          
-          console.log('Successfully saved transcript using RPC function:', rpcResult);
-          return { id: transcriptId, error: null };
-        } catch (rpcError) {
-          console.error('RPC fallback error:', rpcError);
-          errorHandler.handleError(rpcError, 'DatabaseService.saveTranscriptToDatabase.rpcFallback');
-          
-          // Final fallback to direct insert
-          try {
-            const { error: insertError } = await supabase
-              .from('call_transcripts')
-              .insert(transcriptData);
-              
-            if (insertError) {
-              console.error('Direct insert error:', insertError);
-              return { id: transcriptId, error: insertError };
-            }
-            
-            console.log('Successfully saved transcript using direct insert');
-            return { id: transcriptId, error: null };
-          } catch (insertError) {
-            console.error('Direct insert exception:', insertError);
-            return { id: transcriptId, error: insertError };
-          }
-        }
+        return edgeFunctionResult.data;
       }
+      
+      return data;
     } catch (error) {
-      console.error('Error saving transcript:', error);
-      errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase');
-      return { id: '', error };
+      console.error('Error in saveCallTranscript:', error);
+      throw error;
     }
   }
   
-  // Update calls table for real-time metrics
-  public async updateCallsTable(callData: any): Promise<void> {
+  /**
+   * Save a call directly to the database
+   */
+  public async saveCall(input: CallInput) {
     try {
-      console.log('Updating calls table with data:', callData);
+      const { data, error } = await supabase
+        .from('calls')
+        .insert({
+          id: uuidv4(),
+          user_id: input.user_id || 'anonymous',
+          filename: input.filename,
+          duration: input.duration || 0,
+          sentiment_agent: input.sentiment_agent || 0.5,
+          sentiment_customer: input.sentiment_customer || 0.5,
+          talk_ratio_agent: input.talk_ratio_agent || 50,
+          talk_ratio_customer: input.talk_ratio_customer || 50,
+          key_phrases: input.key_phrases || [],
+          created_at: new Date().toISOString()
+        })
+        .select();
       
-      // Fix the key_phrases format issue
-      const fixedCallData = {
-        ...callData,
-        // Ensure key_phrases is properly formatted for database
-        key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
-      };
-      
-      // Try using RPC function first
-      try {
-        const { data: rpcResult, error: rpcError } = await supabase.rpc(
-          'save_call',
-          { p_data: fixedCallData }
-        );
-        
-        if (rpcError) {
-          console.error('Error using save_call RPC:', rpcError);
-          throw rpcError;
-        }
-        
-        console.log('Successfully updated calls table using RPC');
-      } catch (rpcError) {
-        console.error('RPC save_call error:', rpcError);
-        errorHandler.handleError(rpcError, 'DatabaseService.updateCallsTable.saveRPC');
-        
-        // Direct insert fallback
-        try {
-          const { error: insertError } = await supabase
-            .from('calls')
-            .insert(fixedCallData);
-            
-          if (insertError) {
-            console.error('Direct insert error:', insertError);
-            throw insertError;
-          }
-          
-          console.log('Successfully updated calls table using direct insert');
-        } catch (insertError) {
-          console.error('Direct insert error:', insertError);
-          errorHandler.handleError(insertError, 'DatabaseService.updateCallsTable.directInsert');
-        }
-      }
-    } catch (error) {
-      console.error('Exception updating calls table:', error);
-      errorHandler.handleError(error, 'DatabaseService.updateCallsTable');
-    }
-  }
-  
-  // Update keyword trends in Supabase
-  public async updateKeywordTrends(result: WhisperTranscriptionResponse): Promise<void> {
-    const keywords = transcriptAnalysisService.extractKeywords(result.text);
-    const sentiment = transcriptAnalysisService.analyzeSentiment(result.text);
-    
-    // Map sentiment to valid category
-    let category: 'positive' | 'neutral' | 'negative' | 'general' = 'general';
-    if (sentiment === 'positive') category = 'positive';
-    if (sentiment === 'neutral') category = 'neutral';
-    if (sentiment === 'negative') category = 'negative';
-    
-    // Add top keywords to trends
-    for (const keyword of keywords.slice(0, 5)) {
-      try {
-        // Use optimized RPC function
-        const { data, error } = await supabase.rpc(
-          'save_keyword_trend', 
-          { 
-            p_keyword: keyword as string,
-            p_category: category,
-            p_timestamp: new Date().toISOString()
-          }
-        );
-        
-        if (error) {
-          console.error(`Error saving keyword trend for ${keyword}:`, error);
-          errorHandler.handleError(error, 'DatabaseService.updateKeywordTrends.saveRPC');
-          
-          // Fallback to direct insert/update
-          const { error: fallbackError } = await supabase
-            .from('keyword_trends')
-            .insert({
-              keyword: keyword as string,
-              category,
-              count: 1,
-              last_used: new Date().toISOString()
-            })
-            .onConflict(['keyword', 'category'])
-            .merge({ 
-              count: supabase.rpc('increment', { count: 1 }),
-              last_used: new Date().toISOString()
-            });
-            
-          if (fallbackError) {
-            console.error(`Error inserting keyword trend for ${keyword}:`, fallbackError);
-          }
-        }
-      } catch (error) {
-        console.error(`Error updating keyword trend for ${keyword}:`, error);
-        errorHandler.handleError(error, 'DatabaseService.updateKeywordTrends');
-      }
-    }
-  }
-  
-  // Update sentiment trends in Supabase
-  public async updateSentimentTrends(
-    result: WhisperTranscriptionResponse, 
-    userId: string | null
-  ): Promise<void> {
-    const sentiment = transcriptAnalysisService.analyzeSentiment(result.text);
-    
-    try {
-      const trendData = {
-        sentiment_label: sentiment,
-        confidence: sentiment === 'positive' ? 0.8 : sentiment === 'negative' ? 0.7 : 0.6,
-        user_id: userId,
-        recorded_at: new Date().toISOString()
-      };
-      
-      // Insert directly (no need for conflict handling here)
-      const { error } = await supabase
-        .from('sentiment_trends')
-        .insert(trendData);
-        
       if (error) {
-        console.error('Error inserting sentiment trend:', error);
-        errorHandler.handleError(error, 'DatabaseService.updateSentimentTrends.insert');
+        console.error('Error saving call:', error);
+        throw error;
       }
+      
+      return data;
     } catch (error) {
-      console.error('Error updating sentiment trend:', error);
-      errorHandler.handleError(error, 'DatabaseService.updateSentimentTrends');
+      console.error('Error in saveCall:', error);
+      throw error;
     }
   }
   
-  // Calculate audio duration
-  public async calculateAudioDuration(audioFile: File): Promise<number> {
-    return new Promise((resolve) => {
-      const audioUrl = URL.createObjectURL(audioFile);
-      const audio = new Audio(audioUrl);
+  /**
+   * Save a keyword trend entry
+   */
+  public async saveKeywordTrend(input: KeywordTrendInput) {
+    try {
+      const now = new Date();
       
-      audio.addEventListener('loadedmetadata', () => {
-        const duration = audio.duration;
-        URL.revokeObjectURL(audioUrl);
-        resolve(Math.round(duration));
-      });
+      const { data, error } = await supabase
+        .from('keyword_trends')
+        .insert({
+          id: uuidv4(),
+          keyword: input.keyword,
+          category: input.category || 'general',
+          count: input.count || 1,
+          last_used: now.toISOString(),
+          report_date: now.toISOString().split('T')[0],
+          created_at: now.toISOString(),
+          updated_at: now.toISOString()
+        })
+        .select();
       
-      // Fallback if metadata doesn't load properly
-      audio.addEventListener('error', () => {
-        URL.revokeObjectURL(audioUrl);
-        // Estimate duration based on file size (very rough approximation)
-        // Assuming 16bit 16kHz mono audio (~32kB per second)
-        const estimatedSeconds = Math.round(audioFile.size / 32000);
-        resolve(estimatedSeconds > 0 ? estimatedSeconds : 60); // Default to 60 seconds if calculation fails
-      });
-    });
+      if (error) {
+        console.error('Error saving keyword trend:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error in saveKeywordTrend:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Update a keyword trend's count
+   */
+  public async incrementKeywordCount(keyword: string, category: string = 'general') {
+    try {
+      const { data, error } = await supabase
+        .from('keyword_trends')
+        .select('*')
+        .eq('keyword', keyword)
+        .eq('category', category)
+        .single();
+      
+      if (error) {
+        // Keyword doesn't exist, create it
+        return await this.saveKeywordTrend({ keyword, category });
+      }
+      
+      // Keyword exists, increment count
+      const { data: updateData, error: updateError } = await supabase
+        .from('keyword_trends')
+        .update({
+          count: (data.count || 0) + 1,
+          last_used: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', data.id)
+        .select();
+      
+      if (updateError) {
+        console.error('Error incrementing keyword count:', updateError);
+        throw updateError;
+      }
+      
+      return updateData;
+    } catch (error) {
+      console.error('Error in incrementKeywordCount:', error);
+      throw error;
+    }
   }
 }
 

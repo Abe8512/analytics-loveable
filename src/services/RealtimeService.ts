@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface RealtimeEnableResult {
   table: string;
   success: boolean;
+  enabled?: boolean;
   error?: any;
 }
 
@@ -45,7 +46,7 @@ export const realtimeService = {
       // If the table is already in the publication, we're done
       if (checkResult === true) {
         console.log(`Table ${tableName} is already in the realtime publication`);
-        return { table: tableName, success: true };
+        return { table: tableName, success: true, enabled: true };
       }
       
       // Otherwise, add it to the publication
@@ -60,7 +61,7 @@ export const realtimeService = {
       }
       
       console.log(`Successfully enabled realtime for ${tableName}`);
-      return { table: tableName, success: true };
+      return { table: tableName, success: true, enabled: true };
     } catch (error) {
       console.error(`Failed to enable realtime for ${tableName}:`, error);
       return { table: tableName, success: false, error };
@@ -90,6 +91,21 @@ export const realtimeService = {
     } catch (error) {
       console.error(`Failed to check realtime status for ${tableName}:`, error);
       return false;
+    }
+  },
+  
+  /**
+   * Check if realtime is enabled for a specific table
+   */
+  checkRealtimeEnabled: async (tableName: string): Promise<{ enabled: boolean, error?: string }> => {
+    try {
+      const isEnabled = await realtimeService.checkTableRealtimeStatus(tableName);
+      return { enabled: isEnabled };
+    } catch (error) {
+      return { 
+        enabled: false, 
+        error: error instanceof Error ? error.message : 'Unknown error checking realtime status'
+      };
     }
   },
   

@@ -1,10 +1,9 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { errorHandler } from './ErrorHandlingService';
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/integrations/supabase/client';
 
-// Define the structure of the transcription response from Whisper
 export interface WhisperTranscriptionResponse {
   text: string;
   segments?: Array<{
@@ -37,7 +36,6 @@ export interface StoredTranscription {
   call_score?: number;
 }
 
-// Speech recognition fallback for browsers
 const getSpeechRecognition = () => {
   // @ts-ignore - These properties exist in modern browsers
   return window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -61,18 +59,15 @@ export const useWhisperService = () => {
   });
   const [transcriptions, setTranscriptions] = useState<StoredTranscription[]>([]);
   
-  // Load transcriptions from local storage on mount
   useEffect(() => {
     loadTranscriptions();
   }, []);
   
-  // Save settings to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('use_local_whisper', useLocalWhisper.toString());
     localStorage.setItem('num_speakers', numSpeakers.toString());
   }, [useLocalWhisper, numSpeakers]);
   
-  // Function to load transcriptions from local storage
   const loadTranscriptions = useCallback(() => {
     try {
       const stored = localStorage.getItem('transcriptions');
@@ -83,7 +78,6 @@ export const useWhisperService = () => {
     }
   }, []);
   
-  // Function to save transcriptions to local storage
   const saveTranscriptions = useCallback((newTranscriptions: StoredTranscription[]) => {
     try {
       localStorage.setItem('transcriptions', JSON.stringify(newTranscriptions));
@@ -94,12 +88,10 @@ export const useWhisperService = () => {
     }
   }, []);
   
-  // Function to add a new transcription
   const addTranscription = useCallback((newTranscription: StoredTranscription) => {
     saveTranscriptions([newTranscription, ...transcriptions]);
   }, [transcriptions, saveTranscriptions]);
   
-  // Function to update an existing transcription
   const updateTranscription = useCallback((updatedTranscription: StoredTranscription) => {
     const updatedTranscriptions = transcriptions.map(transcription =>
       transcription.id === updatedTranscription.id ? updatedTranscription : transcription
@@ -107,13 +99,11 @@ export const useWhisperService = () => {
     saveTranscriptions(updatedTranscriptions);
   }, [transcriptions, saveTranscriptions]);
   
-  // Function to delete a transcription
   const deleteTranscription = useCallback((id: string) => {
     const remainingTranscriptions = transcriptions.filter(transcription => transcription.id !== id);
     saveTranscriptions(remainingTranscriptions);
   }, [transcriptions, saveTranscriptions]);
   
-  // Initialize speech recognition if available
   useEffect(() => {
     const SpeechRecognition = getSpeechRecognition();
     if (SpeechRecognition) {
@@ -149,7 +139,6 @@ export const useWhisperService = () => {
     }
   }, []);
   
-  // Start transcribing with browser-based speech recognition
   const startTranscription = () => {
     if (speechRecognition) {
       setTranscription('');
@@ -159,7 +148,6 @@ export const useWhisperService = () => {
     }
   };
   
-  // Stop transcribing with browser-based speech recognition
   const stopTranscription = () => {
     if (speechRecognition) {
       setIsTranscribing(false);
@@ -167,22 +155,54 @@ export const useWhisperService = () => {
     }
   };
   
-  // Toggle between local and API-based Whisper
   const toggleUseLocalWhisper = () => {
     setUseLocalWhisper(prev => !prev);
   };
   
-  // Set local Whisper state 
   const setUseLocalWhisperState = (value: boolean) => {
     setUseLocalWhisper(value);
   };
   
-  // Set the number of speakers for diarization
   const setNumSpeakersValue = (value: number) => {
     setNumSpeakers(value);
   };
 
-  // Save transcription with analysis
+  const saveTranscriptionToDB = async (transcription: StoredTranscription) => {
+    try {
+      const transcriptData = {
+        id: transcription.id,
+        user_id: 'anonymous',
+        text: transcription.text,
+        duration: transcription.duration || 0,
+        sentiment: transcription.sentiment || 'neutral',
+        keywords: transcription.keywords || [],
+        call_score: transcription.call_score || 50,
+        filename: transcription.filename || 'recording.wav',
+        created_at: new Date().toISOString(),
+        metadata: {}
+      };
+      
+      const { data, error } = await supabase.functions.invoke('save-call-transcript', {
+        body: { data: transcriptData }
+      });
+      
+      if (error) {
+        console.error('Error saving transcription to database:', error);
+        addTranscription(transcription);
+        return transcription;
+      }
+      
+      console.log('Saved transcription to database:', data);
+      
+      addTranscription(transcription);
+      return transcription;
+    } catch (dbError) {
+      console.error('Exception saving to database:', dbError);
+      addTranscription(transcription);
+      return transcription;
+    }
+  };
+
   const saveTranscriptionWithAnalysis = async (text: string, audioFile?: File, filename = "Recording") => {
     const id = uuidv4();
     const now = new Date();
@@ -190,7 +210,6 @@ export const useWhisperService = () => {
     const lowerText = text.toLowerCase();
     let sentiment = "neutral";
     
-    // Basic sentiment analysis
     if (lowerText.includes("great") || lowerText.includes("excellent") || lowerText.includes("happy") || 
         lowerText.includes("thank") || lowerText.includes("appreciate")) {
       sentiment = "positive";
@@ -199,11 +218,9 @@ export const useWhisperService = () => {
       sentiment = "negative";
     }
     
-    // Real keyword extraction
     const commonWords = new Set(["a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "about", "is", "are", "was", "were"]);
     const wordCounts: Record<string, number> = {};
     
-    // Count word frequencies for keywords
     lowerText.split(/\s+/).forEach(word => {
       const cleanWord = word.replace(/[.,!?;:()"'-]/g, '');
       if (cleanWord && cleanWord.length > 3 && !commonWords.has(cleanWord)) {
@@ -211,43 +228,33 @@ export const useWhisperService = () => {
       }
     });
     
-    // Convert to array and sort by frequency
     const keywords = Object.entries(wordCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([word]) => word);
     
-    // Calculate a call score (0-100) based on text analysis
-    let callScore = 70; // Base score
+    let callScore = 70;
     if (sentiment === "positive") {
       callScore += 15;
     } else if (sentiment === "negative") {
       callScore -= 15;
     }
     
-    // Content length factor (longer transcripts generally contain more information)
-    callScore += Math.min(Math.floor(text.length / 100), 10);
-    
-    // Ensure score is within bounds
-    callScore = Math.max(0, Math.min(100, callScore));
-    
-    // Segment the text into speaker turns
     const sentenceRegex = /[.!?]+/;
     const sentences = text.split(sentenceRegex).filter(s => s.trim().length > 0);
     
-    // Create transcript segments
     const transcript_segments = sentences.map((sentence, i) => {
-      const duration = sentence.length / 20; // Rough estimate: ~20 chars per second of speech
+      const duration = sentence.length / 20;
       return {
         id: i + 1,
-        start: i === 0 ? 0 : sentences.slice(0, i).reduce((acc, s) => acc + s.length / 20, 0),
-        end: sentences.slice(0, i + 1).reduce((acc, s) => acc + s.length / 20, 0),
+        start: i === 0 ? 0 : 
+          sentences.slice(0, i).reduce((total, s) => total + s.length / 20, 0),
+        end: sentences.slice(0, i + 1).reduce((total, s) => total + s.length / 20, 0),
         text: sentence.trim() + (sentence.trim().match(sentenceRegex) ? '' : '.'),
         speaker: i % 2 === 0 ? "Agent" : "Customer"
       };
     });
     
-    // Calculate total duration
     const duration = audioFile ? 
       await calculateAudioDuration(audioFile) : 
       transcript_segments.length > 0 ? 
@@ -265,12 +272,16 @@ export const useWhisperService = () => {
       transcript_segments
     };
     
-    addTranscription(newTranscription);
+    try {
+      await saveTranscriptionToDB(newTranscription);
+    } catch (error) {
+      console.error('Failed to save to database, using localStorage fallback', error);
+      addTranscription(newTranscription);
+    }
     
     return newTranscription;
   };
   
-  // Calculate audio duration from audio file
   const calculateAudioDuration = (audioFile: File): Promise<number> => {
     return new Promise((resolve) => {
       const audioUrl = URL.createObjectURL(audioFile);
@@ -282,17 +293,14 @@ export const useWhisperService = () => {
         resolve(Math.round(duration));
       });
       
-      // Fallback if metadata doesn't load properly
       audio.addEventListener('error', () => {
         URL.revokeObjectURL(audioUrl);
-        // Estimate duration based on file size
         const estimatedSeconds = Math.round(audioFile.size / 32000);
         resolve(estimatedSeconds > 0 ? estimatedSeconds : 60);
       });
     });
   };
   
-  // Start realtime transcription
   const startRealtimeTranscription = async (
     onTranscriptUpdate: (text: string) => void,
     onError: (error: string) => void
@@ -306,7 +314,6 @@ export const useWhisperService = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let fullTranscript = "";
       
-      // Real implementation using browser's SpeechRecognition
       const SpeechRecognition = getSpeechRecognition();
       if (!SpeechRecognition) {
         onError("Speech recognition not supported in this browser");
@@ -364,33 +371,18 @@ export const useWhisperService = () => {
       console.log(`Starting transcription for file: ${file.name} (${file.size} bytes)`);
       
       if (useLocalWhisper) {
-        // Local Whisper using HuggingFace transformers
         try {
-          // Load the transformers package
-          console.log("Attempting to load transformers package...");
           const { pipeline } = await import('@huggingface/transformers');
+          console.log("Attempting to load transformers package...");
           console.log("Successfully loaded transformers package, now loading ASR model...");
           
-          // Create a toast notification
-          toast.info("Loading Whisper model...", {
-            duration: 5000,
-          });
-          
-          // Create automatic speech recognition pipeline
           const transcriber = await pipeline(
             "automatic-speech-recognition",
             "openai/whisper-small"
-            // Removed the 'quantized' option as it's not in the PretrainedModelOptions type
           );
           
-          // Convert file to a format that the model can use
           const fileUrl = URL.createObjectURL(file);
           console.log("Created file URL for transcription:", fileUrl);
-          
-          // Transcribe audio
-          toast.info("Transcribing audio...", {
-            duration: 5000,
-          });
           
           console.log("Starting local transcription process...");
           const output = await transcriber(fileUrl, {
@@ -401,28 +393,21 @@ export const useWhisperService = () => {
           });
           console.log("Completed local transcription, processing output:", output);
           
-          // Clean up
           URL.revokeObjectURL(fileUrl);
           
-          // Fix the text property access by checking the type
           let transcriptionText = '';
           if (Array.isArray(output)) {
-            // If it's an array, join the texts
             transcriptionText = output.map(item => {
-              // Check if the item has a text property
               return typeof item === 'object' && item !== null && 'text' in item
                 ? (item as { text: string }).text
                 : '';
             }).join(' ');
           } else if (typeof output === 'object' && output !== null && 'text' in output) {
-            // If it's a single object with text property
             transcriptionText = (output as { text: string }).text;
           }
           
-          // Create segments
           const sentences = transcriptionText.split(/(?<=[.!?])\s+/);
           const segments = sentences.map((sentence, i) => {
-            // Estimate 5 words per second for timing
             const wordCount = sentence.split(/\s+/).length;
             const duration = wordCount / 5;
             const start = i === 0 ? 0 : 
@@ -449,7 +434,6 @@ export const useWhisperService = () => {
           throw new Error(`Local transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       } else {
-        // Use OpenAI API
         const apiKey = getOpenAIKey();
         
         if (!apiKey) {
@@ -458,20 +442,17 @@ export const useWhisperService = () => {
           throw error;
         }
         
-        // We'll use FormData to send the file to OpenAI API
         const formData = new FormData();
         formData.append('file', file);
         formData.append('model', 'whisper-1');
         formData.append('response_format', 'verbose_json');
         
-        // If number of speakers is greater than 1, enable diarization
         if (numSpeakers > 1) {
           formData.append('prompt', 'This is a conversation between a sales agent and a customer.');
         }
         
         try {
           console.log("Calling OpenAI Whisper API with file:", file.name);
-          // Call OpenAI API
           const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
             method: 'POST',
             headers: {
@@ -491,7 +472,6 @@ export const useWhisperService = () => {
           const result = await response.json();
           console.log("Received successful response from OpenAI API:", result);
           
-          // Process the response
           return {
             text: result.text,
             segments: result.segments?.map((segment: any) => ({
@@ -558,13 +538,13 @@ export const useWhisperService = () => {
     setUseLocalWhisper: setUseLocalWhisperState,
     setNumSpeakers: setNumSpeakersValue,
     startRealtimeTranscription,
-    saveTranscriptionWithAnalysis
+    saveTranscriptionWithAnalysis,
+    saveTranscriptionToDB
   };
 };
 
 export const setOpenAIKey = (key: string): void => {
   localStorage.setItem('openai_api_key', key);
-  // Trigger an event that settings have been updated
   window.dispatchEvent(new CustomEvent('settings-updated', {
     detail: { setting: 'openai_api_key' }
   }));
