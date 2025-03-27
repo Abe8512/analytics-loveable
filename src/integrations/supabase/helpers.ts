@@ -145,7 +145,7 @@ export async function insertData<T>(
     const { data: result, error } = await supabase.rpc(
       'execute_sql_with_results',
       { 
-        sql_query: `
+        query_text: `
           INSERT INTO ${tableName} 
           SELECT * FROM jsonb_populate_recordset(null::${tableName}, $1)
           ${options?.onConflict ? ` ON CONFLICT (${options.onConflict}) DO UPDATE SET ` : ''}
@@ -201,7 +201,7 @@ export async function updateData<T>(
     const { data: result, error } = await supabase.rpc(
       'execute_sql_with_results',
       { 
-        sql_query: `
+        query_text: `
           UPDATE ${tableName}
           SET ${updateFields}
           WHERE ${whereClause}
@@ -250,7 +250,7 @@ export async function deleteData<T>(
     const { data: result, error } = await supabase.rpc(
       'execute_sql_with_results',
       { 
-        sql_query: `
+        query_text: `
           DELETE FROM ${tableName}
           WHERE ${whereClause}
           ${options?.returning ? ` RETURNING ${options.returning}` : ''}
