@@ -93,6 +93,8 @@ const AdvancedCallMetrics: React.FC<AdvancedCallMetricsProps> = ({ transcriptId,
       // Calculate objection handling metrics
       const objectionHandling = AdvancedMetricsService.calculateObjectionHandling(transcriptData);
       setObjectionMetrics(objectionHandling);
+      
+      setIsLoading(false);
     } catch (err) {
       console.error('Error generating advanced metrics:', err);
       toast({
@@ -100,7 +102,6 @@ const AdvancedCallMetrics: React.FC<AdvancedCallMetricsProps> = ({ transcriptId,
         description: "Failed to generate advanced call metrics",
         variant: "destructive"
       });
-    } finally {
       setIsLoading(false);
     }
   };

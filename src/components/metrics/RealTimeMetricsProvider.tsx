@@ -1,7 +1,8 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { fixCallSentiments } from '@/utils/fixCallSentiments';
 
 export interface MetricsData {
   // Call metrics
@@ -53,15 +54,20 @@ const initialMetricsData: MetricsData = {
 const MetricsContext = createContext<{
   metrics: MetricsData;
   refreshMetrics: () => Promise<void>;
+  fixNeutralSentiments: () => Promise<void>;
+  isUpdating: boolean;
 }>({
   metrics: initialMetricsData,
-  refreshMetrics: async () => {}
+  refreshMetrics: async () => {},
+  fixNeutralSentiments: async () => {},
+  isUpdating: false
 });
 
 export const useMetrics = () => useContext(MetricsContext);
 
 export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [metrics, setMetrics] = useState<MetricsData>(initialMetricsData);
+  const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
   
   const fetchMetrics = async () => {
@@ -90,12 +96,30 @@ export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = 
         console.log('Successfully retrieved metrics:', data[0]);
         const metricsData = data[0];
         
+        const totalSentiment = 
+          (metricsData.positive_sentiment_count || 0) + 
+          (metricsData.negative_sentiment_count || 0) + 
+          (metricsData.neutral_sentiment_count || 0);
+            
+        // Calculate sentiment percentages
+        const positiveSentiment = totalSentiment > 0 
+          ? ((metricsData.positive_sentiment_count || 0) / totalSentiment) * 100
+          : 0;
+            
+        const negativeSentiment = totalSentiment > 0 
+          ? ((metricsData.negative_sentiment_count || 0) / totalSentiment) * 100
+          : 0;
+            
+        const neutralSentiment = totalSentiment > 0 
+          ? ((metricsData.neutral_sentiment_count || 0) / totalSentiment) * 100
+          : 0;
+        
         setMetrics({
           totalCalls: metricsData.total_calls || 0,
           avgDuration: metricsData.avg_duration || 0,
-          positiveSentiment: metricsData.positive_sentiment_count || 0,
-          negativeSentiment: metricsData.negative_sentiment_count || 0,
-          neutralSentiment: metricsData.neutral_sentiment_count || 0,
+          positiveSentiment,
+          negativeSentiment,
+          neutralSentiment,
           avgSentiment: metricsData.avg_sentiment || 0.5,
           callScore: metricsData.performance_score || 0,
           conversionRate: metricsData.conversion_rate ? metricsData.conversion_rate * 100 : 0,
@@ -136,6 +160,40 @@ export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = 
     });
   };
   
+  const fixNeutralSentiments = async () => {
+    setIsUpdating(true);
+    
+    try {
+      const result = await fixCallSentiments();
+      
+      if (result.success) {
+        toast({
+          title: "Sentiment Update Complete",
+          description: `Updated ${result.updated} of ${result.total} calls. Failed: ${result.failed}`,
+          variant: result.failed > 0 ? "destructive" : "default"
+        });
+        
+        // Refresh metrics after updating sentiments
+        await fetchMetrics();
+      } else {
+        toast({
+          title: "Update Failed",
+          description: result.error || "Could not update sentiments",
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      console.error('Error fixing sentiments:', err);
+      toast({
+        title: "Error",
+        description: "Failed to update call sentiments",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+  
   // Set up real-time subscription for metrics updates
   useEffect(() => {
     // Initial fetch
@@ -150,6 +208,12 @@ export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = 
           console.log('Metrics data updated in database, refreshing...');
           fetchMetrics();
         })
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'call_transcripts' },
+        () => {
+          console.log('Call transcripts updated, refreshing metrics...');
+          fetchMetrics();
+        })
       .subscribe();
     
     return () => {
@@ -158,7 +222,7 @@ export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = 
   }, []);
   
   return (
-    <MetricsContext.Provider value={{ metrics, refreshMetrics }}>
+    <MetricsContext.Provider value={{ metrics, refreshMetrics, fixNeutralSentiments, isUpdating }}>
       {children}
     </MetricsContext.Provider>
   );

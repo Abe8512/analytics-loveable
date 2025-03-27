@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,6 +7,8 @@ import {
   LineChart, Phone, TrendingUp, 
   BarChart2, UserCheck, Clock
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useMetrics } from '@/components/metrics/RealTimeMetricsProvider';
 
 interface PerformanceMetricsProps {
   metricsData?: {
@@ -32,6 +34,32 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     conversionRate: 0
   });
   
+  const { metrics: globalMetrics, isLoading: globalLoading } = useMetrics();
+  const { toast } = useToast();
+  
+  // Get metrics from the global provider or props
+  const updateMetricsFromProvider = useCallback(() => {
+    if (metricsData) {
+      console.log('Using metrics from props:', metricsData);
+      setMetrics(metricsData);
+      setIsLoading(propsLoading);
+    } else if (!globalLoading) {
+      console.log('Using metrics from provider:', globalMetrics);
+      setMetrics({
+        totalCalls: globalMetrics.totalCalls,
+        avgDuration: globalMetrics.avgDuration,
+        positiveSentiment: globalMetrics.positiveSentiment,
+        callScore: globalMetrics.callScore,
+        conversionRate: globalMetrics.conversionRate
+      });
+      setIsLoading(false);
+    }
+  }, [metricsData, propsLoading, globalMetrics, globalLoading]);
+  
+  useEffect(() => {
+    updateMetricsFromProvider();
+  }, [updateMetricsFromProvider]);
+  
   useEffect(() => {
     // If metrics are passed as props, use them directly
     if (metricsData) {
@@ -44,6 +72,8 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     const fetchMetrics = async () => {
       try {
         console.log('Fetching performance metrics from call_metrics_summary');
+        setIsLoading(true);
+        
         // Fetch from call_metrics_summary for latest data
         const { data, error } = await supabase
           .from('call_metrics_summary')
@@ -67,8 +97,14 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
         
         if (data && data.length > 0) {
           console.log('Successfully retrieved metrics data:', data[0]);
-          const positivePercentage = data[0].total_calls > 0 && data[0].positive_sentiment_count 
-            ? Math.round((data[0].positive_sentiment_count / data[0].total_calls) * 100) 
+          
+          const totalSentiment = 
+            (data[0].positive_sentiment_count || 0) + 
+            (data[0].negative_sentiment_count || 0) + 
+            (data[0].neutral_sentiment_count || 0);
+              
+          const positivePercentage = totalSentiment > 0
+            ? Math.round((data[0].positive_sentiment_count || 0) / totalSentiment * 100)
             : 0;
             
           setMetrics({
@@ -104,8 +140,36 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
       }
     };
     
+    // Set up real-time subscription for metrics updates
+    const setupSubscription = async () => {
+      const channel = supabase
+        .channel('metrics-performance-changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'call_metrics_summary' }, 
+          (payload) => {
+            console.log('Call metrics updated in database:', payload);
+            fetchMetrics();
+          })
+        .subscribe();
+        
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+    
     fetchMetrics();
+    const cleanup = setupSubscription();
+    
+    return () => {
+      cleanup.then(unsubscribe => unsubscribe && unsubscribe());
+    };
   }, [metricsData, propsLoading]);
+  
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
   
   const metricCards = [
     {
@@ -118,7 +182,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Avg Duration',
-      value: Math.round(metrics.avgDuration / 60), // Convert to minutes
+      value: Math.round(metrics.avgDuration / 60) || 0, // Convert to minutes
       unit: 'min',
       icon: <Clock className="h-4 w-4 text-muted-foreground" />,
       change: '-5%',
@@ -126,7 +190,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Positive Sentiment',
-      value: Math.round(metrics.positiveSentiment),
+      value: Math.round(metrics.positiveSentiment) || 0,
       unit: '%',
       icon: <UserCheck className="h-4 w-4 text-muted-foreground" />,
       change: '+8%',
@@ -134,7 +198,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Call Score',
-      value: Math.round(metrics.callScore),
+      value: Math.round(metrics.callScore) || 0,
       unit: '',
       icon: <BarChart2 className="h-4 w-4 text-muted-foreground" />,
       change: '+6%',
@@ -142,7 +206,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Conversion Rate',
-      value: metrics.conversionRate,
+      value: metrics.conversionRate || 0,
       unit: '%',
       icon: <TrendingUp className="h-4 w-4 text-muted-foreground" />,
       change: '+3%',
@@ -161,7 +225,8 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
                 {card.title}
               </span>
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                card.trend === 'up' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                card.trend === 'up' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 
+                'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
               }`}>
                 {card.change}
               </span>

@@ -1,23 +1,21 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, MessageSquare, Clock } from 'lucide-react';
+import { Activity, Info } from 'lucide-react';
 import { SentimentHeatmapPoint } from '@/services/AdvancedMetricsService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SentimentHeatmapCardProps {
   heatmapData: SentimentHeatmapPoint[];
   isLoading?: boolean;
-  duration?: number;
+  duration: number;
 }
 
 const SentimentHeatmapCard: React.FC<SentimentHeatmapCardProps> = ({ 
   heatmapData, 
   isLoading = false,
-  duration = 0 
+  duration
 }) => {
-  const [selectedPoint, setSelectedPoint] = useState<SentimentHeatmapPoint | null>(null);
-  
   // Format time in minutes and seconds
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -25,202 +23,139 @@ const SentimentHeatmapCard: React.FC<SentimentHeatmapCardProps> = ({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
   
+  // Determine width of heatmap points based on duration
+  const getSegmentWidth = (point: SentimentHeatmapPoint, index: number, all: SentimentHeatmapPoint[]) => {
+    if (all.length <= 1) return '100%';
+    
+    // Calculate width based on timeline position
+    if (index === all.length - 1) {
+      // For the last segment, use the remaining width
+      return `${100 / all.length}%`;
+    } else {
+      // For middle segments, calculate based on time difference to next point
+      const nextTime = all[index + 1].time;
+      const currentTime = point.time;
+      const timeSpan = nextTime - currentTime;
+      const proportion = timeSpan / duration;
+      return `${Math.max(1, proportion * 100)}%`;
+    }
+  };
+  
   // Get color based on sentiment
-  const getSentimentColor = (label: string, score: number) => {
-    if (label === 'POSITIVE') return `rgba(34, 197, 94, ${score})`;
-    if (label === 'NEGATIVE') return `rgba(239, 68, 68, ${score})`;
-    return `rgba(168, 162, 158, ${score})`;
-  };
-  
-  // Get the timeline marks based on the call duration
-  const getTimelineMarks = () => {
-    if (duration <= 0) return [];
-    
-    const marks = [];
-    const interval = Math.ceil(duration / 6); // Divide timeline into ~6 segments
-    
-    for (let i = 0; i <= duration; i += interval) {
-      marks.push(
-        <div key={i} className="absolute text-xs text-muted-foreground" 
-             style={{ left: `${(i / duration) * 100}%`, transform: 'translateX(-50%)' }}>
-          {formatTime(i)}
-        </div>
-      );
+  const getSentimentColor = (sentiment: string, score: number) => {
+    if (sentiment === 'POSITIVE') {
+      return 'bg-green-500';
+    } else if (sentiment === 'NEGATIVE') {
+      return 'bg-red-500';
+    } else {
+      return 'bg-blue-400';
     }
-    
-    return marks;
-  };
-  
-  // Get trends from the heatmap data
-  const getTrends = () => {
-    if (heatmapData.length === 0) return [];
-    
-    // Split the call into beginning, middle, and end
-    const beginData = heatmapData.slice(0, Math.ceil(heatmapData.length / 3));
-    const midData = heatmapData.slice(Math.ceil(heatmapData.length / 3), Math.ceil(2 * heatmapData.length / 3));
-    const endData = heatmapData.slice(Math.ceil(2 * heatmapData.length / 3));
-    
-    // Calculate averages for each section
-    const getAvgSentiment = (data: SentimentHeatmapPoint[]) => {
-      if (data.length === 0) return 0.5;
-      
-      const sum = data.reduce((acc, point) => {
-        // Convert sentiment to numeric score
-        let score = point.score;
-        if (point.label === 'NEGATIVE') score = 1 - score;
-        return acc + score;
-      }, 0);
-      
-      return sum / data.length;
-    };
-    
-    const beginSentiment = getAvgSentiment(beginData);
-    const midSentiment = getAvgSentiment(midData);
-    const endSentiment = getAvgSentiment(endData);
-    
-    const trends = [];
-    
-    // Overall trend
-    if (endSentiment > beginSentiment + 0.1) {
-      trends.push("Call sentiment improved throughout the conversation");
-    } else if (beginSentiment > endSentiment + 0.1) {
-      trends.push("Call sentiment declined toward the end");
-    }
-    
-    // Middle section analysis
-    if (midSentiment < beginSentiment - 0.1 && midSentiment < endSentiment - 0.1) {
-      trends.push("Sentiment dipped in the middle of the call - possible objection phase");
-    }
-    
-    // Find significant sentiment shifts
-    let lastLabel = '';
-    let shiftCount = 0;
-    
-    heatmapData.forEach(point => {
-      if (lastLabel !== '' && lastLabel !== point.label) {
-        shiftCount++;
-      }
-      lastLabel = point.label;
-    });
-    
-    if (shiftCount >= 3) {
-      trends.push(`${shiftCount} significant sentiment shifts detected`);
-    }
-    
-    // If no specific trends, add a general insight
-    if (trends.length === 0) {
-      const avgSentiment = getAvgSentiment(heatmapData);
-      if (avgSentiment > 0.7) {
-        trends.push("Consistently positive sentiment throughout the call");
-      } else if (avgSentiment < 0.4) {
-        trends.push("Predominantly negative sentiment across the conversation");
-      } else {
-        trends.push("Mixed sentiment patterns with no strong trend");
-      }
-    }
-    
-    return trends;
   };
   
   return (
     <Card className="shadow-sm">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          Sentiment Timeline
+          <Activity className="h-5 w-5 text-primary" />
+          Sentiment Heatmap
         </CardTitle>
         <CardDescription>
-          Conversation sentiment patterns over time
+          Emotional patterns throughout the call
         </CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <div className="space-y-4 animate-pulse">
+            <div className="h-4 bg-muted rounded"></div>
             <div className="h-20 bg-muted rounded"></div>
             <div className="h-4 bg-muted rounded"></div>
-            <div className="h-4 bg-muted rounded"></div>
-          </div>
-        ) : heatmapData.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No conversation data available for sentiment analysis</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="pt-6 relative">
-              {/* Timeline marks */}
-              <div className="absolute bottom-[-20px] w-full flex justify-between text-xs">
-                {getTimelineMarks()}
-              </div>
-              
-              {/* Sentiment point visualizations */}
-              <div className="h-12 w-full bg-muted/30 rounded-md relative">
-                {heatmapData.map((point, index) => {
-                  const position = duration > 0 
-                    ? (point.time / duration) * 100 
-                    : (index / heatmapData.length) * 100;
-                    
-                  return (
-                    <TooltipProvider key={index}>
-                      <Tooltip>
+          <div className="space-y-4">
+            <div className="rounded-md border overflow-hidden bg-muted/20">
+              {heatmapData.length > 0 ? (
+                <div className="flex h-14">
+                  <TooltipProvider>
+                    {heatmapData.map((point, index) => (
+                      <Tooltip key={index}>
                         <TooltipTrigger asChild>
                           <div 
-                            className="absolute w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all"
+                            className={`h-full hover:opacity-80 transition-opacity cursor-help ${getSentimentColor(point.label, point.score)}`}
                             style={{ 
-                              left: `${position}%`, 
-                              top: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              backgroundColor: getSentimentColor(point.label, point.score),
-                              zIndex: selectedPoint === point ? 10 : 1,
-                              boxShadow: selectedPoint === point ? '0 0 0 2px white' : 'none'
+                              width: getSegmentWidth(point, index, heatmapData),
+                              opacity: Math.max(0.4, point.score)
                             }}
-                            onClick={() => setSelectedPoint(point === selectedPoint ? null : point)}
                           />
                         </TooltipTrigger>
-                        <TooltipContent>
-                          <div className="text-xs p-1">
-                            <div className="font-medium">{point.label}</div>
-                            <div>{formatTime(point.time)}</div>
-                            <div className="max-w-52 truncate">{point.text_snippet}</div>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <div className="space-y-1">
+                            <p className="font-medium">{point.label} ({Math.round(point.score * 100)}%)</p>
+                            <p className="text-sm text-muted-foreground">Time: {formatTime(point.time)}</p>
+                            <p className="text-sm italic">"{point.text_snippet}"</p>
                           </div>
                         </TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
-                  );
-                })}
+                    ))}
+                  </TooltipProvider>
+                </div>
+              ) : (
+                <div className="h-14 flex items-center justify-center text-muted-foreground text-sm">
+                  No sentiment data available
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-between text-xs pt-1">
+              <div>0:00</div>
+              <div>{formatTime(duration / 4)}</div>
+              <div>{formatTime(duration / 2)}</div>
+              <div>{formatTime((duration / 4) * 3)}</div>
+              <div>{formatTime(duration)}</div>
+            </div>
+            
+            <div className="flex justify-between text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-sm bg-green-500"></div>
+                <span>Positive</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-sm bg-blue-400"></div>
+                <span>Neutral</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-sm bg-red-500"></div>
+                <span>Negative</span>
               </div>
             </div>
             
-            <div className="pt-6">
-              {selectedPoint ? (
-                <div className="border rounded-md p-3 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">
-                      {selectedPoint.label} 
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        ({Math.round(selectedPoint.score * 100)}%)
-                      </span>
-                    </span>
-                    <span className="text-xs text-muted-foreground flex items-center">
-                      <Clock className="h-3.5 w-3.5 mr-1" />
-                      {formatTime(selectedPoint.time)}
-                    </span>
+            <div className="pt-2 border-t mt-2">
+              <h4 className="text-sm font-medium mb-1">Insights</h4>
+              <div className="text-sm space-y-1">
+                {heatmapData.length > 0 ? (
+                  <>
+                    <div className="flex items-start gap-1 text-muted-foreground">
+                      <div className="w-1 h-1 rounded-full bg-muted-foreground mt-2"></div>
+                      {heatmapData.filter(p => p.label === 'POSITIVE').length > heatmapData.length / 2 ? (
+                        "Overall positive sentiment throughout the call"
+                      ) : heatmapData.filter(p => p.label === 'NEGATIVE').length > heatmapData.length / 3 ? (
+                        "Multiple negative sentiment moments detected"
+                      ) : (
+                        "Mixed sentiment with neutral predominance"
+                      )}
+                    </div>
+                    {heatmapData.some(p => p.label === 'NEGATIVE' && p.score > 0.7) && (
+                      <div className="flex items-start gap-1 text-yellow-600">
+                        <div className="w-1 h-1 rounded-full bg-yellow-600 mt-2"></div>
+                        "Strong negative moments detected - review context"
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-muted-foreground">
+                    No sentiment data available to generate insights
                   </div>
-                  <p className="text-sm">{selectedPoint.text_snippet}</p>
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  <h4 className="text-sm font-medium">Sentiment Insights</h4>
-                  <ul className="text-sm space-y-1">
-                    {getTrends().map((trend, index) => (
-                      <li key={index} className="flex items-start gap-1">
-                        <div className="w-1 h-1 rounded-full bg-primary mt-2"></div>
-                        <span>{trend}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}

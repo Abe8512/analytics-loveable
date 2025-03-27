@@ -102,6 +102,50 @@ export const fixCallSentiments = async () => {
                 console.error(`Error updating calls table for ${call.id}:`, res.error);
               }
             });
+            
+          // After updating each call, also try to update the metrics summary
+          try {
+            const { data: summary, error: summaryError } = await supabase
+              .from('call_metrics_summary')
+              .select('*')
+              .order('report_date', { ascending: false })
+              .limit(1);
+              
+            if (!summaryError && summary && summary.length > 0) {
+              // Adjust the summary counts based on the new sentiment
+              let positiveCount = summary[0].positive_sentiment_count || 0;
+              let negativeCount = summary[0].negative_sentiment_count || 0;
+              let neutralCount = summary[0].neutral_sentiment_count || 0;
+              
+              // Decrement neutral count
+              if (neutralCount > 0) neutralCount--;
+              
+              // Increment the appropriate count
+              if (sentimentLabel === 'positive') positiveCount++;
+              else if (sentimentLabel === 'negative') negativeCount++;
+              else neutralCount++;
+              
+              // Calculate new average sentiment
+              const totalCalls = positiveCount + negativeCount + neutralCount;
+              const avgSentiment = totalCalls > 0 ? 
+                ((positiveCount * 0.75) + (neutralCount * 0.5) + (negativeCount * 0.25)) / totalCalls : 
+                0.5;
+              
+              // Update the summary
+              await supabase
+                .from('call_metrics_summary')
+                .update({
+                  positive_sentiment_count: positiveCount,
+                  negative_sentiment_count: negativeCount,
+                  neutral_sentiment_count: neutralCount,
+                  avg_sentiment: avgSentiment,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', summary[0].id);
+            }
+          } catch (summaryErr) {
+            console.error('Error updating metrics summary:', summaryErr);
+          }
         }
       } catch (callError) {
         console.error(`Error processing call:`, callError);
