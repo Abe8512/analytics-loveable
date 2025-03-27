@@ -40,6 +40,28 @@ serve(async (req) => {
       CREATE POLICY "Allow full access to team_members" ON team_members FOR ALL USING (true);
     `;
     
+    // Create RLS policies for the call_metrics_summary table
+    const metricsTableQuery = `
+      ALTER TABLE call_metrics_summary ENABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS "Allow full access to call_metrics_summary" ON call_metrics_summary;
+      CREATE POLICY "Allow full access to call_metrics_summary" ON call_metrics_summary FOR ALL USING (true);
+    `;
+    
+    // Fix the ON CONFLICT issue with call_metrics_summary
+    const fixMetricsConstraintsQuery = `
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT constraint_name 
+          FROM information_schema.table_constraints 
+          WHERE table_name = 'call_metrics_summary' 
+          AND constraint_name = 'call_metrics_summary_report_date_key'
+        ) THEN
+          ALTER TABLE call_metrics_summary ADD CONSTRAINT call_metrics_summary_report_date_key UNIQUE (report_date);
+        END IF;
+      END $$;
+    `;
+    
     // Execute the queries
     try {
       await supabase.rpc('execute_sql', { query_text: callsTableQuery });
@@ -60,6 +82,20 @@ serve(async (req) => {
       console.log('Successfully set up RLS policies for team_members table');
     } catch (teamMembersError) {
       console.error('Error setting up RLS policies for team_members table:', teamMembersError);
+    }
+    
+    try {
+      await supabase.rpc('execute_sql', { query_text: metricsTableQuery });
+      console.log('Successfully set up RLS policies for call_metrics_summary table');
+    } catch (metricsError) {
+      console.error('Error setting up RLS policies for call_metrics_summary table:', metricsError);
+    }
+    
+    try {
+      await supabase.rpc('execute_sql', { query_text: fixMetricsConstraintsQuery });
+      console.log('Successfully fixed constraints for call_metrics_summary table');
+    } catch (constraintError) {
+      console.error('Error fixing constraints for call_metrics_summary table:', constraintError);
     }
     
     return new Response(
