@@ -1,6 +1,5 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { safeCall } from '@/utils/safeFunctions';
 
 interface UseDataFetchOptions<T> {
   fetchFn: () => Promise<T>;
@@ -53,14 +52,20 @@ export function useDataFetch<T>(options: UseDataFetchOptions<T>): UseDataFetchRe
         setData(cachedData.data);
         setTimestamp(cachedData.timestamp);
         return cachedData.data;
+      } else {
+        console.log(`Cache expired for key: ${cacheKey}, fetching fresh data`);
       }
+    } else if (cacheKey) {
+      console.log(`No cache found for key: ${cacheKey}, fetching fresh data`);
     }
 
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('Fetching data with fetchFn...');
       const result = await fetchFn();
+      console.log('Data fetched successfully:', result);
       
       if (isMounted.current) {
         setData(result);
@@ -68,13 +73,17 @@ export function useDataFetch<T>(options: UseDataFetchOptions<T>): UseDataFetchRe
         
         // Update cache if cacheKey provided
         if (cacheKey) {
+          console.log(`Updating cache for key: ${cacheKey}`);
           cache[cacheKey] = {
             data: result,
             timestamp: Date.now()
           };
         }
         
-        if (onSuccess) onSuccess(result);
+        if (onSuccess) {
+          console.log('Calling onSuccess callback');
+          onSuccess(result);
+        }
         return result;
       }
     } catch (err) {
@@ -84,7 +93,10 @@ export function useDataFetch<T>(options: UseDataFetchOptions<T>): UseDataFetchRe
         const error = err instanceof Error ? err : new Error('An unknown error occurred');
         setError(error);
         
-        if (onError) onError(error);
+        if (onError) {
+          console.log('Calling onError callback');
+          onError(error);
+        }
       }
     } finally {
       if (isMounted.current) {
@@ -98,6 +110,8 @@ export function useDataFetch<T>(options: UseDataFetchOptions<T>): UseDataFetchRe
     
     if (!skip) {
       fetchData();
+    } else {
+      console.log('Skipping initial data fetch');
     }
     
     return () => {
@@ -106,8 +120,10 @@ export function useDataFetch<T>(options: UseDataFetchOptions<T>): UseDataFetchRe
   }, [skip, fetchData, ...dependencyList]);
 
   const refetch = useCallback(async () => {
+    console.log('Manually refetching data...');
     // Clear cache for this key if it exists
     if (cacheKey) {
+      console.log(`Clearing cache for key: ${cacheKey}`);
       delete cache[cacheKey];
     }
     return await fetchData();
@@ -118,10 +134,12 @@ export function useDataFetch<T>(options: UseDataFetchOptions<T>): UseDataFetchRe
 
 // Helper function to clear all cache
 export function clearDataCache(): void {
+  console.log('Clearing all data cache');
   Object.keys(cache).forEach(key => delete cache[key]);
 }
 
 // Helper function to clear specific cache entry
 export function clearCacheEntry(key: string): void {
+  console.log(`Clearing cache entry: ${key}`);
   delete cache[key];
 }

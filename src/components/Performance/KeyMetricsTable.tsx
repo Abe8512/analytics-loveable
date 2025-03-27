@@ -17,13 +17,16 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isUsingDemoData, setIsUsingDemoData] = useState(false);
   
   useEffect(() => {
     const fetchMetrics = async () => {
       setLoading(true);
       setError(null);
+      setIsUsingDemoData(false);
       
       try {
+        console.log('Fetching metrics with date range:', dateRange);
         let query = supabase
           .from('call_metrics_summary')
           .select('*')
@@ -50,18 +53,20 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
         if (error) {
           console.error('Error fetching metrics:', error);
           setError(`Failed to fetch metrics: ${error.message}`);
-          setMetrics([]);
+          generateDemoMetrics();
           return;
         }
         
         // Handle empty data gracefully
         if (!data || data.length === 0) {
-          console.log('No metrics data available');
+          console.log('No metrics data available, using demo data');
           generateDemoMetrics();
           return;
         }
         
+        console.log(`Successfully retrieved ${data.length} metrics records`);
         setMetrics(data || []);
+        setIsUsingDemoData(false);
       } catch (err) {
         console.error('Error in fetchMetrics:', err);
         setError(err instanceof Error ? err.message : 'Unknown error fetching metrics');
@@ -76,6 +81,9 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
   
   // Generate demo metrics when no data is available
   const generateDemoMetrics = () => {
+    console.log('Generating demo metrics data');
+    setIsUsingDemoData(true);
+    
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -171,6 +179,14 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
         <CardTitle>Key Performance Metrics</CardTitle>
         <CardDescription>
           Comparing current period to previous period
+          {isUsingDemoData && (
+            <Alert variant="warning" className="mt-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Using demo data. Real metrics will be available after calls are processed.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

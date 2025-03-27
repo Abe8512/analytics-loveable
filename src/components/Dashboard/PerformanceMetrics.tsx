@@ -35,6 +35,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
   useEffect(() => {
     // If metrics are passed as props, use them directly
     if (metricsData) {
+      console.log('Using metrics from props:', metricsData);
       setMetrics(metricsData);
       setIsLoading(propsLoading);
       return;
@@ -42,6 +43,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     
     const fetchMetrics = async () => {
       try {
+        console.log('Fetching performance metrics from call_metrics_summary');
         // Fetch from call_metrics_summary for latest data
         const { data, error } = await supabase
           .from('call_metrics_summary')
@@ -52,6 +54,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
         if (error) {
           console.error('Error fetching metrics:', error);
           // Fallback to some demo data
+          console.log('Using fallback demo data due to error');
           setMetrics({
             totalCalls: 42,
             avgDuration: 320,
@@ -63,18 +66,39 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
         }
         
         if (data && data.length > 0) {
+          console.log('Successfully retrieved metrics data:', data[0]);
+          const positivePercentage = data[0].total_calls > 0 && data[0].positive_sentiment_count 
+            ? Math.round((data[0].positive_sentiment_count / data[0].total_calls) * 100) 
+            : 0;
+            
           setMetrics({
             totalCalls: data[0].total_calls || 0,
             avgDuration: data[0].avg_duration || 0,
-            positiveSentiment: data[0].positive_sentiment_count 
-              ? Math.round((data[0].positive_sentiment_count / data[0].total_calls) * 100) 
-              : 0,
+            positiveSentiment: positivePercentage,
             callScore: data[0].performance_score || 0,
             conversionRate: data[0].conversion_rate ? Math.round(data[0].conversion_rate * 100) : 0
+          });
+        } else {
+          console.log('No metrics data found, using fallback data');
+          // No data found, use fallback
+          setMetrics({
+            totalCalls: 42,
+            avgDuration: 320,
+            positiveSentiment: 65,
+            callScore: 78,
+            conversionRate: 28
           });
         }
       } catch (err) {
         console.error('Error in fetchMetrics:', err);
+        // Use fallback on error
+        setMetrics({
+          totalCalls: 42,
+          avgDuration: 320,
+          positiveSentiment: 65,
+          callScore: 78,
+          conversionRate: 28
+        });
       } finally {
         setIsLoading(false);
       }

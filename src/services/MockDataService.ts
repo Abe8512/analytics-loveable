@@ -1,3 +1,4 @@
+
 import { faker } from '@faker-js/faker';
 import { TeamPerformanceMetric } from '@/types/team';
 
@@ -7,7 +8,7 @@ export const USE_MOCK_DATA = false;
 // Generate mock KPI data for the dashboard - Only used if USE_MOCK_DATA is true
 export const generateMockKPIData = () => {
   if (!USE_MOCK_DATA) {
-    console.warn('Mock KPI data requested but USE_MOCK_DATA is false');
+    console.log('Mock KPI data requested but USE_MOCK_DATA is false');
     return {
       objectionHandlingScore: 0,
       discoveryQuestionsRate: 0,
@@ -34,7 +35,7 @@ export const generateMockKPIData = () => {
 // All other mock data functions follow the same pattern - returning empty data when USE_MOCK_DATA is false
 export const generateMockChartData = () => {
   if (!USE_MOCK_DATA) {
-    console.warn('Mock chart data requested but USE_MOCK_DATA is false');
+    console.log('Mock chart data requested but USE_MOCK_DATA is false');
     return {
       objectionHandlingData: [],
       questionFrequencyData: [],
@@ -56,7 +57,7 @@ export const generateMockChartData = () => {
 // Generate team performance metrics for reports - Only used if USE_MOCK_DATA is true
 export const generateMockTeamMetrics = (count = 0): TeamPerformanceMetric[] => {
   if (!USE_MOCK_DATA) {
-    console.warn('Mock team metrics requested but USE_MOCK_DATA is false');
+    console.log('Mock team metrics requested but USE_MOCK_DATA is false');
     return [];
   }
   
@@ -66,7 +67,7 @@ export const generateMockTeamMetrics = (count = 0): TeamPerformanceMetric[] => {
 // Generate mock sales funnel data - Only used if USE_MOCK_DATA is true
 export const generateMockSalesFunnelData = () => {
   if (!USE_MOCK_DATA) {
-    console.warn('Mock sales funnel data requested but USE_MOCK_DATA is false');
+    console.log('Mock sales funnel data requested but USE_MOCK_DATA is false');
     return [];
   }
   
@@ -76,7 +77,7 @@ export const generateMockSalesFunnelData = () => {
 // Generate random chart data for components - Only used if USE_MOCK_DATA is true
 export function generateRandomChartData(points = 0) {
   if (!USE_MOCK_DATA) {
-    console.warn('Random chart data requested but USE_MOCK_DATA is false');
+    console.log('Random chart data requested but USE_MOCK_DATA is false');
     return [];
   }
   

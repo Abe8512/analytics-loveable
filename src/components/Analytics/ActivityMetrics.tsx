@@ -1,12 +1,14 @@
 
-import React, { memo } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
-import { PhoneCall, Mail, Calendar, Clock, ArrowUpRight } from "lucide-react";
+import { PhoneCall, Mail, Calendar, Clock, ArrowUpRight, AlertCircle } from "lucide-react";
 import ContentLoader from '../ui/ContentLoader';
 import AnimatedNumber from '../ui/AnimatedNumber';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
 
-// Mock data - in a real app this would come from your API
+// Demo data - will be replaced with real data when available
 const responseRateData = [
   { name: 'Mon', rate: 42 },
   { name: 'Tue', rate: 38 },
@@ -29,11 +31,65 @@ interface ActivityMetricsProps {
   isLoading?: boolean;
 }
 
-const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
-  const callToDemo = 8.2; // Example: Takes 8.2 calls on average to secure a demo
-  const demoToClose = 28; // Example: 28% of demos convert to sales
-  const emailResponseRate = 34; // Example: 34% email response rate
-  const followUpEffectiveness = 45; // Example: 45% conversion rate after follow-ups
+const ActivityMetrics = ({ isLoading: propsIsLoading = false }: ActivityMetricsProps) => {
+  const [isLoading, setIsLoading] = useState(propsIsLoading);
+  const [isUsingDemoData, setIsUsingDemoData] = useState(true);
+  const [activityMetrics, setActivityMetrics] = useState({
+    callToDemo: 8.2, // Example: Takes 8.2 calls on average to secure a demo
+    demoToClose: 28, // Example: 28% of demos convert to sales
+    emailResponseRate: 34, // Example: 34% email response rate
+    followUpEffectiveness: 45, // Example: 45% conversion rate after follow-ups
+  });
+  
+  useEffect(() => {
+    const fetchActivityMetrics = async () => {
+      try {
+        console.log('Attempting to fetch activity metrics from Supabase...');
+        setIsLoading(true);
+        
+        // Check if the table exists
+        const { data: tableExists, error: tableCheckError } = await supabase
+          .from('activity_metrics_summary')
+          .select('count(*)')
+          .limit(1);
+          
+        if (tableCheckError || !tableExists) {
+          console.log('Activity metrics table not found or error:', tableCheckError);
+          setIsUsingDemoData(true);
+          return;
+        }
+        
+        // Fetch actual metrics if table exists
+        const { data, error } = await supabase
+          .from('activity_metrics_summary')
+          .select('*')
+          .order('report_date', { ascending: false })
+          .limit(1);
+          
+        if (error || !data || data.length === 0) {
+          console.error('Error fetching activity metrics:', error);
+          setIsUsingDemoData(true);
+          return;
+        }
+        
+        console.log('Successfully retrieved activity metrics:', data[0]);
+        setActivityMetrics({
+          callToDemo: data[0].call_to_demo_ratio || 8.2,
+          demoToClose: data[0].demo_to_close_percentage || 28,
+          emailResponseRate: data[0].email_response_rate || 34,
+          followUpEffectiveness: data[0].follow_up_effectiveness || 45
+        });
+        setIsUsingDemoData(false);
+      } catch (err) {
+        console.error('Exception in fetchActivityMetrics:', err);
+        setIsUsingDemoData(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchActivityMetrics();
+  }, []);
   
   return (
     <Card className="h-full">
@@ -44,6 +100,14 @@ const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
         </CardTitle>
         <CardDescription>
           Sales activity performance indicators
+          {isUsingDemoData && !isLoading && (
+            <Alert variant="warning" className="mt-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Using demo data. Real-time metrics will be available when the activity_metrics_summary database table is created.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -56,7 +120,7 @@ const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
                     <p className="text-sm font-medium text-muted-foreground">Call-to-Demo Ratio</p>
                     <h4 className="text-2xl font-bold mt-1">
                       <AnimatedNumber 
-                        value={callToDemo} 
+                        value={activityMetrics.callToDemo} 
                         formatter={(val) => val.toFixed(1)}
                         suffix=" calls"
                       />
@@ -75,7 +139,7 @@ const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Demo-to-Close</p>
                     <h4 className="text-2xl font-bold mt-1">
-                      <AnimatedNumber value={demoToClose} suffix="%" />
+                      <AnimatedNumber value={activityMetrics.demoToClose} suffix="%" />
                     </h4>
                   </div>
                   <div className="p-2 rounded-full bg-green-500/10">
@@ -91,7 +155,7 @@ const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Email Response Rate</p>
                     <h4 className="text-2xl font-bold mt-1">
-                      <AnimatedNumber value={emailResponseRate} suffix="%" />
+                      <AnimatedNumber value={activityMetrics.emailResponseRate} suffix="%" />
                     </h4>
                   </div>
                   <div className="p-2 rounded-full bg-purple-500/10">
@@ -107,7 +171,7 @@ const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Follow-up Effectiveness</p>
                     <h4 className="text-2xl font-bold mt-1">
-                      <AnimatedNumber value={followUpEffectiveness} suffix="%" />
+                      <AnimatedNumber value={activityMetrics.followUpEffectiveness} suffix="%" />
                     </h4>
                   </div>
                   <div className="p-2 rounded-full bg-yellow-500/10">
@@ -121,6 +185,7 @@ const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               <h3 className="text-lg font-medium mb-4">Email Response Rate by Day</h3>
+              {isUsingDemoData && <p className="text-sm text-muted-foreground mb-2">Demo data shown</p>}
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={responseRateData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -148,6 +213,7 @@ const ActivityMetrics = ({ isLoading = false }: ActivityMetricsProps) => {
             
             <div>
               <h3 className="text-lg font-medium mb-4">Meetings Per Rep</h3>
+              {isUsingDemoData && <p className="text-sm text-muted-foreground mb-2">Demo data shown</p>}
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={meetingsPerRepData}>
                   <CartesianGrid strokeDasharray="3 3" />
