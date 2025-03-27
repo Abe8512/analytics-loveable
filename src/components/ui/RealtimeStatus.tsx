@@ -26,17 +26,17 @@ const RealtimeStatus = () => {
     setIsChecking(true);
     
     try {
-      // Direct approach to check realtime status
+      // Use RPC instead of direct table access
       const statuses: RealtimeTableStatus[] = [];
       
       for (const table of coreTables) {
         try {
+          // Use the new RPC function we created
           const { data, error } = await supabase
-            .from('pg_publication_tables')
-            .select('*')
-            .eq('tablename', table)
-            .eq('pubname', 'supabase_realtime')
-            .maybeSingle();
+            .rpc('check_table_in_publication', { 
+              table_name: table,
+              publication_name: 'supabase_realtime'
+            });
           
           statuses.push({
             name: table,
@@ -61,7 +61,7 @@ const RealtimeStatus = () => {
   
   const enableRealtime = async (tableName: string) => {
     try {
-      // Try to enable realtime with a direct SQL approach
+      // Use the RPC function
       const { error } = await supabase.rpc('add_table_to_realtime_publication', {
         table_name: tableName
       });

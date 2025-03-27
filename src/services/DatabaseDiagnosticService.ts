@@ -56,20 +56,16 @@ export class DatabaseDiagnosticService {
   
   async getTableMetadata(): Promise<any[]> {
     try {
-      // Get a list of tables
-      const { data: tables, error: tablesError } = await supabase
-        .from('information_schema.tables')
-        .select('table_name')
-        .eq('table_schema', 'public');
+      // Use direct query since we're targeting our tables
+      // Get a list of tables we defined in our Database type definition
+      const tables = [
+        'call_transcripts', 'calls', 'keyword_trends', 'sentiment_trends',
+        'team_members', 'call_metrics_summary', 'rep_metrics_summary', 'alerts'
+      ];
       
-      if (tablesError) {
-        console.error('Error getting table metadata:', tablesError);
-        return [];
-      }
-      
-      // If we found tables, map them into a more useful format
-      return (tables || []).map((table: any) => ({
-        table_name: table.table_name,
+      // Map table names to a structure similar to what we'd get from querying
+      return tables.map(tableName => ({
+        table_name: tableName,
         table_type: 'BASE TABLE',
         table_schema: 'public'
       }));
@@ -82,20 +78,24 @@ export class DatabaseDiagnosticService {
   
   async getTableColumns(tableName: string): Promise<DatabaseColumn[]> {
     try {
-      // Query directly for columns
+      // Use RPC call to get columns
       const { data, error } = await supabase
-        .from('information_schema.columns')
-        .select('column_name, data_type, is_nullable, column_default')
-        .eq('table_schema', 'public')
-        .eq('table_name', tableName)
-        .order('ordinal_position');
+        .rpc('get_table_columns', { table_name: tableName });
       
       if (error) {
         console.error(`Error getting columns for table ${tableName}:`, error);
         return [];
       }
       
-      return (data as any[] || []).map((column: any) => ({
+      if (!data) {
+        return [];
+      }
+      
+      // Parse the JSON result
+      const columns = Array.isArray(data) ? data : JSON.parse(data as string);
+      
+      // Map to our interface
+      return (columns || []).map((column: any) => ({
         name: column.column_name,
         type: column.data_type,
         exists: true
@@ -109,14 +109,12 @@ export class DatabaseDiagnosticService {
   
   async checkColumnExists(tableName: string, columnName: string): Promise<boolean> {
     try {
-      // Query directly for the column
+      // Use RPC call to check if column exists
       const { data, error } = await supabase
-        .from('information_schema.columns')
-        .select('column_name')
-        .eq('table_schema', 'public')
-        .eq('table_name', tableName)
-        .eq('column_name', columnName)
-        .maybeSingle();
+        .rpc('check_column_exists', { 
+          p_table_name: tableName,
+          p_column_name: columnName
+        });
       
       if (error) {
         console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, error);
