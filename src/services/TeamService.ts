@@ -1,8 +1,9 @@
 
-import { EventsService } from './events';
+import { useEventsStore } from './events';
 import { TeamMember } from '@/types/team';
 import { supabase } from '@/integrations/supabase/client';
 import { errorHandler } from './ErrorHandlingService';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock data for demo purposes if needed
 const demoTeamMembers: TeamMember[] = [
@@ -95,11 +96,16 @@ export class TeamServiceClass {
   // Add a team member
   async addTeamMember(member: TeamMember): Promise<TeamMember> {
     try {
+      // Generate required IDs
+      const memberId = uuidv4();
+      const userId = uuidv4();
+      
       // Try to add to database first
       const { data, error } = await supabase
         .from('team_members')
         .insert({
-          id: member.id,
+          member_id: memberId,
+          user_id: userId,
           name: member.name,
           email: member.email,
           role: member.role || 'member',
@@ -113,10 +119,17 @@ export class TeamServiceClass {
         return this.addTeamMemberToLocalStorage(member);
       }
       
-      // Dispatch event for other components to update
-      EventsService.getInstance().dispatchEvent('team-member-added', { member });
+      // Create a new member object with the IDs from the database
+      const newMember = {
+        ...member,
+        id: memberId
+      };
       
-      return member;
+      // Dispatch event for other components to update
+      const eventsStore = useEventsStore.getState();
+      eventsStore.dispatchEvent('team-member-added', { member: newMember });
+      
+      return newMember;
     } catch (error) {
       console.error('Error in addTeamMember:', error);
       errorHandler.handleError(error, 'TeamService.addTeamMember');
@@ -133,7 +146,8 @@ export class TeamServiceClass {
       localStorage.setItem(this.storageKey, JSON.stringify(updatedMembers));
       
       // Dispatch event for other components to update
-      EventsService.getInstance().dispatchEvent('team-member-added', { member });
+      const eventsStore = useEventsStore.getState();
+      eventsStore.dispatchEvent('team-member-added', { member });
       
       return member;
     } catch (error) {
@@ -162,7 +176,8 @@ export class TeamServiceClass {
       this.removeTeamMemberFromLocalStorage(memberId);
       
       // Dispatch event for other components to update
-      EventsService.getInstance().dispatchEvent('team-member-removed', { memberId });
+      const eventsStore = useEventsStore.getState();
+      eventsStore.dispatchEvent('team-member-removed', { memberId });
     } catch (error) {
       console.error('Error in removeTeamMember:', error);
       errorHandler.handleError(error, 'TeamService.removeTeamMember');
@@ -179,7 +194,8 @@ export class TeamServiceClass {
       localStorage.setItem(this.storageKey, JSON.stringify(updatedMembers));
       
       // Dispatch event for other components to update
-      EventsService.getInstance().dispatchEvent('team-member-removed', { memberId });
+      const eventsStore = useEventsStore.getState();
+      eventsStore.dispatchEvent('team-member-removed', { memberId });
     } catch (error) {
       console.error('Error removing team member from local storage:', error);
       throw error;

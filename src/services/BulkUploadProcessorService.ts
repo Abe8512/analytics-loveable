@@ -1,6 +1,6 @@
 
 import { useWhisperService } from "./WhisperService";
-import { EventsService } from "./events";
+import { useEventsStore } from "./events";
 import { errorHandler } from "./ErrorHandlingService";
 import { getSentimentScore } from "./AIService";
 import { v4 as uuidv4 } from 'uuid';
@@ -96,7 +96,8 @@ export class BulkUploadProcessorService {
       }
       
       // Dispatch event for other components
-      EventsService.getInstance().dispatchEvent('call-uploaded', {
+      const eventsStore = useEventsStore.getState();
+      eventsStore.dispatchEvent('call-uploaded', {
         transcriptId,
         fileName: file.name,
         assignedTo: this.assignedUserId
