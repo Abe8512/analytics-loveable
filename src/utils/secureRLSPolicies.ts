@@ -34,12 +34,13 @@ export const secureRLSPolicies = async (): Promise<{
     // 1. Drop the development-only policies that allow full public access
     for (const table of tables) {
       try {
-        const { error } = await supabase
-          .from('_database_functions')
-          .insert({
-            function_name: 'drop_development_access_policies',
-            param_table_name: table
-          });
+        // Call the drop_development_access_policies function through RPC
+        const { error } = await supabase.rpc(
+          'execute_sql',
+          { 
+            query_text: `SELECT drop_development_access_policies('${table}')` 
+          }
+        );
         
         if (error) {
           console.error(`Error dropping development policies for ${table}:`, error);
@@ -57,12 +58,13 @@ export const secureRLSPolicies = async (): Promise<{
     // 2. Create proper authenticated-user policies
     for (const table of tables) {
       try {
-        const { error } = await supabase
-          .from('_database_functions')
-          .insert({
-            function_name: 'create_authenticated_access_policies',
-            param_table_name: table
-          });
+        // Call the create_authenticated_access_policies function through RPC
+        const { error } = await supabase.rpc(
+          'execute_sql',
+          { 
+            query_text: `SELECT create_authenticated_access_policies('${table}')` 
+          }
+        );
         
         if (error) {
           console.error(`Error creating authenticated policies for ${table}:`, error);

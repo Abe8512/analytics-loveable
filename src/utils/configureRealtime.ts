@@ -35,13 +35,11 @@ export const configureRealtime = async (): Promise<{
     // Set REPLICA IDENTITY FULL and add to supabase_realtime publication
     for (const table of realtimeTables) {
       try {
-        // Set REPLICA IDENTITY to FULL
-        const { error: replicaError } = await supabase
-          .from('_database_functions')
-          .insert({
-            function_name: 'set_replica_identity_full',
-            param_table_name: table
-          });
+        // Set REPLICA IDENTITY to FULL using RPC
+        const { error: replicaError } = await supabase.rpc(
+          'execute_sql',
+          { query_text: `ALTER TABLE ${table} REPLICA IDENTITY FULL` }
+        );
         
         if (replicaError) {
           console.error(`Error setting REPLICA IDENTITY for ${table}:`, replicaError);
@@ -49,14 +47,29 @@ export const configureRealtime = async (): Promise<{
           continue;
         }
         
-        // Add table to supabase_realtime publication
-        const { error: pubError } = await supabase
-          .from('_database_functions')
-          .insert({
-            function_name: 'add_table_to_publication',
-            param_table_name: table,
-            param_publication_name: 'supabase_realtime'
-          });
+        // Add table to supabase_realtime publication using RPC
+        const { error: pubError } = await supabase.rpc(
+          'execute_sql',
+          { 
+            query_text: `
+              DO $$
+              BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime'
+                ) THEN
+                  CREATE PUBLICATION supabase_realtime FOR ALL TABLES;
+                END IF;
+                
+                ALTER PUBLICATION supabase_realtime ADD TABLE ${table};
+              EXCEPTION
+                WHEN duplicate_object THEN
+                  -- Table already in publication, that's fine
+                  NULL;
+              END
+              $$;
+            `
+          }
+        );
         
         if (pubError) {
           console.error(`Error adding ${table} to publication:`, pubError);

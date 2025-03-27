@@ -7,11 +7,37 @@ import { supabase } from "@/integrations/supabase/client";
 export const createRLSFunctions = async (): Promise<{ success: boolean; message: string }> => {
   try {
     // Create function to drop development-only policies
-    const { error: dropFunctionError } = await supabase
-      .from('_database_setup')
-      .insert({
-        setup_function: 'create_drop_development_policies_function'
-      });
+    const { error: dropFunctionError } = await supabase.rpc(
+      'execute_sql',
+      {
+        query_text: `
+          CREATE OR REPLACE FUNCTION public.drop_development_access_policies(table_name TEXT)
+          RETURNS VOID
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          AS $$
+          DECLARE
+              policy_name TEXT;
+              policy_cursor CURSOR FOR
+                  SELECT policyname FROM pg_policies 
+                  WHERE tablename = table_name
+                  AND schemaname = 'public'
+                  AND (policyname LIKE '%anon%' OR policyname LIKE '%public%');
+          BEGIN
+              OPEN policy_cursor;
+              LOOP
+                  FETCH policy_cursor INTO policy_name;
+                  EXIT WHEN NOT FOUND;
+                  
+                  EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(policy_name) || 
+                          ' ON public.' || quote_ident(table_name);
+              END LOOP;
+              CLOSE policy_cursor;
+          END;
+          $$;
+        `
+      }
+    );
     
     if (dropFunctionError) {
       console.error('Error creating drop_development_access_policies function:', dropFunctionError);
@@ -22,11 +48,40 @@ export const createRLSFunctions = async (): Promise<{ success: boolean; message:
     }
     
     // Create function to add authenticated user policies
-    const { error: createFunctionError } = await supabase
-      .from('_database_setup')
-      .insert({
-        setup_function: 'create_authenticated_policies_function'
-      });
+    const { error: createFunctionError } = await supabase.rpc(
+      'execute_sql',
+      {
+        query_text: `
+          CREATE OR REPLACE FUNCTION public.create_authenticated_access_policies(table_name TEXT)
+          RETURNS VOID
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          AS $$
+          BEGIN
+              -- Create SELECT policy for authenticated users
+              EXECUTE 'CREATE POLICY "Allow authenticated users to select" ON ' || 
+                      quote_ident(table_name) || 
+                      ' FOR SELECT TO authenticated USING (true)';
+              
+              -- Create INSERT policy for authenticated users
+              EXECUTE 'CREATE POLICY "Allow authenticated users to insert" ON ' || 
+                      quote_ident(table_name) || 
+                      ' FOR INSERT TO authenticated WITH CHECK (true)';
+              
+              -- Create UPDATE policy for authenticated users
+              EXECUTE 'CREATE POLICY "Allow authenticated users to update" ON ' || 
+                      quote_ident(table_name) || 
+                      ' FOR UPDATE TO authenticated USING (true)';
+              
+              -- Create DELETE policy for authenticated users (optional - enable if needed)
+              EXECUTE 'CREATE POLICY "Allow authenticated users to delete" ON ' || 
+                      quote_ident(table_name) || 
+                      ' FOR DELETE TO authenticated USING (true)';
+          END;
+          $$;
+        `
+      }
+    );
     
     if (createFunctionError) {
       console.error('Error creating create_authenticated_access_policies function:', createFunctionError);
