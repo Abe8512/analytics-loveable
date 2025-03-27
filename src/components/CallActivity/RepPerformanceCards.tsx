@@ -1,122 +1,123 @@
+import React from 'react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { BadgeDelta } from '@/components/ui/badge';
+import { useRepMetrics } from '@/services/RealTimeMetricsService';
 
-import React, { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { RepMetrics } from "@/services/RealTimeMetricsService";
-import ContentLoader from '@/components/ui/ContentLoader';
-import AnimatedNumber from '@/components/ui/AnimatedNumber';
-
-interface RepPerformanceCardsProps {
-  repMetrics: RepMetrics[];
-  repMetricsLoading: boolean;
-}
-
-const RepPerformanceCards: React.FC<RepPerformanceCardsProps> = ({ 
-  repMetrics, 
-  repMetricsLoading 
-}) => {
-  // Use stable metrics with memoization
-  const stableMetrics = useMemo(() => 
-    repMetrics.map(rep => ({
-      ...rep,
-      // Ensure all numeric values are stabilized
-      callVolume: Math.floor(rep.callVolume),
-      successRate: Math.floor(rep.successRate),
-      sentiment: Math.floor(rep.sentiment * 100) / 100
-    })), 
-    [repMetrics]
-  );
+const RepPerformanceCards = () => {
+  const { metrics, isLoading } = useRepMetrics();
   
-  // Pre-calculate card heights for stability
-  const fixedCardHeight = "h-[380px]";
+  if (isLoading) {
+    return <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {[1, 2, 3].map(i => (
+        <Card key={i} className="animate-pulse">
+          <CardHeader className="pb-2">
+            <div className="h-7 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-2"></div>
+          </CardContent>
+          <CardFooter>
+            <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+          </CardFooter>
+        </Card>
+      ))}
+    </div>;
+  }
+  
+  // If no metrics, show empty state
+  if (!metrics || metrics.length === 0) {
+    return (
+      <Card className="col-span-full">
+        <CardHeader>
+          <CardTitle>No Performance Data</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            There is no performance data available for your representatives at this time.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Get the top performing rep by sentiment
+  const topSentimentRep = [...metrics].sort((a, b) => b.avg_sentiment - a.avg_sentiment)[0];
+  
+  // Get the top performing rep by conversion rate
+  const topConversionRep = [...metrics].sort((a, b) => b.conversion_rate - a.conversion_rate)[0];
+  
+  // Get the most active rep by call count
+  const mostActiveRep = [...metrics].sort((a, b) => b.call_count - a.call_count)[0];
   
   return (
-    <Card className="mb-6 shadow-sm">
-      <CardHeader>
-        <CardTitle>Individual Performance</CardTitle>
-        <CardDescription>
-          Performance metrics for individual team members
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ContentLoader 
-          isLoading={repMetricsLoading} 
-          height={400} 
-          skeletonCount={3} 
-          preserveHeight={true}
-          delay={400}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stableMetrics.length > 0 ? (
-              stableMetrics.map(rep => (
-                <Card key={rep.id} className={`overflow-hidden ${fixedCardHeight}`}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{rep.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Call Volume</span>
-                        <span className="font-medium w-12 text-right">
-                          <AnimatedNumber value={rep.callVolume} duration={800} />
-                        </span>
-                      </div>
-                      <Progress 
-                        value={Math.min(100, rep.callVolume / 2)} 
-                        className="h-1.5" 
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Success Rate</span>
-                        <span className="font-medium w-12 text-right">
-                          <AnimatedNumber value={rep.successRate} duration={800} suffix="%" />
-                        </span>
-                      </div>
-                      <Progress 
-                        value={Math.min(100, rep.successRate)} 
-                        className="h-1.5" 
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Customer Sentiment</span>
-                        <span className="font-medium w-12 text-right">
-                          <AnimatedNumber value={rep.sentiment * 100} duration={800} suffix="%" />
-                        </span>
-                      </div>
-                      <Progress 
-                        value={Math.min(100, rep.sentiment * 100)} 
-                        className="h-1.5" 
-                      />
-                    </div>
-                    
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">AI Insights</h4>
-                      <ul className="text-sm space-y-1">
-                        {rep.insights.map((insight, idx) => (
-                          <li key={idx} className="flex items-start">
-                            <div className="min-w-1.5 h-1.5 rounded-full bg-neon-purple mt-1.5 mr-2"></div>
-                            {String(insight)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-3 flex justify-center items-center h-40">
-                <p className="text-muted-foreground">No representative data available</p>
-              </div>
-            )}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Top Sentiment Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Top Sentiment Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {topSentimentRep.rep_name}
           </div>
-        </ContentLoader>
-      </CardContent>
-    </Card>
+          <p className="text-xs text-muted-foreground">
+            Average sentiment score: {(topSentimentRep.avg_sentiment * 100).toFixed(0)}%
+          </p>
+        </CardContent>
+        <CardFooter className="py-2">
+          <BadgeDelta deltaType="increase">
+            Top performer
+          </BadgeDelta>
+        </CardFooter>
+      </Card>
+      
+      {/* Top Conversion Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Top Conversion Rate
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {topConversionRep.rep_name}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Conversion rate: {(topConversionRep.conversion_rate * 100).toFixed(0)}%
+          </p>
+        </CardContent>
+        <CardFooter className="py-2">
+          <BadgeDelta deltaType="increase">
+            Top performer
+          </BadgeDelta>
+        </CardFooter>
+      </Card>
+      
+      {/* Most Active Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Most Active Representative
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {mostActiveRep.rep_name}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Total calls: {mostActiveRep.call_count}
+          </p>
+        </CardContent>
+        <CardFooter className="py-2">
+          <BadgeDelta deltaType="increase">
+            Top performer
+          </BadgeDelta>
+        </CardFooter>
+      </Card>
+    </div>
   );
 };
 
-export default React.memo(RepPerformanceCards);
+export default RepPerformanceCards;

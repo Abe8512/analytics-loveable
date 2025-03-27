@@ -1,139 +1,109 @@
 
-import React, { useState, useEffect } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TeamMember } from '@/types/team';
-import { TeamService } from '@/services/TeamService';
-import { Plus, Trash2, UserPlus } from 'lucide-react';
+import { UserPlus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { EventType } from "@/services/events/types";
-import { useEventListener } from '@/services/events/hooks';
+import TeamMemberCard from '@/components/Team/TeamMemberCard';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { teamService } from '@/services/TeamService';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 const Team = () => {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [newMemberRole, setNewMemberRole] = useState('');
   const { toast } = useToast();
-
-  const loadTeamMembers = async () => {
-    try {
-      setIsLoading(true);
-      const members = await TeamService.getTeamMembers();
-      setTeamMembers(members);
-    } catch (error) {
-      console.error('Error loading team members:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load team members.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadTeamMembers();
-  }, []);
-
-  // Listen for team member updates from other components
-  useEventListener('team-member-added' as EventType, loadTeamMembers);
-  useEventListener('team-member-removed' as EventType, loadTeamMembers);
+  
+  const { teamMembers, isLoading, refreshTeamMembers } = teamService.useTeamMembers();
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMemberName.trim() || !newMemberEmail.trim()) {
+    if (!newMemberName.trim()) {
       toast({
-        title: 'Missing Information',
-        description: 'Please enter both name and email for the new team member.',
-        variant: 'destructive'
+        title: "Error",
+        description: "Member name is required",
+        variant: "destructive",
       });
       return;
     }
     
     try {
-      setIsAdding(true);
-      await TeamService.addTeamMember({
-        id: crypto.randomUUID(),
+      await teamService.addTeamMember({
         name: newMemberName,
         email: newMemberEmail,
-        role: 'member',
-        createdAt: new Date().toISOString()
+        role: newMemberRole
       });
       
+      toast({
+        title: "Success",
+        description: "Team member added successfully",
+      });
+      
+      // Clear form
       setNewMemberName('');
       setNewMemberEmail('');
-      toast({
-        title: 'Team Member Added',
-        description: `${newMemberName} has been added to the team.`
-      });
+      setNewMemberRole('');
       
       // Refresh the list
-      loadTeamMembers();
+      refreshTeamMembers();
+      
     } catch (error) {
-      console.error('Error adding team member:', error);
+      console.error("Error adding team member:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to add team member.',
-        variant: 'destructive'
+        title: "Error",
+        description: "Failed to add team member",
+        variant: "destructive",
       });
-    } finally {
-      setIsAdding(false);
     }
   };
-
-  const handleRemoveMember = async (member: TeamMember) => {
+  
+  const handleRemoveMember = async (id: string) => {
     try {
-      await TeamService.removeTeamMember(member.id);
+      await teamService.removeTeamMember(id);
+      
       toast({
-        title: 'Team Member Removed',
-        description: `${member.name} has been removed from the team.`
+        title: "Success",
+        description: "Team member removed successfully",
       });
       
       // Refresh the list
-      loadTeamMembers();
+      refreshTeamMembers();
+      
     } catch (error) {
-      console.error('Error removing team member:', error);
+      console.error("Error removing team member:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to remove team member.',
-        variant: 'destructive'
+        title: "Error",
+        description: "Failed to remove team member",
+        variant: "destructive",
       });
     }
   };
-
+  
   return (
-    <DashboardLayout>
-      <div className="container py-6">
-        <div className="flex justify-between items-center mb-6">
+    <ProtectedRoute>
+      <DashboardLayout>
+        <div className="space-y-6">
           <h1 className="text-3xl font-bold">Team Management</h1>
-          <Button onClick={() => setIsAdding(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Team Member
-          </Button>
-        </div>
-        
-        {isAdding && (
-          <Card className="mb-6">
+          
+          <Card>
             <CardHeader>
-              <CardTitle>Add New Team Member</CardTitle>
+              <CardTitle>Add Team Member</CardTitle>
+              <CardDescription>Add a new member to your sales team</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleAddMember} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Name</Label>
                     <Input
                       id="name"
                       value={newMemberName}
                       onChange={(e) => setNewMemberName(e.target.value)}
-                      placeholder="Enter name"
+                      placeholder="John Doe"
                       required
                     />
                   </div>
@@ -144,63 +114,54 @@ const Team = () => {
                       type="email"
                       value={newMemberEmail}
                       onChange={(e) => setNewMemberEmail(e.target.value)}
-                      placeholder="Enter email"
-                      required
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Input
+                      id="role"
+                      value={newMemberRole}
+                      onChange={(e) => setNewMemberRole(e.target.value)}
+                      placeholder="Sales Rep"
                     />
                   </div>
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" type="button" onClick={() => setIsAdding(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isAdding}>
-                    {isAdding ? 'Adding...' : 'Add Member'}
-                  </Button>
-                </div>
+                <Button type="submit" className="flex items-center">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Add Member
+                </Button>
               </form>
             </CardContent>
           </Card>
-        )}
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          
+          <h2 className="text-2xl font-semibold mt-8">Team Members</h2>
+          
           {isLoading ? (
-            <div className="col-span-full flex justify-center py-8">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-            </div>
-          ) : teamMembers.length === 0 ? (
-            <div className="col-span-full text-center py-8 text-muted-foreground">
-              <p>No team members found.</p>
-              <p className="mt-2">Click the "Add Team Member" button to add someone to your team.</p>
-            </div>
+            <div className="text-center py-8">Loading team members...</div>
           ) : (
-            teamMembers.map((member) => (
-              <Card key={member.id}>
-                <CardContent className="pt-6">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium text-lg">{member.name}</h3>
-                      <p className="text-sm text-muted-foreground">{member.email}</p>
-                      <div className="mt-2">
-                        <span className="text-xs bg-primary/10 text-primary py-1 px-2 rounded-full">
-                          {member.role || 'Member'}
-                        </span>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleRemoveMember(member)}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {teamMembers.map((member) => (
+                <TeamMemberCard
+                  key={member.id}
+                  name={member.name}
+                  email={member.email || ''}
+                  role={member.role || ''}
+                  avatar={member.avatar_url}
+                  onDelete={() => handleRemoveMember(member.id)}
+                />
+              ))}
+              
+              {teamMembers.length === 0 && (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  No team members found. Add your first team member above.
+                </div>
+              )}
+            </div>
           )}
         </div>
-      </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 };
 

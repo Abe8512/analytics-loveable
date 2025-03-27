@@ -1,84 +1,212 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { useSharedTeamMetrics, useSharedRepMetrics, DataFilters, TeamMetricsData, RepMetricsData } from "@/services/SharedDataService";
 
-// Re-export the types from SharedDataService
-export type { TeamMetricsData, RepMetricsData };
+export interface TeamMetric {
+  id: string;
+  team_name: string;
+  call_count: number;
+  avg_sentiment: number;
+  avg_duration: number;
+  conversion_rate: number;
+}
 
-/**
- * Service for real-time metrics updates
- */
-export const realTimeMetricsService = {
-  /**
-   * Subscribe to real-time updates for a table
-   */
-  subscribeToTable(
-    tableName: string,
-    callback: (payload: any) => void
-  ): () => void {
-    try {
-      const channel = supabase
-        .channel('table-changes')
-        .on(
-          'postgres_changes',
+export interface RepMetric {
+  id: string;
+  rep_name: string;
+  call_count: number;
+  avg_sentiment: number;
+  avg_duration: number;
+  conversion_rate: number;
+}
+
+// Hook for team metrics
+export const useTeamMetrics = () => {
+  const [metrics, setMetrics] = useState<TeamMetric[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  useEffect(() => {
+    const fetchTeamMetrics = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch metrics from API or database
+        const { data, error } = await supabase
+          .from('team_metrics')
+          .select('*');
+        
+        if (error) throw error;
+        
+        // If no data, use mock data
+        if (!data || data.length === 0) {
+          setMetrics([
+            {
+              id: '1',
+              team_name: 'Sales Team A',
+              call_count: 120,
+              avg_sentiment: 0.75,
+              avg_duration: 340,
+              conversion_rate: 0.32
+            },
+            {
+              id: '2',
+              team_name: 'Sales Team B',
+              call_count: 85,
+              avg_sentiment: 0.68,
+              avg_duration: 290,
+              conversion_rate: 0.28
+            }
+          ]);
+        } else {
+          setMetrics(data);
+        }
+        
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching team metrics:', err);
+        setError(err as Error);
+        
+        // Fallback to mock data
+        setMetrics([
           {
-            event: '*',
-            schema: 'public',
-            table: tableName,
+            id: '1',
+            team_name: 'Sales Team A',
+            call_count: 120,
+            avg_sentiment: 0.75,
+            avg_duration: 340,
+            conversion_rate: 0.32
           },
-          (payload) => {
-            console.log(`Real-time update from ${tableName}:`, payload);
-            callback(payload);
+          {
+            id: '2',
+            team_name: 'Sales Team B',
+            call_count: 85,
+            avg_sentiment: 0.68,
+            avg_duration: 290,
+            conversion_rate: 0.28
           }
-        )
-        .subscribe();
-
-      // Return unsubscribe function
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    } catch (error) {
-      console.error(`Error subscribing to ${tableName}:`, error);
-      return () => {}; // Empty cleanup function
-    }
-  },
-
-  /**
-   * Enable real-time updates for a table
-   */
-  async enableRealTimeForTable(tableName: string): Promise<boolean> {
-    try {
-      const { data, error } = await supabase.rpc(
-        'add_table_to_realtime_publication',
-        { table_name: tableName }
-      );
-
-      if (error) {
-        console.error(`Error enabling real-time for ${tableName}:`, error);
-        return false;
+        ]);
+      } finally {
+        setIsLoading(false);
       }
-
-      return true;
-    } catch (error) {
-      console.error(`Exception enabling real-time for ${tableName}:`, error);
-      return false;
-    }
-  },
+    };
+    
+    fetchTeamMetrics();
+    
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchTeamMetrics, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return { metrics, isLoading, error };
 };
 
-/**
- * Hook for real-time team metrics
- */
-export const useTeamMetrics = (filters: DataFilters = {}) => {
-  // Use the shared team metrics hook from SharedDataService
-  return useSharedTeamMetrics(filters);
+// Hook for representative metrics
+export const useRepMetrics = () => {
+  const [metrics, setMetrics] = useState<RepMetric[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  useEffect(() => {
+    const fetchRepMetrics = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch metrics from API or database
+        const { data, error } = await supabase
+          .from('rep_metrics')
+          .select('*');
+        
+        if (error) throw error;
+        
+        // If no data, use mock data
+        if (!data || data.length === 0) {
+          setMetrics([
+            {
+              id: '1',
+              rep_name: 'John Doe',
+              call_count: 45,
+              avg_sentiment: 0.82,
+              avg_duration: 310,
+              conversion_rate: 0.38
+            },
+            {
+              id: '2',
+              rep_name: 'Jane Smith',
+              call_count: 38,
+              avg_sentiment: 0.79,
+              avg_duration: 290,
+              conversion_rate: 0.35
+            },
+            {
+              id: '3',
+              rep_name: 'Dave Wilson',
+              call_count: 42,
+              avg_sentiment: 0.74,
+              avg_duration: 320,
+              conversion_rate: 0.30
+            }
+          ]);
+        } else {
+          setMetrics(data);
+        }
+        
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching rep metrics:', err);
+        setError(err as Error);
+        
+        // Fallback to mock data
+        setMetrics([
+          {
+            id: '1',
+            rep_name: 'John Doe',
+            call_count: 45,
+            avg_sentiment: 0.82,
+            avg_duration: 310,
+            conversion_rate: 0.38
+          },
+          {
+            id: '2',
+            rep_name: 'Jane Smith',
+            call_count: 38,
+            avg_sentiment: 0.79,
+            avg_duration: 290,
+            conversion_rate: 0.35
+          },
+          {
+            id: '3',
+            rep_name: 'Dave Wilson',
+            call_count: 42,
+            avg_sentiment: 0.74,
+            avg_duration: 320,
+            conversion_rate: 0.30
+          }
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchRepMetrics();
+    
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchRepMetrics, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return { metrics, isLoading, error };
 };
 
-/**
- * Hook for real-time rep metrics
- */
-export const useRepMetrics = (filters: DataFilters = {}) => {
-  // Use the shared rep metrics hook from SharedDataService
-  return useSharedRepMetrics(filters);
+// Alias for backward compatibility with useRealTimeTeamMetrics
+export const useRealTimeTeamMetrics = useTeamMetrics;
+
+export const RealTimeMetricsService = {
+  useTeamMetrics,
+  useRepMetrics,
+  useRealTimeTeamMetrics
 };
+
+export default RealTimeMetricsService;
