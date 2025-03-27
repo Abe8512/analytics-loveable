@@ -15,12 +15,11 @@ import { User, Settings, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const UserDropdown = () => {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
   
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
   };
   
   const handleSettings = () => {
@@ -29,12 +28,18 @@ const UserDropdown = () => {
   
   // Get user initials for avatar fallback
   const getUserInitials = () => {
-    if (!user?.user_metadata?.full_name) return 'U';
+    if (profile?.display_name) {
+      const nameParts = profile.display_name.split(' ');
+      if (nameParts.length === 1) return nameParts[0].charAt(0).toUpperCase();
+      return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+    }
     
-    const nameParts = user.user_metadata.full_name.split(' ');
-    if (nameParts.length === 1) return nameParts[0].charAt(0).toUpperCase();
+    if (profile?.first_name) {
+      const initial = profile.first_name.charAt(0).toUpperCase();
+      return profile.last_name ? initial + profile.last_name.charAt(0).toUpperCase() : initial;
+    }
     
-    return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+    return user?.email?.charAt(0).toUpperCase() || 'U';
   };
   
   return (
@@ -42,7 +47,7 @@ const UserDropdown = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src="/avatars/01.png" alt="User" />
+            <AvatarImage src={profile?.avatar_url || ""} alt="User" />
             <AvatarFallback>{getUserInitials()}</AvatarFallback>
           </Avatar>
         </Button>
@@ -51,11 +56,16 @@ const UserDropdown = () => {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {user?.user_metadata?.full_name || 'User'}
+              {profile?.display_name || user?.email}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user?.email || 'user@example.com'}
+              {user?.email}
             </p>
+            {profile?.role && (
+              <p className="text-xs text-primary">
+                {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
+              </p>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
