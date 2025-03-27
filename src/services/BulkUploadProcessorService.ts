@@ -1,189 +1,117 @@
 
+import { useWhisperService } from "./WhisperService";
+import { EventsService } from "./events";
+import { errorHandler } from "./ErrorHandlingService";
+import { getSentimentScore } from "./AIService";
 import { v4 as uuidv4 } from 'uuid';
-import { DatabaseService, databaseService } from './DatabaseService';
-import { useEventsStore } from './events';
-import { getSentimentScore } from './AIService';
+import { supabase } from "@/integrations/supabase/client";
 
-interface ProcessingResult {
-  success: boolean;
-  message: string;
-  id?: string;
-  filename?: string;
-  duration?: number;
-  keywords?: string[];
-  sentiment?: string;
-  sentimentScore?: number;
+export type UploadStatus = 'queued' | 'processing' | 'complete' | 'error';
+
+export interface BulkUploadCallbackParams {
+  status: UploadStatus;
+  progress: number;
+  result?: string;
+  error?: string;
+  transcriptId?: string;
 }
 
-/**
- * Service for processing bulk uploads of audio files and transcripts
- */
+export type BulkUploadProgressCallback = (
+  status: UploadStatus,
+  progress: number,
+  result?: string,
+  error?: string,
+  transcriptId?: string
+) => void;
+
 export class BulkUploadProcessorService {
   private assignedUserId: string = '';
+  private whisperService = useWhisperService();
   
-  /**
-   * Set the user ID to assign to uploaded calls
-   */
+  constructor() {
+    // Initialize service
+  }
+  
   setAssignedUserId(userId: string) {
     this.assignedUserId = userId;
   }
   
-  /**
-   * Process a single file
-   */
-  public async processFile(
-    file: File, 
-    progressCallback: (status: string, progress: number, result?: string, error?: string, transcriptId?: string) => void
-  ): Promise<ProcessingResult> {
+  async processFile(
+    file: File,
+    progressCallback: BulkUploadProgressCallback
+  ): Promise<void> {
     try {
+      // Update status to processing
       progressCallback('processing', 10);
-      return await processAudioFile(file, this.assignedUserId);
+      
+      // Transcribe the audio file
+      progressCallback('processing', 20, 'Transcribing audio...');
+      const transcriptionResult = await this.whisperService.transcribeAudio(file);
+      
+      progressCallback('processing', 40, 'Analyzing sentiment...');
+      
+      // Generate an ID for the transcript
+      const transcriptId = uuidv4();
+      
+      // Clean text to avoid Unicode escape sequence issues
+      const cleanText = transcriptionResult.text
+        .replace(/\u0000/g, '')
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      
+      // Analyze sentiment
+      const { sentiment, sentimentScore, keywords, keyPhrases } = 
+        await getSentimentScore(cleanText);
+      
+      progressCallback('processing', 60, 'Saving to database...');
+      
+      // Save to database
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .insert({
+          id: transcriptId,
+          user_id: this.assignedUserId || 'anonymous',
+          text: cleanText,
+          filename: file.name,
+          duration: transcriptionResult.duration || 0,
+          sentiment: sentiment,
+          keywords: keywords,
+          key_phrases: keyPhrases,
+          call_score: Math.round(sentimentScore * 100),
+          transcript_segments: transcriptionResult.segments,
+          metadata: {
+            source: 'bulk_upload',
+            created_at: new Date().toISOString(),
+            original_filename: file.name,
+            file_size: file.size,
+            file_type: file.type,
+            assigned_to: this.assignedUserId || 'unassigned'
+          }
+        })
+        .select('id');
+      
+      if (error) {
+        console.error('Error saving transcript to database:', error);
+        progressCallback('error', 0, undefined, `Database error: ${error.message}`);
+        return;
+      }
+      
+      // Dispatch event for other components
+      EventsService.getInstance().dispatchEvent('call-uploaded', {
+        transcriptId,
+        fileName: file.name,
+        assignedTo: this.assignedUserId
+      });
+      
+      progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
     } catch (error) {
       console.error('Error processing file:', error);
-      progressCallback('error', 0, undefined, error instanceof Error ? error.message : 'Unknown error');
-      throw error;
+      errorHandler.handleError(error, 'BulkUploadProcessorService.processFile');
+      progressCallback(
+        'error', 
+        0, 
+        undefined, 
+        error instanceof Error ? error.message : 'Unknown error processing file'
+      );
     }
-  }
-  
-  /**
-   * Process multiple files
-   */
-  public async processFiles(files: File[]): Promise<ProcessingResult[]> {
-    const results: ProcessingResult[] = [];
-    
-    for (const file of files) {
-      try {
-        const result = await processAudioFile(file, this.assignedUserId);
-        results.push(result);
-      } catch (error) {
-        console.error(`Error processing file ${file.name}:`, error);
-        results.push({
-          success: false,
-          message: `Error processing file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
-        });
-      }
-    }
-    
-    return results;
   }
 }
-
-export const bulkUploadProcessorService = new BulkUploadProcessorService();
-
-const saveTranscriptData = async (transcript: string, metadata: any, userId: string, filename: string) => {
-  try {
-    // Extract sentiment and keywords from transcript
-    const { sentiment, sentimentScore, keywords, keyPhrases } = await getSentimentScore(transcript);
-    
-    // Create transcript data
-    const transcriptData = {
-      text: transcript,
-      user_id: userId,
-      filename: filename,
-      duration: metadata.duration || 0,
-      sentiment: sentiment, 
-      call_score: Math.round(sentimentScore * 100),
-      keywords: keywords,
-      key_phrases: keyPhrases,
-      metadata: {
-        ...metadata,
-        processed_at: new Date().toISOString(),
-        version: '1.0'
-      }
-    };
-    
-    // Use the updated DatabaseService to save transcript directly
-    const result = await databaseService.saveCallTranscript(transcriptData);
-    
-    // Update keyword trends - now handled by database triggers
-    for (const keyword of keywords) {
-      await databaseService.incrementKeywordCount(keyword);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('Error saving transcript:', error);
-    throw error;
-  }
-};
-
-const processAudioFile = async (file: File, teamMember: string): Promise<ProcessingResult> => {
-  try {
-    // Generate a unique ID for the file
-    const fileId = uuidv4();
-    
-    // Extract file name and extension
-    const fileName = file.name;
-    const fileExtension = fileName.split('.').pop() || 'unknown';
-    
-    // Clean the file content to remove null bytes
-    let fileContent = await file.text();
-    // Remove null bytes and other problematic characters that could cause Unicode escape sequence issues
-    fileContent = fileContent.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-    
-    // Extract audio file duration
-    const audioDuration = await getAudioDuration(file);
-    
-    // Save the transcript data to the database
-    const transcriptResult = await saveTranscriptData(
-      fileContent,
-      {
-        fileId: fileId,
-        fileName: fileName,
-        fileExtension: fileExtension,
-        fileSize: file.size,
-        duration: audioDuration
-      },
-      teamMember,
-      fileName
-    );
-    
-    // Dispatch event to update UI
-    useEventsStore.getState().dispatchEvent('transcript-created', transcriptResult);
-    
-    // Extract sentiment and keywords from transcript
-    const { sentiment, sentimentScore, keywords, keyPhrases } = await getSentimentScore(fileContent);
-    
-    return {
-      success: true,
-      message: "File processed successfully",
-      id: transcriptResult ? transcriptResult.id : undefined,
-      filename: fileName,
-      duration: audioDuration,
-      keywords: keywords,
-      sentiment: sentiment,
-      sentimentScore: sentimentScore
-    };
-  } catch (error) {
-    console.error("Error processing audio file:", error);
-    return {
-      success: false,
-      message: `File processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    };
-  }
-};
-
-// Add a helper function to get audio duration
-const getAudioDuration = async (file: File): Promise<number> => {
-  return new Promise((resolve) => {
-    try {
-      const audio = new Audio();
-      audio.src = URL.createObjectURL(file);
-      
-      audio.addEventListener('loadedmetadata', () => {
-        const duration = audio.duration;
-        URL.revokeObjectURL(audio.src);
-        resolve(Math.round(duration));
-      });
-      
-      audio.addEventListener('error', () => {
-        URL.revokeObjectURL(audio.src);
-        console.warn('Could not determine audio duration');
-        resolve(0);
-      });
-    } catch (e) {
-      console.warn('Error getting audio duration:', e);
-      resolve(0);
-    }
-  });
-};

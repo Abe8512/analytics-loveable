@@ -12,3 +12,21 @@ export interface TeamPerformanceMetric {
   top_keywords: string[];
   last_call_date: string;
 }
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  createdAt: string;
+  avatar?: string;
+}
+
+export interface TeamPerformance {
+  id: string;
+  name: string;
+  calls: number;
+  successRate: number;
+  avgSentiment: number;
+  conversionRate: number;
+}

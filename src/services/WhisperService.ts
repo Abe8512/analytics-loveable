@@ -38,6 +38,15 @@ export interface StoredTranscription {
   call_score?: number;
 }
 
+// Helper functions outside the hook for direct import
+export const getOpenAIKey = () => {
+  return localStorage.getItem('openai_api_key') || '';
+};
+
+export const setOpenAIKey = (key: string) => {
+  localStorage.setItem('openai_api_key', key);
+};
+
 const getSpeechRecognition = () => {
   // @ts-ignore - These properties exist in modern browsers
   return window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -49,7 +58,7 @@ export const useWhisperService = () => {
   const [transcription, setTranscription] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [speechRecognition, setSpeechRecognition] = useState<any>(null);
-  const [useLocalWhisper, setUseLocalWhisper] = useState(() => {
+  const [useLocalWhisper, setUseLocalWhisperState] = useState(() => {
     // Initialize from localStorage if available
     const stored = localStorage.getItem('use_local_whisper');
     return stored ? stored === 'true' : false;
@@ -59,20 +68,10 @@ export const useWhisperService = () => {
     return stored ? parseInt(stored, 10) : 2;
   });
   
-  // Get OpenAI API key from localStorage
-  const getOpenAIKey = useCallback(() => {
-    return localStorage.getItem('openai_api_key') || '';
-  }, []);
-  
-  // Set OpenAI API key in localStorage
-  const setOpenAIKey = useCallback((key: string) => {
-    localStorage.setItem('openai_api_key', key);
-  }, []);
-  
   // Toggle between local and remote Whisper
   const toggleUseLocalWhisper = useCallback(() => {
     const newValue = !useLocalWhisper;
-    setUseLocalWhisper(newValue);
+    setUseLocalWhisperState(newValue);
     localStorage.setItem('use_local_whisper', newValue.toString());
   }, [useLocalWhisper]);
   
@@ -80,6 +79,17 @@ export const useWhisperService = () => {
   const getUseLocalWhisper = useCallback(() => {
     return useLocalWhisper;
   }, [useLocalWhisper]);
+  
+  // Set whether to use local Whisper
+  const setUseLocalWhisper = useCallback((value: boolean) => {
+    setUseLocalWhisperState(value);
+    localStorage.setItem('use_local_whisper', value.toString());
+  }, []);
+  
+  // Get the number of speakers
+  const getNumSpeakers = useCallback(() => {
+    return numSpeakers;
+  }, [numSpeakers]);
   
   // Set the number of speakers
   const setNumSpeakersValue = useCallback((num: number) => {
@@ -120,6 +130,59 @@ export const useWhisperService = () => {
     } finally {
       setIsTranscribing(false);
     }
+  };
+  
+  // Real-time transcription
+  const startRealtimeTranscription = async (
+    onTranscriptionUpdate: (transcript: string) => void,
+    onError: (error: string) => void
+  ) => {
+    // Implementation for real-time transcription
+    try {
+      if (!navigator.mediaDevices) {
+        throw new Error('Media devices not supported in this browser');
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let transcript = '';
+      let timer: NodeJS.Timeout;
+      
+      // In a real implementation, this would connect to a streaming API or use the Web Speech API
+      // For now, we'll simulate transcription with periodic updates
+      timer = setInterval(() => {
+        const newText = generateMockTranscript();
+        transcript += newText + ' ';
+        onTranscriptionUpdate(transcript);
+      }, 2000);
+      
+      return {
+        stop: () => {
+          clearInterval(timer);
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error starting transcription';
+      onError(errorMessage);
+      throw error;
+    }
+  };
+  
+  // Helper for mock real-time transcription
+  const generateMockTranscript = () => {
+    const phrases = [
+      "I understand your concerns about the pricing.",
+      "Let me explain the key features of our product.",
+      "This solution will help improve your workflow.",
+      "Based on your needs, I recommend the premium plan.",
+      "We offer a 30-day money-back guarantee.",
+      "Our support team is available 24/7.",
+      "You mentioned earlier that efficiency is important.",
+      "I'd be happy to schedule a follow-up call.",
+      "That's an excellent question.",
+      "Let me check with my team and get back to you."
+    ];
+    return phrases[Math.floor(Math.random() * phrases.length)];
   };
   
   // Use local Whisper (browser's speech recognition)
@@ -237,7 +300,11 @@ export const useWhisperService = () => {
   }, []);
   
   // Save transcription with AI analysis
-  const saveTranscriptionWithAnalysis = useCallback(async (text: string, segments?: any[]): Promise<StoredTranscription> => {
+  const saveTranscriptionWithAnalysis = useCallback(async (
+    text: string, 
+    segments?: any[],
+    filename?: string
+  ): Promise<StoredTranscription> => {
     try {
       // Analyze the text with AI
       const { sentiment, sentimentScore, keywords, keyPhrases } = await getSentimentScore(text);
@@ -253,7 +320,7 @@ export const useWhisperService = () => {
         sentiment,
         keywords,
         call_score: Math.round(sentimentScore * 100),
-        filename: `recording_${transcriptionId.slice(0, 8)}.mp3`,
+        filename: filename || `recording_${transcriptionId.slice(0, 8)}.mp3`,
         duration: segments ? segments[segments.length - 1].end : 60
       };
       
@@ -267,26 +334,22 @@ export const useWhisperService = () => {
         // Clean text to avoid Unicode escape sequence issues
         const cleanText = text.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
         
-        const { data, error } = await supabase.functions.invoke('save-call-transcript', {
-          body: {
-            data: {
-              id: transcriptionId,
-              user_id: 'anonymous',
-              text: cleanText,
-              filename: transcription.filename,
-              duration: transcription.duration,
-              sentiment: sentiment,
-              keywords: keywords,
-              key_phrases: keyPhrases,
-              call_score: Math.round(sentimentScore * 100),
-              metadata: {
-                source: 'whisper_recording',
-                created_at: new Date().toISOString(),
-                segments_count: segments ? segments.length : 0
-              }
-            }
+        const { data, error } = await supabase.from('call_transcripts').insert({
+          id: transcriptionId,
+          user_id: 'anonymous',
+          text: cleanText,
+          filename: transcription.filename,
+          duration: transcription.duration,
+          sentiment: sentiment,
+          keywords: keywords,
+          key_phrases: keyPhrases,
+          call_score: Math.round(sentimentScore * 100),
+          metadata: {
+            source: 'whisper_recording',
+            created_at: new Date().toISOString(),
+            segments_count: segments ? segments.length : 0
           }
-        });
+        }).select('id');
         
         if (error) {
           console.error('Error saving transcript to database:', error);
@@ -295,7 +358,7 @@ export const useWhisperService = () => {
           console.log('Transcript saved to database successfully:', data);
         }
       } catch (dbError) {
-        console.error('Error calling save-call-transcript function:', dbError);
+        console.error('Error saving to database:', dbError);
         // Continue since we've saved locally
       }
       
@@ -319,8 +382,11 @@ export const useWhisperService = () => {
     setOpenAIKey,
     toggleUseLocalWhisper,
     getUseLocalWhisper,
+    setUseLocalWhisper,
     numSpeakers,
-    setNumSpeakers: setNumSpeakersValue
+    getNumSpeakers,
+    setNumSpeakers: setNumSpeakersValue,
+    startRealtimeTranscription
   };
 };
 
