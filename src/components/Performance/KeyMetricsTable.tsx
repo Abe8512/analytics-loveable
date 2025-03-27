@@ -3,8 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowUpRight, ArrowDownRight, Minus, AlertCircle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Minus, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
+import { fixCallSentiments } from '@/utils/fixCallSentiments';
 
 interface KeyMetricsTableProps {
   dateRange?: {
@@ -18,6 +21,7 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isUsingDemoData, setIsUsingDemoData] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -64,7 +68,21 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
           return;
         }
         
-        console.log(`Successfully retrieved ${data.length} metrics records`);
+        console.log(`Successfully retrieved ${data.length} metrics records`, data);
+        
+        // Check if all metrics have valid data
+        const allMetricsNeutral = data.every(
+          (m) => m.avg_sentiment === 0.5 && 
+                m.positive_sentiment_count === 0 && 
+                m.negative_sentiment_count === 0
+        );
+        
+        if (allMetricsNeutral) {
+          console.warn('All metrics have neutral sentiment, generating more realistic data');
+          generateDemoMetrics();
+          return;
+        }
+        
         setMetrics(data || []);
         setIsUsingDemoData(false);
       } catch (err) {
@@ -79,7 +97,7 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
     fetchMetrics();
   }, [dateRange]);
   
-  // Generate demo metrics when no data is available
+  // Generate demo metrics with more realistic data distribution
   const generateDemoMetrics = () => {
     console.log('Generating demo metrics data');
     setIsUsingDemoData(true);
@@ -98,6 +116,7 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
         neutral_sentiment_count: 3,
         avg_sentiment: 0.75,
         agent_talk_ratio: 45,
+        customer_talk_ratio: 55,
         performance_score: 82
       },
       {
@@ -109,6 +128,7 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
         neutral_sentiment_count: 3,
         avg_sentiment: 0.68,
         agent_talk_ratio: 48,
+        customer_talk_ratio: 52,
         performance_score: 78
       }
     ];
@@ -148,6 +168,34 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
     formatMetricRow('Performance Score', (data) => data.performance_score || 0)
   ];
   
+  // Function to fix sentiment values
+  const handleFixSentiments = async () => {
+    setIsUpdating(true);
+    try {
+      const result = await fixCallSentiments();
+      
+      toast({
+        title: "Sentiment Update Complete",
+        description: `Updated ${result.updated} of ${result.total} calls. Failed: ${result.failed}`,
+        variant: result.failed > 0 ? "destructive" : "default"
+      });
+      
+      // Refresh metrics after update
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      console.error('Error fixing sentiments:', err);
+      toast({
+        title: "Error",
+        description: "Failed to update call sentiments. See console for details.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+  
   if (error) {
     return (
       <Card>
@@ -176,18 +224,45 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Key Performance Metrics</CardTitle>
-        <CardDescription>
-          Comparing current period to previous period
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Key Performance Metrics</CardTitle>
+            <CardDescription>
+              Comparing current period to previous period
+            </CardDescription>
+          </div>
+          
           {isUsingDemoData && (
-            <Alert variant="destructive" className="mt-2">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Using demo data. Real metrics will be available after calls are processed.
-              </AlertDescription>
-            </Alert>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleFixSentiments} 
+              disabled={isUpdating}
+              className="flex items-center gap-1"
+            >
+              {isUpdating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Fix Sentiments
+                </>
+              )}
+            </Button>
           )}
-        </CardDescription>
+        </div>
+        
+        {isUsingDemoData && (
+          <Alert variant="warning" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Using demo data. Some calls have neutral sentiment - click "Fix Sentiments" to analyze and update them.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
       <CardContent>
         {loading ? (
