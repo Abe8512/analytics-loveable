@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { errorHandler } from './ErrorHandlingService';
@@ -132,6 +131,7 @@ export const useWhisperService = () => {
     
     // Call OpenAI Whisper API
     try {
+      console.log('Calling OpenAI API directly with key:', apiKey.substring(0, 3) + '...');
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
@@ -162,6 +162,7 @@ export const useWhisperService = () => {
   // Process audio with Supabase Edge Function if available
   const callSupabaseWhisperEdgeFunction = async (audioBlob: Blob): Promise<string> => {
     try {
+      console.log('Calling Supabase Edge Function for transcription');
       // Convert blob to base64
       const arrayBuffer = await audioBlob.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
@@ -181,10 +182,17 @@ export const useWhisperService = () => {
       });
       
       if (error) {
+        console.error('Edge function error:', error);
         throw new Error(`Edge function error: ${error.message}`);
       }
       
-      return data?.text || 'No transcription returned';
+      if (!data || !data.text) {
+        console.error('No text returned from Edge Function:', data);
+        throw new Error('No transcription returned from Edge Function');
+      }
+      
+      console.log('Edge Function returned text:', data.text);
+      return data.text;
     } catch (error) {
       console.error('Error calling edge function:', error);
       throw error;
@@ -207,6 +215,7 @@ export const useWhisperService = () => {
       let segments: any[] = [];
       
       if (useLocalWhisper) {
+        console.log('Using local Whisper mode (browser-based)');
         // Use browser's speech recognition (simulated for now)
         return await transcribeWithLocalWhisper(audioFile);
       } else {
@@ -353,6 +362,7 @@ export const useWhisperService = () => {
   
   // Use local Whisper (browser's speech recognition)
   const transcribeWithLocalWhisper = async (audioFile: File): Promise<WhisperTranscriptionResponse> => {
+    console.log('Using simulated local Whisper transcription');
     return new Promise((resolve, reject) => {
       // For demo purposes, we'll use a more descriptive simulated message
       setTimeout(() => {
