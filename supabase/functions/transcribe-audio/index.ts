@@ -82,36 +82,66 @@ serve(async (req) => {
 
     console.log('Sending to OpenAI...')
 
-    // Send to OpenAI
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-      },
-      body: formData,
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`OpenAI API error: ${response.status} ${response.statusText}`, errorText)
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`)
+    // Create streaming response
+    const controller = new AbortController()
+    const { signal } = controller
+    
+    try {
+      // Send to OpenAI
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+        },
+        body: formData,
+        signal,
+      })
+  
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`OpenAI API error: ${response.status} ${response.statusText}`, errorText)
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`)
+      }
+  
+      const result = await response.json()
+      console.log('Transcription successful')
+  
+      return new Response(
+        JSON.stringify({ 
+          text: result.text,
+          status: 'complete',
+          progress: 100
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (error) {
+      console.error('Error in OpenAI API call:', error)
+      
+      if (error.name === 'AbortError') {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Request was aborted', 
+            status: 'error',
+            progress: 0
+          }),
+          { 
+            status: 499, // Client Closed Request
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+      
+      throw error // Pass to outer catch block
     }
-
-    const result = await response.json()
-    console.log('Transcription successful')
-
-    return new Response(
-      JSON.stringify({ text: result.text }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-
   } catch (error) {
     console.error('Error in transcribe-audio function:', error)
     
     return new Response(
       JSON.stringify({ 
         error: error.message, 
-        text: `Error occurred during transcription: ${error.message}. Please check your API key and try again.`
+        text: `Error occurred during transcription: ${error.message}. Please check your API key and try again.`,
+        status: 'error',
+        progress: 0
       }),
       {
         status: 500,

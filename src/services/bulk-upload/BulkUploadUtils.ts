@@ -64,6 +64,25 @@ export class BulkUploadUtils {
       return;
     }
     
+    // Calculate overall progress
+    let overallProgress = 0;
+    const totalFiles = queuedFiles.length;
+    const updateOverallProgress = () => {
+      const completedFiles = files.filter(f => f.status === 'complete').length;
+      const inProgressFiles = files.filter(f => f.status === 'processing');
+      
+      const progressSum = inProgressFiles.reduce((sum, file) => sum + file.progress, 0);
+      const weightedProgress = inProgressFiles.length > 0 ? progressSum / inProgressFiles.length : 0;
+      
+      overallProgress = ((completedFiles * 100) + weightedProgress) / totalFiles;
+      
+      dispatchEvent('bulk-upload-progress', { 
+        progress: overallProgress,
+        processed: completedFiles,
+        total: totalFiles
+      });
+    };
+    
     // Process files one by one
     for (let i = 0; i < queuedFiles.length; i++) {
       const file = queuedFiles[i];
@@ -80,6 +99,7 @@ export class BulkUploadUtils {
         ) => {
           console.log(`File ${file.file.name} status update: ${status}, progress: ${progress}%, result: ${result?.slice(0, 50)}${result?.length > 50 ? '...' : ''}`);
           updateFileStatus(file.id, status, progress, result, error, transcriptId);
+          updateOverallProgress();
         };
         
         await bulkUploadProcessor.processFile(file.file, progressCallback);
@@ -99,6 +119,7 @@ export class BulkUploadUtils {
         console.error(`Error processing file ${file.file.name}:`, error);
         updateFileStatus(file.id, 'error', 0, undefined, 
           error instanceof Error ? error.message : 'Unknown error during processing');
+        updateOverallProgress();
       }
     }
     

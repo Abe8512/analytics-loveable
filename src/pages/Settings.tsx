@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
-import { Key, Shield, User, Bell, Cpu, Database } from "lucide-react";
+import { Key, Shield, User, Bell, Cpu, Database, CheckCircle2, XCircle } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { getOpenAIKey, setOpenAIKey } from "@/services/WhisperService";
 import ConnectionDiagnostics from '@/components/ui/ConnectionDiagnostics';
 import DatabaseStatusDashboard from '@/components/ui/DatabaseStatusDashboard';
+import { Progress } from "@/components/ui/progress";
 
 const apiKeySchema = z.object({
   openaiKey: z.string().min(1, "API Key is required").startsWith("sk-", "OpenAI API keys start with 'sk-'"),
@@ -23,14 +25,19 @@ type ApiKeyFormValues = z.infer<typeof apiKeySchema>;
 const Settings = () => {
   const { toast } = useToast();
   const [savedKey, setSavedKey] = useState<string>("");
+  const [keyStatus, setKeyStatus] = useState<'unknown' | 'checking' | 'valid' | 'invalid'>('unknown');
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [testProgress, setTestProgress] = useState(0);
   
   useEffect(() => {
     const storedKey = getOpenAIKey();
     if (storedKey) {
       setSavedKey(storedKey);
       console.log('OpenAI API key found in settings:', storedKey.substring(0, 3) + '...');
+      setKeyStatus('unknown');
     } else {
       console.log('No OpenAI API key found in settings');
+      setKeyStatus('unknown');
     }
   }, []);
 
@@ -54,16 +61,76 @@ const Settings = () => {
       description: "Your OpenAI API key has been saved",
     });
     
+    testApiKey(openaiKey);
     form.reset({ openaiKey: "" });
   };
 
   const clearApiKey = () => {
     setOpenAIKey('');
     setSavedKey('');
+    setKeyStatus('unknown');
     toast({
       title: "API Key Cleared",
       description: "Your OpenAI API key has been removed",
     });
+  };
+
+  const testApiKey = async (key: string) => {
+    if (!key) {
+      toast({
+        title: "No API Key",
+        description: "Please provide an API key to test",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTestingKey(true);
+    setKeyStatus('checking');
+    setTestProgress(25);
+
+    try {
+      // Create a simple test request to OpenAI's models endpoint
+      const response = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      setTestProgress(75);
+      
+      if (response.ok) {
+        setKeyStatus('valid');
+        toast({
+          title: "API Key Valid",
+          description: "Your OpenAI API key is working correctly",
+        });
+      } else {
+        setKeyStatus('invalid');
+        const error = await response.json();
+        toast({
+          title: "API Key Invalid",
+          description: error.error?.message || "Your API key was rejected by OpenAI",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error testing API key:', error);
+      setKeyStatus('invalid');
+      toast({
+        title: "Connection Error",
+        description: "Could not connect to OpenAI API to validate your key",
+        variant: "destructive"
+      });
+    } finally {
+      setTestProgress(100);
+      setTimeout(() => {
+        setIsTestingKey(false);
+        setTestProgress(0);
+      }, 500);
+    }
   };
 
   return (
@@ -114,14 +181,42 @@ const Settings = () => {
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="font-medium text-sm">Current API Key</p>
-                          <p className="text-sm mt-1">
-                            {savedKey.substring(0, 3)}...{savedKey.substring(savedKey.length - 4)}
-                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-sm">
+                              {savedKey.substring(0, 3)}...{savedKey.substring(savedKey.length - 4)}
+                            </p>
+                            {keyStatus === 'valid' && (
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            )}
+                            {keyStatus === 'invalid' && (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            )}
+                            {keyStatus === 'checking' && (
+                              <span className="text-xs text-muted-foreground">Checking...</span>
+                            )}
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm" onClick={clearApiKey}>
-                          Clear Key
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => testApiKey(savedKey)}
+                            disabled={isTestingKey}
+                          >
+                            Test Key
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={clearApiKey}>
+                            Clear Key
+                          </Button>
+                        </div>
                       </div>
+                      
+                      {isTestingKey && (
+                        <div className="mt-3">
+                          <Progress value={testProgress} className="h-1" />
+                          <p className="text-xs text-center mt-1">Testing API key...</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -153,6 +248,8 @@ const Settings = () => {
                       <li>Make sure your OpenAI API key is valid and has access to the Whisper API</li>
                       <li>The API key should start with "sk-"</li>
                       <li>Ensure your OpenAI account has billing enabled</li>
+                      <li>Check for any rate limits or usage restrictions on your OpenAI account</li>
+                      <li>If issues persist, try the local Whisper option in the transcription settings</li>
                     </ul>
                   </div>
                 </CardContent>

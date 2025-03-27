@@ -1,9 +1,11 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { useWhisperService } from '@/services/WhisperService';
 import { useToast } from '@/hooks/use-toast';
 import AIWaveform from '../ui/AIWaveform';
+import { Progress } from '@/components/ui/progress';
 
 interface SpeechToTextRecorderProps {
   onTranscriptionComplete?: (text: string) => void;
@@ -22,6 +24,7 @@ const SpeechToTextRecorder = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -64,15 +67,19 @@ const SpeechToTextRecorder = ({
       mediaRecorderRef.current.onstop = async () => {
         if (audioChunksRef.current.length > 0) {
           setIsProcessing(true);
+          setTranscriptionProgress(10); // Start progress at 10%
+          
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           
           try {
+            const result = await transcribeAudio(audioFile, (progress) => {
+              setTranscriptionProgress(progress);
+            });
+            
             const audioFile = new File([audioBlob], "recording.webm", { 
               type: 'audio/webm',
               lastModified: Date.now()
             });
-            
-            const result = await transcribeAudio(audioFile);
             
             if (result) {
               setTranscript(result.text);
@@ -81,6 +88,8 @@ const SpeechToTextRecorder = ({
                 onTranscriptionComplete(result.text);
               }
             }
+            
+            setTranscriptionProgress(100);
           } catch (error) {
             console.error('Transcription error:', error);
             toast({
@@ -88,8 +97,12 @@ const SpeechToTextRecorder = ({
               description: error instanceof Error ? error.message : 'Could not transcribe audio',
               variant: 'destructive',
             });
+            setTranscriptionProgress(0);
           } finally {
-            setIsProcessing(false);
+            setTimeout(() => {
+              setIsProcessing(false);
+              setTranscriptionProgress(0);
+            }, 1000); // Reset after a delay
           }
         }
       };
@@ -173,6 +186,13 @@ const SpeechToTextRecorder = ({
         <div className="mt-2 flex flex-col items-center">
           <span className="text-xs font-medium">{formatTime(recordingDuration)}</span>
           <AIWaveform color="blue" barCount={8} className="h-4 mt-1" />
+        </div>
+      )}
+      
+      {isProcessing && (
+        <div className="mt-2 w-full max-w-[200px]">
+          <Progress value={transcriptionProgress} className="h-2" />
+          <p className="text-xs text-center mt-1">Processing: {transcriptionProgress}%</p>
         </div>
       )}
       
