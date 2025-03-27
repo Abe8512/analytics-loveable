@@ -1,4 +1,3 @@
-
 import React, { useContext, useEffect, useState } from "react";
 import { ThemeContext } from "@/App";
 import { Progress } from "@/components/ui/progress";

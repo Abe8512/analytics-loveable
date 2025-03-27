@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,14 +43,12 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
           query = query.lte('report_date', dateRange.to.toISOString().split('T')[0]);
         }
         
-        // Limit to last 7 days if no date range specified
         if (!dateRange?.from && !dateRange?.to) {
           const last7Days = new Date();
           last7Days.setDate(last7Days.getDate() - 7);
           query = query.gte('report_date', last7Days.toISOString().split('T')[0]);
         }
         
-        // Use standard select instead of single to avoid 406 errors
         const { data, error } = await query;
         
         if (error) {
@@ -61,7 +58,6 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
           return;
         }
         
-        // Handle empty data gracefully
         if (!data || data.length === 0) {
           console.log('No metrics data available, using demo data');
           generateDemoMetrics();
@@ -70,7 +66,6 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
         
         console.log(`Successfully retrieved ${data.length} metrics records`, data);
         
-        // Check if all metrics have valid data
         const allMetricsNeutral = data.every(
           (m) => m.avg_sentiment === 0.5 && 
                 m.positive_sentiment_count === 0 && 
@@ -97,7 +92,6 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
     fetchMetrics();
   }, [dateRange]);
   
-  // Generate demo metrics with more realistic data distribution
   const generateDemoMetrics = () => {
     console.log('Generating demo metrics data');
     setIsUsingDemoData(true);
@@ -110,7 +104,7 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
       {
         report_date: today.toISOString().split('T')[0],
         total_calls: 24,
-        avg_duration: 360, // 6 minutes in seconds
+        avg_duration: 360,
         positive_sentiment_count: 18,
         negative_sentiment_count: 3,
         neutral_sentiment_count: 3,
@@ -122,7 +116,7 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
       {
         report_date: yesterday.toISOString().split('T')[0],
         total_calls: 21,
-        avg_duration: 330, // 5.5 minutes in seconds
+        avg_duration: 330,
         positive_sentiment_count: 14,
         negative_sentiment_count: 4,
         neutral_sentiment_count: 3,
@@ -160,15 +154,14 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
   const metricRows = [
     formatMetricRow('Total Calls', (data) => data.total_calls || 0),
     formatMetricRow('Avg Duration (min)', (data) => Math.round((data.avg_duration || 0) / 60), 
-                    (change) => change < 0), // lower duration is positive
+                    (change) => change < 0),
     formatMetricRow('Positive Calls', (data) => data.positive_sentiment_count || 0),
     formatMetricRow('Average Sentiment', (data) => Math.round((data.avg_sentiment || 0) * 100)),
     formatMetricRow('Agent Talk Ratio', (data) => Math.round(data.agent_talk_ratio || 0), 
-                    (change) => change < 0), // lower talk ratio is positive
+                    (change) => change < 0),
     formatMetricRow('Performance Score', (data) => data.performance_score || 0)
   ];
   
-  // Function to fix sentiment values
   const handleFixSentiments = async () => {
     setIsUpdating(true);
     try {
@@ -180,7 +173,6 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
         variant: result.failed > 0 ? "destructive" : "default"
       });
       
-      // Refresh metrics after update
       setTimeout(() => {
         window.location.reload();
       }, 1500);
