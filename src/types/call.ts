@@ -15,4 +15,8 @@ export interface CallTranscript {
   created_at?: string;
   user_name?: string;
   customer_name?: string;
+  start_time?: string;
+  end_time?: string;
+  speaker_count?: number;
+  assigned_to?: string;
 }

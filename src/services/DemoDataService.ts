@@ -1,3 +1,4 @@
+
 import { faker } from '@faker-js/faker';
 import { CallTranscript } from '@/types/call';
 
