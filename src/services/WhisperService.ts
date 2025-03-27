@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { errorHandler } from './ErrorHandlingService';
@@ -110,13 +111,16 @@ export const useWhisperService = () => {
     }
   }, []);
   
-  // Transcribe audio from a file using OpenAI API
+  // Transcribe audio from a file using OpenAI API directly
   const callOpenAIWhisperAPI = async (audioBlob: Blob): Promise<string> => {
     const apiKey = getOpenAIKey();
     
     if (!apiKey) {
+      console.error('No OpenAI API key found in localStorage');
       throw new Error('OpenAI API key not configured. Please add your API key in Settings.');
     }
+    
+    console.log('Using OpenAI API key from localStorage:', apiKey.substring(0, 3) + '...');
     
     // Create a FormData object to send the audio file
     const formData = new FormData();
@@ -142,10 +146,13 @@ export const useWhisperService = () => {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorData ? JSON.stringify(errorData) : 'Unknown error'}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('OpenAI API error response:', errorData || errorText);
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorData ? JSON.stringify(errorData) : errorText}`);
       }
       
       const data = await response.json();
+      console.log('OpenAI API response:', data);
       
       // Return the transcribed text
       if (typeof data === 'object' && data.text) {
@@ -155,6 +162,7 @@ export const useWhisperService = () => {
       }
     } catch (error) {
       console.error('Error calling OpenAI Whisper API:', error);
+      toast.error(`Error calling OpenAI API: ${error.message}`);
       throw error;
     }
   };
@@ -176,9 +184,16 @@ export const useWhisperService = () => {
       
       const base64Audio = btoa(binary);
       
+      // Get API key from localStorage to pass to the edge function
+      const apiKey = getOpenAIKey();
+      console.log('Using API key for Edge Function:', apiKey ? 'Available' : 'Not available');
+      
       // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-        body: { audio: base64Audio }
+        body: { 
+          audio: base64Audio,
+          userProvidedKey: apiKey // Pass the user's API key to the edge function
+        }
       });
       
       if (error) {
@@ -192,6 +207,13 @@ export const useWhisperService = () => {
       }
       
       console.log('Edge Function returned text:', data.text);
+      
+      // Check if the response contains a simulated transcript
+      if (data.text.includes('simulated transcript')) {
+        console.warn('Edge function returned a simulated transcript');
+        throw new Error('Edge function returned a simulated transcript. Check your API key configuration.');
+      }
+      
       return data.text;
     } catch (error) {
       console.error('Error calling edge function:', error);
@@ -222,10 +244,12 @@ export const useWhisperService = () => {
         // Use OpenAI API
         try {
           // Try to use Supabase Edge Function first (more secure)
+          console.log('Attempting to use Supabase Edge Function');
           transcribedText = await callSupabaseWhisperEdgeFunction(audioFile);
           console.log('Transcription completed via Edge Function');
         } catch (edgeFuncError) {
           console.warn('Edge function failed, falling back to direct API call:', edgeFuncError);
+          toast.warning('Edge function failed, falling back to direct API call');
           
           // Fallback to direct API call
           transcribedText = await callOpenAIWhisperAPI(audioFile);
@@ -262,6 +286,7 @@ export const useWhisperService = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
+      toast.error(`Transcription failed: ${errorMessage}`);
       errorHandler.handleError(err, 'WhisperService.transcribeAudio');
       throw err;
     } finally {

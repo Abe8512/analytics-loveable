@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +10,7 @@ import { Key, Shield, User, Bell, Cpu, Database } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
-import { setOpenAIKey } from "@/services/WhisperService";
+import { getOpenAIKey, setOpenAIKey } from "@/services/WhisperService";
 import ConnectionDiagnostics from '@/components/ui/ConnectionDiagnostics';
 import DatabaseStatusDashboard from '@/components/ui/DatabaseStatusDashboard';
 
@@ -26,10 +25,12 @@ const Settings = () => {
   const [savedKey, setSavedKey] = useState<string>("");
   
   useEffect(() => {
-    const storedKey = localStorage.getItem("openai_api_key");
+    const storedKey = getOpenAIKey();
     if (storedKey) {
       setSavedKey(storedKey);
-      setOpenAIKey(storedKey);
+      console.log('OpenAI API key found in settings:', storedKey.substring(0, 3) + '...');
+    } else {
+      console.log('No OpenAI API key found in settings');
     }
   }, []);
 
@@ -43,9 +44,10 @@ const Settings = () => {
   const onSubmit = (values: ApiKeyFormValues) => {
     const { openaiKey } = values;
     
-    localStorage.setItem("openai_api_key", openaiKey);
     setOpenAIKey(openaiKey);
     setSavedKey(openaiKey);
+    
+    console.log('API key saved:', openaiKey.substring(0, 3) + '...');
     
     toast({
       title: "API Key Saved",
@@ -53,6 +55,15 @@ const Settings = () => {
     });
     
     form.reset({ openaiKey: "" });
+  };
+
+  const clearApiKey = () => {
+    setOpenAIKey('');
+    setSavedKey('');
+    toast({
+      title: "API Key Cleared",
+      description: "Your OpenAI API key has been removed",
+    });
   };
 
   return (
@@ -100,10 +111,17 @@ const Settings = () => {
                 <CardContent className="space-y-6">
                   {savedKey && (
                     <div className="p-4 bg-muted rounded-md">
-                      <p className="font-medium text-sm">Current API Key</p>
-                      <p className="text-sm mt-1">
-                        {savedKey.substring(0, 3)}...{savedKey.substring(savedKey.length - 4)}
-                      </p>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-sm">Current API Key</p>
+                          <p className="text-sm mt-1">
+                            {savedKey.substring(0, 3)}...{savedKey.substring(savedKey.length - 4)}
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={clearApiKey}>
+                          Clear Key
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -128,6 +146,15 @@ const Settings = () => {
                       <Button type="submit">Save API Key</Button>
                     </form>
                   </Form>
+                  
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    <p>Need help?</p>
+                    <ul className="list-disc pl-5 mt-2">
+                      <li>Make sure your OpenAI API key is valid and has access to the Whisper API</li>
+                      <li>The API key should start with "sk-"</li>
+                      <li>Ensure your OpenAI account has billing enabled</li>
+                    </ul>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

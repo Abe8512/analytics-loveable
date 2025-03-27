@@ -44,7 +44,7 @@ serve(async (req) => {
   }
 
   try {
-    const { audio } = await req.json()
+    const { audio, userProvidedKey } = await req.json()
     
     if (!audio) {
       throw new Error('No audio data provided')
@@ -55,15 +55,15 @@ serve(async (req) => {
     // Process audio in chunks
     const binaryAudio = processBase64Chunks(audio)
     
-    // Get OpenAI API key from environment variable
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY')
+    // Get OpenAI API key from environment variable or user-provided key
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY') || userProvidedKey
     
     if (!openAIApiKey) {
-      console.error('OPENAI_API_KEY not configured in Edge Function secrets')
+      console.error('OPENAI_API_KEY not configured in Edge Function secrets and no user key provided')
       return new Response(
         JSON.stringify({ 
-          error: 'OpenAI API key not configured on the server', 
-          text: 'This is a simulated transcript as OpenAI API key is not configured on the server. In a production environment, this would be the actual transcribed content from the OpenAI Whisper API.'
+          error: 'OpenAI API key not configured on the server or in the request', 
+          text: 'This is a simulated transcript as OpenAI API key is not configured. In a production environment, this would be the actual transcribed content from the OpenAI Whisper API.'
         }),
         { 
           status: 200, // Return 200 with simulated response for better UX
@@ -71,6 +71,8 @@ serve(async (req) => {
         }
       )
     }
+    
+    console.log('API Key available:', openAIApiKey ? 'Yes (first 3 chars: ' + openAIApiKey.substring(0, 3) + '...)' : 'No')
     
     // Prepare form data
     const formData = new FormData()
@@ -106,14 +108,13 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in transcribe-audio function:', error)
     
-    // Instead of failing, provide a simulated response for better user experience
     return new Response(
       JSON.stringify({ 
         error: error.message, 
-        text: `This is a simulated transcript as an error occurred: ${error.message}. In a production environment with proper configuration, this would be the actual transcribed content from the OpenAI Whisper API.`
+        text: `Error occurred during transcription: ${error.message}. Please check your API key and try again.`
       }),
       {
-        status: 200, // Return 200 with simulated response for better UX
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
