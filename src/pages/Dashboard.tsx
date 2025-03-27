@@ -1,23 +1,16 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import PerformanceMetrics from '../components/Dashboard/PerformanceMetrics';
-import CallsOverview from '../components/Dashboard/CallsOverview';
 import DashboardHeader from '../components/Dashboard/DashboardHeader';
-import CallAnalysisSection from '../components/Dashboard/CallAnalysisSection';
-import AIInsights from '../components/Dashboard/AIInsights';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
 import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
 import { useBulkUploadService } from '@/services/BulkUploadService';
 import { getOpenAIKey } from '@/services/WhisperService';
-import { Button } from '@/components/ui/button';
-import { LineChart, RefreshCcw } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useCallTranscripts } from '@/services/CallTranscriptService';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { fixCallSentiments } from '@/utils/fixCallSentiments';
+import DashboardMetricsSection from '@/components/Dashboard/DashboardMetricsSection';
+import DashboardContentSection from '@/components/Dashboard/DashboardContentSection';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -192,7 +185,7 @@ const Dashboard = () => {
     };
     
     calculateDashboardStats();
-  }, [transcripts]);
+  }, [transcripts, isUpdating]);
   
   const handleFixSentiments = async () => {
     setIsUpdating(true);
@@ -294,68 +287,15 @@ const Dashboard = () => {
           onClose={handleBulkUploadClose} 
         />
         
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex flex-col space-y-2"
-        >
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-xl font-semibold">Performance Overview</h2>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={refreshData}
-                disabled={isLoading}
-                className="flex items-center gap-1"
-              >
-                <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Link to="/performance-metrics">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                  <LineChart className="h-4 w-4" />
-                  View Detailed Metrics
-                </Button>
-              </Link>
-            </div>
-          </div>
-          
-          <PerformanceMetrics 
-            metricsData={dashboardStats}
-            isLoading={isLoading}
-          />
-        </motion.div>
+        {/* Metrics Section */}
+        <DashboardMetricsSection 
+          dashboardStats={dashboardStats}
+          isLoading={isLoading}
+          refreshData={refreshData}
+        />
         
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <motion.div 
-            className="lg:col-span-8"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-          >
-            <CallAnalysisSection isLoading={isLoading} />
-          </motion.div>
-          
-          <div className="lg:col-span-4 space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-            >
-              <AIInsights />
-            </motion.div>
-            
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.3 }}
-            >
-              <CallsOverview />
-            </motion.div>
-          </div>
-        </div>
+        {/* Content Section */}
+        <DashboardContentSection isLoading={isLoading} />
       </div>
     </DashboardLayout>
   );

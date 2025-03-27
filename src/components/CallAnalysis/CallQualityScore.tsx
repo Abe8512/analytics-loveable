@@ -36,7 +36,7 @@ const CallQualityScore: React.FC<CallQualityScoreProps> = ({
   const scoreLabel = getQualityLabel(qualityScore);
   
   return (
-    <Card>
+    <Card className="shadow-sm border-border">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">

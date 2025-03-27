@@ -34,7 +34,7 @@ const CallInsights: React.FC<CallInsightsProps> = ({ transcript, isLoading = fal
   ];
 
   return (
-    <Card>
+    <Card className="shadow-sm border-border">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center gap-2">
           <Lightbulb className="h-5 w-5 text-primary" />
@@ -54,7 +54,7 @@ const CallInsights: React.FC<CallInsightsProps> = ({ transcript, isLoading = fal
         ) : transcript ? (
           <div className="space-y-4">
             {insights.map((insight, index) => (
-              <div key={index} className="flex gap-2 p-2 rounded-md bg-muted/50">
+              <div key={index} className="flex gap-2 p-2 rounded-md bg-muted/50 border border-border/50">
                 <div className="mt-0.5">{insight.icon}</div>
                 <div className="text-sm">{insight.text}</div>
               </div>

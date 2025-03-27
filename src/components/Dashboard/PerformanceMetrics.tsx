@@ -217,7 +217,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {metricCards.map((card, index) => (
-        <Card key={index}>
+        <Card key={index} className="border-border shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-muted-foreground flex items-center gap-1">
