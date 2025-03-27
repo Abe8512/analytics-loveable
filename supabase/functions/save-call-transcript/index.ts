@@ -77,13 +77,53 @@ serve(async (req) => {
     
     if (error) {
       console.error('Error inserting call transcript:', error)
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { 
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
-          status: 500 
+      
+      // Try a simplified insert with minimal data as last resort
+      try {
+        console.log('Attempting simplified insert with minimal data')
+        
+        const { data: minimalData, error: minimalError } = await supabase
+          .from('call_transcripts')
+          .insert({
+            id: transcriptId,
+            user_id: data.user_id || 'anonymous',
+            text: cleanText || "No transcript available",
+            filename: data.filename || 'unnamed_recording.mp3'
+          })
+        
+        if (minimalError) {
+          console.error('Simplified insert also failed:', minimalError)
+          return new Response(
+            JSON.stringify({ error: minimalError.message }),
+            { 
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
+              status: 500 
+            }
+          )
         }
-      )
+        
+        console.log('Simplified insert succeeded with ID:', transcriptId)
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Call transcript saved with minimal data',
+            id: transcriptId
+          }),
+          { 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          }
+        )
+      } catch (fallbackError) {
+        console.error('All insert attempts failed:', fallbackError)
+        return new Response(
+          JSON.stringify({ error: fallbackError instanceof Error ? fallbackError.message : 'All insert attempts failed' }),
+          { 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
+            status: 500 
+          }
+        )
+      }
     }
     
     console.log('Call transcript saved successfully, ID:', transcriptId)
