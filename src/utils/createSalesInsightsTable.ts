@@ -58,7 +58,7 @@ export const createSalesInsightsTable = async () => {
         }
       ];
       
-      // Insert demo data via SQL instead of using the RPC API
+      // Insert demo data via SQL instead of using the Supabase API directly
       for (const insight of demoInsights) {
         const { error: insertError } = await supabase.rpc('execute_sql', {
           query_text: `

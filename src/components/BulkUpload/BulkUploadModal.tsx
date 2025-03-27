@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useRef, useEffect } from "react";
 import { X, Upload, CheckCircle, Clock, AlertCircle, FileAudio, ToggleLeft, ToggleRight, UserPlus, Settings } from "lucide-react";
 import { ThemeContext } from "@/App";
@@ -24,7 +23,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const { toast } = useToast();
   const whisperService = useWhisperService();
-  const { user, getManagedUsers } = useAuth();
+  const { user, managedUsers } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [openAIKeyMissing, setOpenAIKeyMissing] = useState(false);
   const [useLocalWhisper, setUseLocalWhisperState] = useState(false);
@@ -33,9 +32,6 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const [apiKey, setApiKey] = useState("");
   const { files, addFiles, setAssignedUserId, processQueue, isProcessing } = useBulkUploadService();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Get team members for rep selection
-  const managedUsers = getManagedUsers();
   
   useEffect(() => {
     if (isOpen) {

@@ -1,8 +1,9 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
-import { getManagedUsers } from "@/services/SharedDataService";
+import { getManagedUsers as getSharedManagedUsers } from "@/services/SharedDataService";
 
 interface AuthContextProps {
   user: User | null;
@@ -13,6 +14,14 @@ interface AuthContextProps {
   managedUsers: any[];
   selectedUser: any | null;
   setSelectedUser: (user: any | null) => void;
+  // Add missing properties
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<{ error: any }>;
+  logout: () => Promise<void>;
+  signup: (email: string, password: string, name: string) => Promise<{ error: any }>;
+  isManager: boolean;
+  isAdmin: boolean;
+  getManagedUsers: () => any[];
 }
 
 const AuthContext = createContext<AuthContextProps>({
@@ -24,6 +33,14 @@ const AuthContext = createContext<AuthContextProps>({
   managedUsers: [],
   selectedUser: null,
   setSelectedUser: () => {},
+  // Add default values for new properties
+  isAuthenticated: false,
+  login: async () => ({ error: null }),
+  logout: async () => {},
+  signup: async () => ({ error: null }),
+  isManager: false,
+  isAdmin: false,
+  getManagedUsers: () => [],
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -37,6 +54,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [managedUsers, setManagedUsers] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const navigate = useNavigate();
+
+  // Computed property for authentication status
+  const isAuthenticated = !!user;
+  
+  // Computed properties for user roles
+  const isManager = user?.app_metadata?.role === 'manager' || user?.app_metadata?.role === 'admin';
+  const isAdmin = user?.app_metadata?.role === 'admin';
 
   useEffect(() => {
     const loadSession = async () => {
@@ -59,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     const fetchManagedUsers = () => {
-      const users = getManagedUsers();
+      const users = getSharedManagedUsers();
       setManagedUsers(users);
       if (users && users.length > 0) {
         setSelectedUser(users[0]);
@@ -88,6 +112,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // New methods for login, logout, and signup
+  const login = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        console.error("Login error:", error);
+        return { error };
+      }
+      return { error: null };
+    } catch (error: any) {
+      console.error("Login exception:", error);
+      return { error };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate("/login");
+    } catch (error: any) {
+      console.error("Error logging out:", error.message);
+    }
+  };
+
+  const signup = async (email: string, password: string, name: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      });
+      
+      if (error) {
+        console.error("Signup error:", error);
+        return { error };
+      }
+      
+      return { error: null };
+    } catch (error: any) {
+      console.error("Signup exception:", error);
+      return { error };
+    }
+  };
+
+  // Function to get managed users
+  const getManagedUsers = () => {
+    return managedUsers;
+  };
+
   const value: AuthContextProps = {
     user,
     session,
@@ -97,6 +177,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     managedUsers,
     selectedUser,
     setSelectedUser,
+    // Add new properties
+    isAuthenticated,
+    login,
+    logout,
+    signup,
+    isManager,
+    isAdmin,
+    getManagedUsers,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useCallback } from "react";
 import {
   useSharedTeamMetrics,
@@ -10,7 +11,9 @@ import { useStableLoadingState } from "@/hooks/useStableLoadingState";
 import { errorHandler } from "./ErrorHandlingService";
 
 // Re-export TeamMetrics and RepMetrics for backward compatibility
-export type { TeamMetricsData, RepMetricsData };
+export type TeamMetrics = TeamMetricsData;
+export type RepMetrics = RepMetricsData;
+export type { TeamMetricsData, RepMetricsData, DataFilters };
 
 // Default metrics to use when data is loading or unavailable
 const DEFAULT_TEAM_METRICS: TeamMetricsData = {
