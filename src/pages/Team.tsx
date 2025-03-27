@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import TeamMemberCard, { TeamMember } from '@/components/Team/TeamMemberCard';
+import TeamMemberCard from '@/components/Team/TeamMemberCard';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { teamService } from '@/services/TeamService';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';

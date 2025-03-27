@@ -13,6 +13,7 @@ export interface TeamMetric {
   conversion_rate: number;
   success_rate: number;
   date?: string;
+  id?: string; // Add id field to fix TS error
 }
 
 export interface RepMetric {
@@ -50,7 +51,7 @@ export const useRealTimeMetrics = () => {
       
       // Now specifically check for our table
       const { data: tableData, error: tableError } = await supabase
-        .from(tableName)
+        .from(tableName as any) // Use type assertion to fix TS error
         .select('id')
         .limit(1);
         
@@ -79,6 +80,7 @@ export const useRealTimeMetrics = () => {
         // Return demo team metrics data
         setTeamMetrics([
           {
+            id: 'demo-1', // Add id to fix TS error
             team_name: 'Sales Team',
             call_count: 156,
             avg_sentiment: 0.72,
@@ -106,6 +108,7 @@ export const useRealTimeMetrics = () => {
       
       // Map database records to TeamMetric interface
       const mappedTeamMetrics: TeamMetric[] = callMetricsData ? callMetricsData.map(record => ({
+        id: record.id, // Include id to fix TS error
         team_name: 'Sales Team',
         call_count: record.total_calls || 0,
         avg_sentiment: record.avg_sentiment || 0.5,
