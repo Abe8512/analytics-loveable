@@ -32,7 +32,7 @@ export interface DataFilters {
   repIds?: string[];
 }
 
-// Hook to get managed users (needed by AuthContext)
+// Hook to get managed users (for other components that might still need it)
 export const getManagedUsers = () => {
   // Retrieve from session storage first
   const sessionStorageData = sessionStorage.getItem('managedUsers');

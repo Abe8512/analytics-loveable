@@ -23,7 +23,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const { toast } = useToast();
   const whisperService = useWhisperService();
-  const { user, managedUsers } = useAuth();
+  const { user, managedUsers, getManagedUsers } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [openAIKeyMissing, setOpenAIKeyMissing] = useState(false);
   const [useLocalWhisper, setUseLocalWhisperState] = useState(false);

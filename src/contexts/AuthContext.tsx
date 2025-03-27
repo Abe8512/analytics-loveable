@@ -1,9 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
-import { getManagedUsers as getSharedManagedUsers } from "@/services/SharedDataService";
 
 interface AuthContextProps {
   user: User | null;
@@ -14,7 +12,6 @@ interface AuthContextProps {
   managedUsers: any[];
   selectedUser: any | null;
   setSelectedUser: (user: any | null) => void;
-  // Add missing properties
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ error: any }>;
   logout: () => Promise<void>;
@@ -33,7 +30,6 @@ const AuthContext = createContext<AuthContextProps>({
   managedUsers: [],
   selectedUser: null,
   setSelectedUser: () => {},
-  // Add default values for new properties
   isAuthenticated: false,
   login: async () => ({ error: null }),
   logout: async () => {},
@@ -55,10 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const navigate = useNavigate();
 
-  // Computed property for authentication status
   const isAuthenticated = !!user;
   
-  // Computed properties for user roles
   const isManager = user?.app_metadata?.role === 'manager' || user?.app_metadata?.role === 'admin';
   const isAdmin = user?.app_metadata?.role === 'admin';
 
@@ -82,11 +76,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    const fetchManagedUsers = () => {
-      const users = getSharedManagedUsers();
-      setManagedUsers(users);
-      if (users && users.length > 0) {
-        setSelectedUser(users[0]);
+    const fetchManagedUsers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('team_members')
+          .select('*');
+
+        if (error || !data || data.length === 0) {
+          setManagedUsers([
+            { id: '1', name: 'John Doe', email: 'john@example.com', role: 'Sales Rep' },
+            { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'Sales Rep' },
+          ]);
+        } else {
+          setManagedUsers(data);
+        }
+        
+        if (managedUsers.length > 0 && !selectedUser) {
+          setSelectedUser(managedUsers[0]);
+        }
+      } catch (err) {
+        console.error("Error fetching managed users:", err);
+        setManagedUsers([
+          { id: '1', name: 'John Doe', email: 'john@example.com', role: 'Sales Rep' },
+          { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'Sales Rep' },
+        ]);
       }
     };
 
@@ -112,7 +125,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // New methods for login, logout, and signup
   const login = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -163,7 +175,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // Function to get managed users
   const getManagedUsers = () => {
     return managedUsers;
   };
@@ -177,7 +188,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     managedUsers,
     selectedUser,
     setSelectedUser,
-    // Add new properties
     isAuthenticated,
     login,
     logout,
