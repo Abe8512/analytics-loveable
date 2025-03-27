@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { errorHandler } from './ErrorHandlingService';
@@ -111,6 +110,159 @@ export const useWhisperService = () => {
     }
   }, []);
   
+  // Transcribe audio from a file
+  const transcribeAudio = async (
+    audioFile: File, 
+    onProgressUpdate?: (progress: number) => void
+  ): Promise<WhisperTranscriptionResponse> => {
+    try {
+      setIsTranscribing(true);
+      setError(null);
+      
+      // Log info about the audio file
+      console.log(`Transcribing file: ${audioFile.name}`, {
+        type: audioFile.type,
+        size: `${Math.round(audioFile.size / 1024)} KB`
+      });
+      
+      let transcribedText = "";
+      let segments: any[] = [];
+      
+      if (useLocalWhisper) {
+        console.log('Using local Whisper mode (browser-based)');
+        // Use browser's speech recognition (simulated for now)
+        return await transcribeWithLocalWhisper(audioFile);
+      } else {
+        // Use OpenAI API
+        try {
+          // Try to use Supabase Edge Function first (more secure)
+          console.log('Attempting to use Supabase Edge Function');
+          
+          // Set initial progress
+          if (onProgressUpdate) onProgressUpdate(10);
+          
+          transcribedText = await callSupabaseWhisperEdgeFunction(audioFile, onProgressUpdate);
+          console.log('Transcription completed via Edge Function');
+        } catch (edgeFuncError) {
+          console.warn('Edge function failed, falling back to direct API call:', edgeFuncError);
+          toast.warning('Edge function failed, falling back to direct API call');
+          
+          // Fallback to direct API call
+          if (onProgressUpdate) onProgressUpdate(30);
+          transcribedText = await callOpenAIWhisperAPI(audioFile);
+          if (onProgressUpdate) onProgressUpdate(90);
+          console.log('Transcription completed via direct API call');
+        }
+        
+        // Create basic segments based on sentences
+        const sentences = transcribedText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        let currentTime = 0;
+        
+        for (let i = 0; i < sentences.length; i++) {
+          // Estimate duration based on word count (avg 150 words per minute)
+          const wordCount = sentences[i].split(/\s+/).length;
+          const estimatedDuration = (wordCount / 150) * 60; // in seconds
+          
+          segments.push({
+            id: i + 1,
+            start: currentTime,
+            end: currentTime + estimatedDuration,
+            text: sentences[i].trim() + '.',
+            speaker: i % 2 === 0 ? 'agent' : 'customer'
+          });
+          
+          currentTime += estimatedDuration;
+        }
+        
+        // Final progress update
+        if (onProgressUpdate) onProgressUpdate(100);
+        
+        return {
+          text: transcribedText,
+          segments,
+          duration: currentTime,
+          language: 'en'
+        };
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMessage);
+      toast.error(`Transcription failed: ${errorMessage}`);
+      errorHandler.handleError(err, 'WhisperService.transcribeAudio');
+      throw err;
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+  
+  // Process audio with Supabase Edge Function if available
+  const callSupabaseWhisperEdgeFunction = async (
+    audioBlob: Blob, 
+    onProgressUpdate?: (progress: number) => void
+  ): Promise<string> => {
+    try {
+      console.log('Calling Supabase Edge Function for transcription');
+      // Convert blob to base64
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      const chunkSize = 0x8000;
+      
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+        binary += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      
+      const base64Audio = btoa(binary);
+      
+      // Get API key from localStorage to pass to the edge function
+      const apiKey = getOpenAIKey();
+      console.log('Using API key for Edge Function:', apiKey ? 'Available' : 'Not available');
+      
+      // Update progress - started sending to edge function
+      if (onProgressUpdate) onProgressUpdate(25);
+      
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+        body: { 
+          audio: base64Audio,
+          userProvidedKey: apiKey // Pass the user's API key to the edge function
+        }
+      });
+      
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(`Edge function error: ${error.message}`);
+      }
+      
+      if (!data || !data.text) {
+        console.error('No text returned from Edge Function:', data);
+        throw new Error('No transcription returned from Edge Function');
+      }
+      
+      console.log('Edge Function returned text:', data.text);
+      console.log('Progress data:', data.progress);
+      
+      // Update progress based on response
+      if (onProgressUpdate && data.progress) {
+        onProgressUpdate(data.progress);
+      } else if (onProgressUpdate) {
+        onProgressUpdate(75); // Default progress if not provided
+      }
+      
+      // Check if the response contains a simulated transcript
+      if (data.text.includes('simulated transcript')) {
+        console.warn('Edge function returned a simulated transcript');
+        throw new Error('Edge function returned a simulated transcript. Check your API key configuration.');
+      }
+      
+      return data.text;
+    } catch (error) {
+      console.error('Error calling edge function:', error);
+      throw error;
+    }
+  };
+  
   // Transcribe audio from a file using OpenAI API directly
   const callOpenAIWhisperAPI = async (audioBlob: Blob): Promise<string> => {
     const apiKey = getOpenAIKey();
@@ -165,224 +317,6 @@ export const useWhisperService = () => {
       toast.error(`Error calling OpenAI API: ${error.message}`);
       throw error;
     }
-  };
-  
-  // Process audio with Supabase Edge Function if available
-  const callSupabaseWhisperEdgeFunction = async (audioBlob: Blob): Promise<string> => {
-    try {
-      console.log('Calling Supabase Edge Function for transcription');
-      // Convert blob to base64
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      let binary = '';
-      const chunkSize = 0x8000;
-      
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-        binary += String.fromCharCode.apply(null, Array.from(chunk));
-      }
-      
-      const base64Audio = btoa(binary);
-      
-      // Get API key from localStorage to pass to the edge function
-      const apiKey = getOpenAIKey();
-      console.log('Using API key for Edge Function:', apiKey ? 'Available' : 'Not available');
-      
-      // Call Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-        body: { 
-          audio: base64Audio,
-          userProvidedKey: apiKey // Pass the user's API key to the edge function
-        }
-      });
-      
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(`Edge function error: ${error.message}`);
-      }
-      
-      if (!data || !data.text) {
-        console.error('No text returned from Edge Function:', data);
-        throw new Error('No transcription returned from Edge Function');
-      }
-      
-      console.log('Edge Function returned text:', data.text);
-      
-      // Check if the response contains a simulated transcript
-      if (data.text.includes('simulated transcript')) {
-        console.warn('Edge function returned a simulated transcript');
-        throw new Error('Edge function returned a simulated transcript. Check your API key configuration.');
-      }
-      
-      return data.text;
-    } catch (error) {
-      console.error('Error calling edge function:', error);
-      throw error;
-    }
-  };
-  
-  // Transcribe audio from a file
-  const transcribeAudio = async (audioFile: File): Promise<WhisperTranscriptionResponse> => {
-    try {
-      setIsTranscribing(true);
-      setError(null);
-      
-      // Log info about the audio file
-      console.log(`Transcribing file: ${audioFile.name}`, {
-        type: audioFile.type,
-        size: `${Math.round(audioFile.size / 1024)} KB`
-      });
-      
-      let transcribedText = "";
-      let segments: any[] = [];
-      
-      if (useLocalWhisper) {
-        console.log('Using local Whisper mode (browser-based)');
-        // Use browser's speech recognition (simulated for now)
-        return await transcribeWithLocalWhisper(audioFile);
-      } else {
-        // Use OpenAI API
-        try {
-          // Try to use Supabase Edge Function first (more secure)
-          console.log('Attempting to use Supabase Edge Function');
-          transcribedText = await callSupabaseWhisperEdgeFunction(audioFile);
-          console.log('Transcription completed via Edge Function');
-        } catch (edgeFuncError) {
-          console.warn('Edge function failed, falling back to direct API call:', edgeFuncError);
-          toast.warning('Edge function failed, falling back to direct API call');
-          
-          // Fallback to direct API call
-          transcribedText = await callOpenAIWhisperAPI(audioFile);
-          console.log('Transcription completed via direct API call');
-        }
-        
-        // Create basic segments based on sentences
-        const sentences = transcribedText.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        let currentTime = 0;
-        
-        for (let i = 0; i < sentences.length; i++) {
-          // Estimate duration based on word count (avg 150 words per minute)
-          const wordCount = sentences[i].split(/\s+/).length;
-          const estimatedDuration = (wordCount / 150) * 60; // in seconds
-          
-          segments.push({
-            id: i + 1,
-            start: currentTime,
-            end: currentTime + estimatedDuration,
-            text: sentences[i].trim() + '.',
-            speaker: i % 2 === 0 ? 'agent' : 'customer'
-          });
-          
-          currentTime += estimatedDuration;
-        }
-        
-        return {
-          text: transcribedText,
-          segments,
-          duration: currentTime,
-          language: 'en'
-        };
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(errorMessage);
-      toast.error(`Transcription failed: ${errorMessage}`);
-      errorHandler.handleError(err, 'WhisperService.transcribeAudio');
-      throw err;
-    } finally {
-      setIsTranscribing(false);
-    }
-  };
-  
-  // Real-time transcription
-  const startRealtimeTranscription = async (
-    onTranscriptionUpdate: (transcript: string) => void,
-    onError: (error: string) => void
-  ) => {
-    // Implementation for real-time transcription
-    try {
-      if (!navigator.mediaDevices) {
-        throw new Error('Media devices not supported in this browser');
-      }
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      let transcript = '';
-      let mediaRecorder: MediaRecorder | null = null;
-      let recordedChunks: Blob[] = [];
-      
-      // Create media recorder to capture audio
-      mediaRecorder = new MediaRecorder(stream);
-      
-      // Handle data available event
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunks.push(event.data);
-        }
-      };
-      
-      // Process chunks periodically
-      const processInterval = setInterval(async () => {
-        if (recordedChunks.length > 0) {
-          const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
-          recordedChunks = [];
-          
-          try {
-            // Use the browser's speech recognition for real-time processing
-            // as OpenAI doesn't support true streaming
-            if (useSpeechRecognition && speechRecognition) {
-              // Already handled by the speech recognition event
-            } else if (useLocalWhisper) {
-              // Simulate for now with random phrases
-              const newText = generateMockTranscript();
-              transcript += newText + ' ';
-              onTranscriptionUpdate(transcript);
-            } else {
-              // For demo, we'll simulate incremental updates
-              // In a production app, you'd process this with Whisper API
-              const newText = generateMockTranscript();
-              transcript += newText + ' ';
-              onTranscriptionUpdate(transcript);
-            }
-          } catch (chunkError) {
-            console.error('Error processing audio chunk:', chunkError);
-          }
-        }
-      }, 3000);
-      
-      // Start recording
-      mediaRecorder.start(1000);
-      
-      return {
-        stop: () => {
-          clearInterval(processInterval);
-          if (mediaRecorder) {
-            mediaRecorder.stop();
-          }
-          stream.getTracks().forEach(track => track.stop());
-        }
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error starting transcription';
-      onError(errorMessage);
-      throw error;
-    }
-  };
-  
-  // Helper for mock real-time transcription
-  const generateMockTranscript = () => {
-    const phrases = [
-      "I understand your concerns about the pricing.",
-      "Let me explain the key features of our product.",
-      "This solution will help improve your workflow.",
-      "Based on your needs, I recommend the premium plan.",
-      "We offer a 30-day money-back guarantee.",
-      "Our support team is available 24/7.",
-      "You mentioned earlier that efficiency is important.",
-      "I'd be happy to schedule a follow-up call.",
-      "That's an excellent question.",
-      "Let me check with my team and get back to you."
-    ];
-    return phrases[Math.floor(Math.random() * phrases.length)];
   };
   
   // Use local Whisper (browser's speech recognition)
@@ -522,6 +456,97 @@ export const useWhisperService = () => {
       throw error;
     }
   }, []);
+  
+  // Real-time transcription
+  const startRealtimeTranscription = async (
+    onTranscriptionUpdate: (transcript: string) => void,
+    onError: (error: string) => void
+  ) => {
+    // Implementation for real-time transcription
+    try {
+      if (!navigator.mediaDevices) {
+        throw new Error('Media devices not supported in this browser');
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let transcript = '';
+      let mediaRecorder: MediaRecorder | null = null;
+      let recordedChunks: Blob[] = [];
+      
+      // Create media recorder to capture audio
+      mediaRecorder = new MediaRecorder(stream);
+      
+      // Handle data available event
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+      
+      // Process chunks periodically
+      const processInterval = setInterval(async () => {
+        if (recordedChunks.length > 0) {
+          const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+          recordedChunks = [];
+          
+          try {
+            // Use the browser's speech recognition for real-time processing
+            // as OpenAI doesn't support true streaming
+            if (useSpeechRecognition && speechRecognition) {
+              // Already handled by the speech recognition event
+            } else if (useLocalWhisper) {
+              // Simulate for now with random phrases
+              const newText = generateMockTranscript();
+              transcript += newText + ' ';
+              onTranscriptionUpdate(transcript);
+            } else {
+              // For demo, we'll simulate incremental updates
+              // In a production app, you'd process this with Whisper API
+              const newText = generateMockTranscript();
+              transcript += newText + ' ';
+              onTranscriptionUpdate(transcript);
+            }
+          } catch (chunkError) {
+            console.error('Error processing audio chunk:', chunkError);
+          }
+        }
+      }, 3000);
+      
+      // Start recording
+      mediaRecorder.start(1000);
+      
+      return {
+        stop: () => {
+          clearInterval(processInterval);
+          if (mediaRecorder) {
+            mediaRecorder.stop();
+          }
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error starting transcription';
+      onError(errorMessage);
+      throw error;
+    }
+  };
+  
+  // Helper for mock real-time transcription
+  const generateMockTranscript = () => {
+    const phrases = [
+      "I understand your concerns about the pricing.",
+      "Let me explain the key features of our product.",
+      "This solution will help improve your workflow.",
+      "Based on your needs, I recommend the premium plan.",
+      "We offer a 30-day money-back guarantee.",
+      "Our support team is available 24/7.",
+      "You mentioned earlier that efficiency is important.",
+      "I'd be happy to schedule a follow-up call.",
+      "That's an excellent question.",
+      "Let me check with my team and get back to you."
+    ];
+    return phrases[Math.floor(Math.random() * phrases.length)];
+  };
   
   return {
     transcribeAudio,

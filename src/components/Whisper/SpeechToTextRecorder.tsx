@@ -76,6 +76,7 @@ const SpeechToTextRecorder = ({
           });
           
           try {
+            // Pass progress update callback to transcribeAudio
             const result = await transcribeAudio(audioFile, (progress) => {
               setTranscriptionProgress(progress);
             });
