@@ -34,7 +34,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     conversionRate: 0
   });
   
-  const { metrics: globalMetrics, isLoading: globalLoading } = useMetrics();
+  const { metrics: globalMetrics, isUpdating: globalLoading } = useMetrics();
   const { toast } = useToast();
   
   // Get metrics from the global provider or props

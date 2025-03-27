@@ -1,8 +1,10 @@
+
 import React, { useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Download, FileDown, Settings, CalendarRange } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Download, FileDown, Settings, CalendarRange, BarChart2 } from "lucide-react";
 import PerformanceMetrics from "@/components/Dashboard/PerformanceMetrics";
 import HistoricalTrends from "@/components/Performance/HistoricalTrends";
 import GoalTracking from "@/components/Performance/GoalTracking";

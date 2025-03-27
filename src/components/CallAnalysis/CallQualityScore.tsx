@@ -1,15 +1,21 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart2 } from 'lucide-react';
+import { BarChart2, RefreshCw } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 
 interface CallQualityScoreProps {
   transcript?: any;
   isLoading?: boolean;
+  onReanalyze?: () => void;
 }
 
-const CallQualityScore: React.FC<CallQualityScoreProps> = ({ transcript, isLoading = false }) => {
+const CallQualityScore: React.FC<CallQualityScoreProps> = ({ 
+  transcript, 
+  isLoading = false,
+  onReanalyze
+}) => {
   // Sample quality scores
   const qualityMetrics = [
     { name: 'Discovery', score: 65 },
@@ -32,10 +38,18 @@ const CallQualityScore: React.FC<CallQualityScoreProps> = ({ transcript, isLoadi
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <BarChart2 className="h-5 w-5 text-primary" />
-          Call Quality Score
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <BarChart2 className="h-5 w-5 text-primary" />
+            Call Quality Score
+          </CardTitle>
+          {onReanalyze && (
+            <Button variant="ghost" size="sm" onClick={onReanalyze}>
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Reanalyze
+            </Button>
+          )}
+        </div>
         <CardDescription>
           Performance evaluation metrics
         </CardDescription>
