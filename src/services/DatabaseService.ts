@@ -56,7 +56,7 @@ export class DatabaseService {
       // Generate a transcript ID
       const transcriptId = uuidv4();
       
-      // Remove ON CONFLICT clause to match the edge function approach
+      // Simple insert with no ON CONFLICT clause
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -110,7 +110,28 @@ export class DatabaseService {
           return edgeFunctionResult.data || { id: transcriptId };
         } catch (edgeFunctionError) {
           console.error('Edge function also failed:', edgeFunctionError);
-          throw error;
+          
+          // Final fallback - try with minimal data
+          try {
+            const { data: minimalData, error: minimalError } = await supabase
+              .from('call_transcripts')
+              .insert({
+                id: transcriptId,
+                user_id: input.user_id || 'anonymous',
+                text: input.text,
+                filename: input.filename || 'unknown.wav'
+              })
+              .select();
+              
+            if (minimalError) {
+              throw minimalError;
+            }
+            
+            return minimalData;
+          } catch (finalError) {
+            console.error('All insertion attempts failed:', finalError);
+            throw finalError;
+          }
         }
       }
       

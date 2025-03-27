@@ -73,7 +73,7 @@ export class BulkUploadProcessorService {
         ? Math.round(sentimentScore * 100) 
         : 50;
       
-      // Try direct insert with the now-working constraint
+      // Try direct insert without ON CONFLICT
       try {
         const { data, error } = await supabase
           .from('call_transcripts')
