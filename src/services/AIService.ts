@@ -5,7 +5,7 @@
 
 // Define the result type for sentiment analysis
 export interface SentimentAnalysisResult {
-  sentiment: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
   sentimentScore: number;
   keywords: string[];
   keyPhrases: string[];
@@ -77,7 +77,7 @@ export async function getSentimentScore(text: string): Promise<SentimentAnalysis
       sentimentScore = positiveScore / (totalSentimentWords);
     }
     
-    let sentiment;
+    let sentiment: 'positive' | 'negative' | 'neutral';
     if (sentimentScore > 0.66) {
       sentiment = 'positive';
     } else if (sentimentScore < 0.33) {

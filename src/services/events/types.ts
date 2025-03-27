@@ -15,7 +15,8 @@ export type EventType =
   | 'recording-completed'
   | 'sentiment-updated'
   | 'connection-restored'
-  | 'connection-lost';
+  | 'connection-lost'
+  | 'call-uploaded';  // Added this event type
 
 export interface EventPayload {
   [key: string]: any;

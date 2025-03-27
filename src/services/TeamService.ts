@@ -97,7 +97,7 @@ export class TeamServiceClass {
   async addTeamMember(member: TeamMember): Promise<TeamMember> {
     try {
       // Generate required IDs
-      const memberId = uuidv4();
+      const memberId = member.id || uuidv4();
       const userId = uuidv4();
       
       // Try to add to database first

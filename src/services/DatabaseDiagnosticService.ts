@@ -1,187 +1,194 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { errorHandler } from './ErrorHandlingService';
 
-interface DatabaseDiagnosticResult {
-  connected: boolean;
-  timestamp?: string;
-  version?: string;
-  tables?: string[];
-  errors?: string[];
-  fixesApplied?: boolean;
+interface DatabaseTable {
+  name: string;
+  exists: boolean;
+  columns: DatabaseColumn[];
+}
+
+interface DatabaseColumn {
+  name: string;
+  type: string;
+  exists: boolean;
 }
 
 export class DatabaseDiagnosticService {
-  /**
-   * Run diagnostics on the database connection
-   */
-  public async runDiagnostic(): Promise<DatabaseDiagnosticResult> {
+  private schemaCache: Record<string, any> = {};
+  
+  constructor() {
+    // Initialize service
+  }
+  
+  async checkTableExists(tableName: string): Promise<boolean> {
     try {
-      // Check basic connection
-      const connectionResult = await this.checkConnection();
+      // Use RPC call to check if table exists
+      const { data, error } = await supabase
+        .rpc('check_table_exists', { table_name: tableName });
       
-      if (!connectionResult.connected) {
-        return {
-          connected: false,
-          errors: ['Could not connect to database']
-        };
+      if (error) {
+        console.error(`Error checking if table ${tableName} exists:`, error);
+        return false;
       }
       
-      // Get list of tables using a custom function or RPC instead of querying information_schema
-      const tablesList = await this.getTableList();
-      
-      // Check if database fixes have been applied
-      const fixesResult = await this.checkDatabaseFixes();
-      
-      return {
-        ...connectionResult,
-        tables: tablesList,
-        fixesApplied: fixesResult.fixesApplied,
-        errors: fixesResult.errors
-      };
+      return data;
     } catch (error) {
-      console.error('Error running database diagnostic:', error);
-      return {
-        connected: false,
-        errors: [error instanceof Error ? error.message : 'Unknown error occurred']
-      };
+      console.error(`Exception checking if table ${tableName} exists:`, error);
+      errorHandler.handleError(error, 'DatabaseDiagnosticService.checkTableExists');
+      return false;
     }
   }
   
-  /**
-   * Get all tables in the public schema
-   */
-  private async getTableList(): Promise<string[]> {
+  async getTableMetadata(): Promise<any[]> {
     try {
-      // Using a stored function would be better, but this is a workaround
-      // We can query a single table and check for error to determine if it exists
-      const tables = [
-        'alerts',
-        'call_metrics_summary',
-        'call_transcripts',
-        'calls',
-        'keyword_trends',
-        'rep_metrics_summary',
-        'team_members',
-        'sentiment_trends'
-      ];
+      // We'll use a raw SQL query through RPC instead of directly querying information_schema
+      const { data, error } = await supabase
+        .rpc('get_table_metadata');
       
-      const confirmedTables: string[] = [];
-      
-      for (const table of tables) {
-        try {
-          // Just try to get one row to see if table exists
-          const { data, error } = await supabase
-            .from(table)
-            .select('id')
-            .limit(1);
-          
-          if (!error) {
-            confirmedTables.push(table);
-          }
-        } catch {
-          // Table doesn't exist, skip it
-        }
+      if (error) {
+        console.error('Error getting table metadata:', error);
+        return [];
       }
       
-      return confirmedTables;
+      return data || [];
     } catch (error) {
-      console.error('Error getting table list:', error);
+      console.error('Exception getting table metadata:', error);
+      errorHandler.handleError(error, 'DatabaseDiagnosticService.getTableMetadata');
       return [];
     }
   }
   
-  /**
-   * Format diagnostic results for display
-   */
-  public formatResults(results: DatabaseDiagnosticResult): string {
-    let output = '';
-    
-    output += `Connection: ${results.connected ? '✅' : '❌'}\n`;
-    if (results.timestamp) {
-      output += `Timestamp: ${results.timestamp}\n`;
+  async getTableColumns(tableName: string): Promise<DatabaseColumn[]> {
+    try {
+      // Use RPC call to get columns for a table
+      const { data, error } = await supabase
+        .rpc('get_table_columns', { table_name: tableName });
+      
+      if (error) {
+        console.error(`Error getting columns for table ${tableName}:`, error);
+        return [];
+      }
+      
+      return (data || []).map((column: any) => ({
+        name: column.column_name,
+        type: column.data_type,
+        exists: true
+      }));
+    } catch (error) {
+      console.error(`Exception getting columns for table ${tableName}:`, error);
+      errorHandler.handleError(error, 'DatabaseDiagnosticService.getTableColumns');
+      return [];
     }
-    if (results.version) {
-      output += `Version: ${results.version}\n`;
-    }
-    
-    if (results.tables && results.tables.length > 0) {
-      output += `\nTables (${results.tables.length}):\n`;
-      output += results.tables.map(t => `- ${t}`).join('\n');
-    }
-    
-    if (results.fixesApplied !== undefined) {
-      output += `\n\nDatabase Fixes: ${results.fixesApplied ? '✅ Applied' : '❌ Not Applied'}\n`;
-    }
-    
-    if (results.errors && results.errors.length > 0) {
-      output += `\nErrors:\n`;
-      output += results.errors.map(e => `- ${e}`).join('\n');
-    }
-    
-    return output;
   }
   
-  /**
-   * Check basic database connection
-   */
-  private async checkConnection(): Promise<DatabaseDiagnosticResult> {
+  async checkColumnExists(tableName: string, columnName: string): Promise<boolean> {
     try {
-      // Use a simpler request to check connection
+      // Use RPC call to check if column exists
+      const { data, error } = await supabase
+        .rpc('check_column_exists', { 
+          table_name: tableName,
+          column_name: columnName
+        });
+      
+      if (error) {
+        console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, error);
+        return false;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error(`Exception checking if column ${columnName} exists in table ${tableName}:`, error);
+      errorHandler.handleError(error, 'DatabaseDiagnosticService.checkColumnExists');
+      return false;
+    }
+  }
+  
+  async getDatabaseDiagnostics(): Promise<{
+    tables: DatabaseTable[];
+    connections: {
+      canConnect: boolean;
+      status: string;
+    };
+  }> {
+    try {
+      // Check connection
+      const connectionCheck = await this.checkConnection();
+      
+      // Get table information
+      const tableMetadata = await this.getTableMetadata();
+      
+      // Build detailed table info
+      const tables: DatabaseTable[] = [];
+      
+      for (const table of tableMetadata) {
+        const columns = await this.getTableColumns(table.table_name);
+        
+        tables.push({
+          name: table.table_name,
+          exists: true,
+          columns
+        });
+      }
+      
+      return {
+        tables,
+        connections: {
+          canConnect: connectionCheck.canConnect,
+          status: connectionCheck.status
+        }
+      };
+    } catch (error) {
+      console.error('Error getting database diagnostics:', error);
+      errorHandler.handleError(error, 'DatabaseDiagnosticService.getDatabaseDiagnostics');
+      
+      return {
+        tables: [],
+        connections: {
+          canConnect: false,
+          status: 'Error getting database diagnostics'
+        }
+      };
+    }
+  }
+  
+  async checkConnection(): Promise<{
+    canConnect: boolean;
+    status: string;
+  }> {
+    try {
+      console.log('Checking Supabase connection...');
+      
+      // Simple query to test connection
       const { data, error } = await supabase
         .from('call_transcripts')
         .select('id')
         .limit(1);
       
       if (error) {
+        console.error('Supabase connection failed:', error);
         return {
-          connected: false,
-          errors: [error.message]
+          canConnect: false,
+          status: `Connection failed: ${error.message}`
         };
       }
       
-      return {
-        connected: true,
-        timestamp: new Date().toISOString(),
-        version: 'Supabase'
-      };
-    } catch (error) {
-      console.error('Error checking connection:', error);
-      return {
-        connected: false,
-        errors: [error instanceof Error ? error.message : 'Unknown error occurred']
-      };
-    }
-  }
-  
-  /**
-   * Check if database fixes have been applied
-   */
-  private async checkDatabaseFixes(): Promise<{fixesApplied: boolean, errors?: string[]}> {
-    try {
-      // Check if team_members table exists as a simple check
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('id')
-        .limit(1);
-      
-      if (error) {
-        return {
-          fixesApplied: false,
-          errors: [error.message]
-        };
-      }
+      console.log('Supabase connection successful, found data:', data);
       
       return {
-        fixesApplied: true
+        canConnect: true,
+        status: 'Connected successfully'
       };
     } catch (error) {
-      console.error('Error checking database fixes:', error);
+      console.error('Supabase connection error:', error);
+      
       return {
-        fixesApplied: false,
-        errors: [error instanceof Error ? error.message : 'Unknown error occurred']
+        canConnect: false,
+        status: error instanceof Error ? error.message : 'Unknown error connecting to database'
       };
     }
   }
 }
 
+// Export a singleton instance for easier use
 export const databaseDiagnosticService = new DatabaseDiagnosticService();
