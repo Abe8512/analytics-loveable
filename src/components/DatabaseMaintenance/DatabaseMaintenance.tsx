@@ -9,6 +9,7 @@ import { cleanupTechnicalDebt } from '@/utils/cleanupTechnicalDebt';
 import { configureRealtime } from '@/utils/configureRealtime';
 import { createRLSFunctions } from '@/utils/createRLSFunctions';
 import { secureRLSPolicies } from '@/utils/secureRLSPolicies';
+import DatabaseSetup from './DatabaseSetup';
 
 const DatabaseMaintenance: React.FC = () => {
   const { toast } = useToast();
@@ -56,6 +57,8 @@ const DatabaseMaintenance: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <DatabaseSetup />
+        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Create Database Functions */}
           <Card className="border shadow-sm">

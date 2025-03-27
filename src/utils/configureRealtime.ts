@@ -36,9 +36,12 @@ export const configureRealtime = async (): Promise<{
     for (const table of realtimeTables) {
       try {
         // Set REPLICA IDENTITY to FULL
-        const { error: replicaError } = await supabase.rpc('set_replica_identity_full', {
-          table_name: table
-        });
+        const { error: replicaError } = await supabase
+          .from('_database_functions')
+          .insert({
+            function_name: 'set_replica_identity_full',
+            param_table_name: table
+          });
         
         if (replicaError) {
           console.error(`Error setting REPLICA IDENTITY for ${table}:`, replicaError);
@@ -47,10 +50,13 @@ export const configureRealtime = async (): Promise<{
         }
         
         // Add table to supabase_realtime publication
-        const { error: pubError } = await supabase.rpc('add_table_to_publication', {
-          table_name: table,
-          publication_name: 'supabase_realtime'
-        });
+        const { error: pubError } = await supabase
+          .from('_database_functions')
+          .insert({
+            function_name: 'add_table_to_publication',
+            param_table_name: table,
+            param_publication_name: 'supabase_realtime'
+          });
         
         if (pubError) {
           console.error(`Error adding ${table} to publication:`, pubError);

@@ -34,9 +34,12 @@ export const secureRLSPolicies = async (): Promise<{
     // 1. Drop the development-only policies that allow full public access
     for (const table of tables) {
       try {
-        const { error } = await supabase.rpc('drop_development_access_policies', { 
-          table_name: table 
-        });
+        const { error } = await supabase
+          .from('_database_functions')
+          .insert({
+            function_name: 'drop_development_access_policies',
+            param_table_name: table
+          });
         
         if (error) {
           console.error(`Error dropping development policies for ${table}:`, error);
@@ -54,9 +57,12 @@ export const secureRLSPolicies = async (): Promise<{
     // 2. Create proper authenticated-user policies
     for (const table of tables) {
       try {
-        const { error } = await supabase.rpc('create_authenticated_access_policies', {
-          table_name: table
-        });
+        const { error } = await supabase
+          .from('_database_functions')
+          .insert({
+            function_name: 'create_authenticated_access_policies',
+            param_table_name: table
+          });
         
         if (error) {
           console.error(`Error creating authenticated policies for ${table}:`, error);
@@ -73,7 +79,7 @@ export const secureRLSPolicies = async (): Promise<{
     
     result.success = result.failed.length === 0;
     result.message = result.success 
-      ? 'Successfully updated all RLS policies for production security' 
+      ? 'Successfully updated all RLS policy for production security' 
       : `Updated some RLS policies, but ${result.failed.length} operations failed`;
     
     return result;

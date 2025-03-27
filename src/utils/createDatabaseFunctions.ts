@@ -7,46 +7,62 @@ import { supabase } from "@/integrations/supabase/client";
 export const createDatabaseFunctions = async (): Promise<{ success: boolean; message: string }> => {
   try {
     // Create utility function to check if a table exists
-    const checkTableResult = await supabase.rpc('create_check_table_exists_function');
+    const { error: checkTableError } = await supabase
+      .from('_database_setup')
+      .insert({
+        setup_function: 'create_check_table_exists_function'
+      });
     
-    if (checkTableResult.error) {
-      console.error('Error creating check_table_exists function:', checkTableResult.error);
+    if (checkTableError) {
+      console.error('Error creating check_table_exists function:', checkTableError);
       return {
         success: false,
-        message: `Failed to create check_table_exists function: ${checkTableResult.error.message}`
+        message: `Failed to create check_table_exists function: ${checkTableError.message}`
       };
     }
     
     // Create utility function to drop a table if it exists
-    const dropTableResult = await supabase.rpc('create_drop_table_function');
+    const { error: dropTableError } = await supabase
+      .from('_database_setup')
+      .insert({
+        setup_function: 'create_drop_table_function'
+      });
     
-    if (dropTableResult.error) {
-      console.error('Error creating drop_table_if_exists function:', dropTableResult.error);
+    if (dropTableError) {
+      console.error('Error creating drop_table_if_exists function:', dropTableError);
       return {
         success: false,
-        message: `Failed to create drop_table_if_exists function: ${dropTableResult.error.message}`
+        message: `Failed to create drop_table_if_exists function: ${dropTableError.message}`
       };
     }
     
     // Create utility function to set REPLICA IDENTITY FULL
-    const replicaResult = await supabase.rpc('create_set_replica_identity_function');
+    const { error: replicaError } = await supabase
+      .from('_database_setup')
+      .insert({
+        setup_function: 'create_set_replica_identity_function'
+      });
     
-    if (replicaResult.error) {
-      console.error('Error creating set_replica_identity_full function:', replicaResult.error);
+    if (replicaError) {
+      console.error('Error creating set_replica_identity_full function:', replicaError);
       return {
         success: false,
-        message: `Failed to create set_replica_identity_full function: ${replicaResult.error.message}`
+        message: `Failed to create set_replica_identity_full function: ${replicaError.message}`
       };
     }
     
     // Create utility function to add table to publication
-    const publicationResult = await supabase.rpc('create_add_to_publication_function');
+    const { error: publicationError } = await supabase
+      .from('_database_setup')
+      .insert({
+        setup_function: 'create_add_to_publication_function'
+      });
     
-    if (publicationResult.error) {
-      console.error('Error creating add_table_to_publication function:', publicationResult.error);
+    if (publicationError) {
+      console.error('Error creating add_table_to_publication function:', publicationError);
       return {
         success: false,
-        message: `Failed to create add_table_to_publication function: ${publicationResult.error.message}`
+        message: `Failed to create add_table_to_publication function: ${publicationError.message}`
       };
     }
     

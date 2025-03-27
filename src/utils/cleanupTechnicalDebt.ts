@@ -31,24 +31,30 @@ export const cleanupTechnicalDebt = async (): Promise<{
     for (const table of backupTables) {
       try {
         // First check if the table exists
-        const { data: exists, error: checkError } = await supabase.rpc('check_table_exists', {
-          table_name: table
-        });
+        const { data: exists, error: checkError } = await supabase
+          .from('_database_functions')
+          .select('result')
+          .eq('function_name', 'check_table_exists')
+          .eq('param_table_name', table)
+          .single();
         
         if (checkError) {
           console.error(`Error checking if ${table} exists:`, checkError);
           continue;
         }
         
-        if (!exists) {
+        if (!exists?.result) {
           console.log(`Table ${table} does not exist, skipping`);
           continue;
         }
         
         // Table exists, drop it
-        const { error: dropError } = await supabase.rpc('drop_table_if_exists', {
-          table_name: table
-        });
+        const { error: dropError } = await supabase
+          .from('_database_functions')
+          .insert({
+            function_name: 'drop_table_if_exists',
+            param_table_name: table
+          });
         
         if (dropError) {
           console.error(`Error dropping ${table}:`, dropError);
