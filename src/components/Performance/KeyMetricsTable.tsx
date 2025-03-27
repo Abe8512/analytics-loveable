@@ -180,7 +180,7 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
         <CardDescription>
           Comparing current period to previous period
           {isUsingDemoData && (
-            <Alert variant="warning" className="mt-2">
+            <Alert variant="destructive" className="mt-2">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 Using demo data. Real metrics will be available after calls are processed.
