@@ -1,11 +1,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { dispatchEvent } from '@/services/events/store';
-import { EventType } from '@/services/events/types';
+import { useEventsStore } from './events';
 import { errorHandler } from './ErrorHandlingService';
 import { toast } from 'sonner';
-import { useEventsStore } from './events';
 
 export interface TeamMember {
   id: string;
@@ -23,7 +21,6 @@ class TeamService {
   private CHECK_INTERVAL = 600000; // 10 minutes
   
   constructor() {
-    // Initialize service
     console.log('TeamService initialized');
   }
   
@@ -157,8 +154,13 @@ class TeamService {
     }
   }
   
-  async addTeamMember(member: Omit<TeamMember, 'id'>): Promise<TeamMember> {
+  async addTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
     try {
+      // Generate a user_id if not provided
+      if (!member.user_id) {
+        member.user_id = `user-${Date.now()}`;
+      }
+      
       // Check if the team_members table exists
       const tableExists = await this.checkTeamMembersTable();
       
@@ -187,8 +189,10 @@ class TeamService {
           this.teamMembersCache = null;
           
           // Dispatch event
-          dispatchEvent('TEAM_MEMBER_ADDED' as EventType, { member: data[0] });
+          const eventsStore = useEventsStore.getState();
+          eventsStore.dispatchEvent('team-member-added', { member: data[0] });
           
+          toast.success('Team member added successfully');
           return data[0];
         }
       }
@@ -201,15 +205,16 @@ class TeamService {
     }
   }
   
-  private addTeamMemberToLocalStorage(member: Omit<TeamMember, 'id'>): TeamMember {
+  private addTeamMemberToLocalStorage(member: Partial<TeamMember>): TeamMember {
     try {
       // Get current members
       const members = this.getStoredTeamMembers();
       
       // Create new member with generated ID
       const newMember: TeamMember = {
-        ...member,
-        id: `local-${Date.now()}`
+        ...member as TeamMember,
+        id: `local-${Date.now()}`,
+        user_id: member.user_id || `user-${Date.now()}`
       };
       
       // Add to list
@@ -222,8 +227,10 @@ class TeamService {
       this.teamMembersCache = updatedMembers;
       
       // Dispatch event
-      dispatchEvent('TEAM_MEMBER_ADDED' as EventType, { member: newMember });
+      const eventsStore = useEventsStore.getState();
+      eventsStore.dispatchEvent('team-member-added', { member: newMember });
       
+      toast.success('Team member added successfully (stored locally)');
       return newMember;
     } catch (error) {
       console.error('Error adding team member to local storage:', error);
@@ -259,8 +266,10 @@ class TeamService {
         this.removeTeamMemberFromLocalStorage(id);
         
         // Dispatch event
-        dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, { id });
+        const eventsStore = useEventsStore.getState();
+        eventsStore.dispatchEvent('team-member-removed', { id });
         
+        toast.success('Team member removed successfully');
         return;
       }
       
@@ -287,7 +296,10 @@ class TeamService {
       this.teamMembersCache = updatedMembers;
       
       // Dispatch event
-      dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, { id });
+      const eventsStore = useEventsStore.getState();
+      eventsStore.dispatchEvent('team-member-removed', { id });
+      
+      toast.success('Team member removed successfully (from local storage)');
     } catch (error) {
       console.error('Error removing team member from local storage:', error);
       throw error;
@@ -298,7 +310,6 @@ class TeamService {
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
-    const eventsStore = useEventsStore.getState();
     
     const refreshTeamMembers = useCallback(async () => {
       try {
@@ -318,11 +329,22 @@ class TeamService {
     useEffect(() => {
       refreshTeamMembers();
       
-      // Set up event listeners
-      const unsubscribe = subscribeToTeamMemberEvents(refreshTeamMembers);
+      // Set up event listeners for team member events
+      const eventsStore = useEventsStore.getState();
+      
+      const unsubTeamMemberAdded = eventsStore.addEventListener('team-member-added', () => {
+        console.log('Team member added event received');
+        refreshTeamMembers();
+      });
+      
+      const unsubTeamMemberRemoved = eventsStore.addEventListener('team-member-removed', () => {
+        console.log('Team member removed event received');
+        refreshTeamMembers();
+      });
       
       return () => {
-        unsubscribe();
+        if (unsubTeamMemberAdded) unsubTeamMemberAdded();
+        if (unsubTeamMemberRemoved) unsubTeamMemberRemoved();
       };
     }, [refreshTeamMembers]);
     
@@ -331,30 +353,3 @@ class TeamService {
 }
 
 export const teamService = new TeamService();
-
-const subscribeToTeamMemberEvents = (refreshTeamMembers: () => Promise<void>) => {
-  return useEventsStore.subscribe((state) => {
-    const unsubs: Array<(() => void) | undefined> = [];
-    
-    // Add listener for team member added event
-    unsubs.push(state.addEventListener('team-member-added', () => {
-      console.log('Team member added event received');
-      refreshTeamMembers();
-    }));
-    
-    // Add listener for team member removed event
-    unsubs.push(state.addEventListener('team-member-removed', () => {
-      console.log('Team member removed event received');
-      refreshTeamMembers();
-    }));
-    
-    // Return combined unsubscribe function
-    return () => {
-      unsubs.forEach(unsub => {
-        if (typeof unsub === 'function') {
-          unsub();
-        }
-      });
-    };
-  });
-};

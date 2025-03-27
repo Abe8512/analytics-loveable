@@ -9,18 +9,18 @@ import { Phone, User, UserCheck, Clock } from 'lucide-react';
 import { teamService } from '@/services/TeamService';
 import { useEventListener } from '@/services/events/hooks';
 
-interface CallActivityProps {
+interface TeamMembersTableProps {
   selectedUserId?: string | null;
   onTeamMemberSelect?: (id: string) => void;
   limit?: number;
 }
 
-const TeamMembersTable: React.FC<CallActivityProps> = ({ 
+const TeamMembersTable: React.FC<TeamMembersTableProps> = ({ 
   selectedUserId, 
   onTeamMemberSelect,
   limit 
 }) => {
-  const [teamMembers, setTeamMembers] = useState([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -29,7 +29,9 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({
     setIsLoading(true);
     try {
       const members = await teamService.getTeamMembers();
-      setTeamMembers(members);
+      // Apply limit if specified
+      const limitedMembers = limit ? members.slice(0, limit) : members;
+      setTeamMembers(limitedMembers);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load team members');
@@ -45,8 +47,9 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({
   
   useEffect(() => {
     fetchTeamMembers();
-  }, []);
+  }, [limit]);
   
+  // Listen for team member events to refresh the table
   useEventListener('team-member-added', () => {
     fetchTeamMembers();
   });
@@ -61,12 +64,41 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({
     }
   };
 
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((part) => part.charAt(0))
+      .join('')
+      .toUpperCase();
+  };
+
   if (isLoading) {
-    return <div className="text-center py-4">Loading team members...</div>;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Team Members</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-neon-purple mx-auto mb-2"></div>
+            <p>Loading team members...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (error) {
-    return <div className="text-center py-4 text-red-500">Error: {error}</div>;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Team Members</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="text-center py-4 text-red-500">Error: {error}</div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -89,26 +121,26 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({
             {teamMembers.map((member) => (
               <TableRow 
                 key={member.id}
-                className={selectedUserId === member.id ? 'bg-accent/40' : 'hover:bg-accent/20'}
+                className={`cursor-pointer ${selectedUserId === member.id ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
                 onClick={() => handleRowClick(member.id)}
               >
                 <TableCell>
                   <Avatar>
                     <AvatarImage src={member.avatar_url || ""} alt={member.name} />
-                    <AvatarFallback>{member.name?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                   </Avatar>
                 </TableCell>
-                <TableCell>{member.name}</TableCell>
-                <TableCell>{member.email}</TableCell>
-                <TableCell>{member.role}</TableCell>
+                <TableCell className="font-medium">{member.name}</TableCell>
+                <TableCell>{member.email || 'No email'}</TableCell>
+                <TableCell>{member.role || 'No role'}</TableCell>
                 <TableCell className="text-right">
                   {selectedUserId === member.id ? (
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30">
                       <UserCheck className="mr-2 h-4 w-4" />
                       Active
                     </Badge>
                   ) : (
-                    <Badge className="opacity-50">
+                    <Badge variant="outline" className="opacity-50">
                       <User className="mr-2 h-4 w-4" />
                       Inactive
                     </Badge>
@@ -118,8 +150,9 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({
             ))}
             {teamMembers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
-                  No team members found.
+                <TableCell colSpan={5} className="text-center py-8">
+                  <p className="text-muted-foreground">No team members found.</p>
+                  <p className="text-sm text-muted-foreground/70 mt-1">Add team members in the Team page.</p>
                 </TableCell>
               </TableRow>
             )}

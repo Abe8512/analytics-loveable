@@ -5,7 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -33,6 +33,13 @@ serve(async (req) => {
       CREATE POLICY "Allow full access to call_transcripts" ON call_transcripts FOR ALL USING (true);
     `;
     
+    // Create RLS policies for the team_members table
+    const teamMembersTableQuery = `
+      ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS "Allow full access to team_members" ON team_members;
+      CREATE POLICY "Allow full access to team_members" ON team_members FOR ALL USING (true);
+    `;
+    
     // Execute the queries
     try {
       await supabase.rpc('execute_sql', { query_text: callsTableQuery });
@@ -46,6 +53,13 @@ serve(async (req) => {
       console.log('Successfully set up RLS policies for call_transcripts table');
     } catch (transcriptsError) {
       console.error('Error setting up RLS policies for call_transcripts table:', transcriptsError);
+    }
+    
+    try {
+      await supabase.rpc('execute_sql', { query_text: teamMembersTableQuery });
+      console.log('Successfully set up RLS policies for team_members table');
+    } catch (teamMembersError) {
+      console.error('Error setting up RLS policies for team_members table:', teamMembersError);
     }
     
     return new Response(

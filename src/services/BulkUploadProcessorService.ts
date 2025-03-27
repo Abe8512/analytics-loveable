@@ -5,6 +5,7 @@ import { errorHandler } from "./ErrorHandlingService";
 import { getSentimentScore } from "./AIService";
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from "@/integrations/supabase/client";
+import { teamService } from "./TeamService";
 
 export type UploadStatus = 'queued' | 'processing' | 'complete' | 'error';
 
@@ -77,15 +78,24 @@ export class BulkUploadProcessorService {
       let userName = "Unknown Rep";
       if (this.assignedUserId && this.assignedUserId.trim() !== '') {
         try {
-          // Check if assigned user ID is a valid UUID before querying
-          if (this.assignedUserId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          // Check if we can find the team member
+          const teamMembers = await teamService.getTeamMembers();
+          const assignedMember = teamMembers.find(member => 
+            member.id === this.assignedUserId || 
+            member.user_id === this.assignedUserId
+          );
+          
+          if (assignedMember) {
+            userName = assignedMember.name;
+          } else if (this.assignedUserId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            // If it's a UUID format but not found in team members, try direct DB query
             const { data: userProfile, error: userError } = await supabase
               .from('team_members')
               .select('name')
-              .eq('user_id', this.assignedUserId)
+              .eq('id', this.assignedUserId)
               .single();
               
-            if (!userError && userProfile) {
+            if (!userError && userProfile && userProfile.name) {
               userName = userProfile.name;
             }
           } else {

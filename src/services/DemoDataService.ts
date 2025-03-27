@@ -1,4 +1,3 @@
-
 import { faker } from '@faker-js/faker';
 import { CallTranscript } from '@/types/call';
 
@@ -48,3 +47,26 @@ export function generateMockCallTranscripts(count: number): CallTranscript[] {
   }
   return transcripts;
 }
+
+export const generateMockTranscript = (id?: string): CallTranscript => {
+  const mockId = id || faker.string.uuid();
+  
+  return {
+    id: mockId,
+    text: `This is a mock transcript for call ${mockId.substring(0, 8)}. The customer was inquiring about our premium service options and pricing tiers. The agent provided a detailed explanation of the available plans and offered to send follow-up materials.`,
+    duration: faker.number.int({ min: 120, max: 900 }),
+    sentiment: faker.helpers.arrayElement(['positive', 'neutral', 'negative']) as 'positive' | 'neutral' | 'negative',
+    keywords: ['pricing', 'premium', 'service', 'options'],
+    key_phrases: ['pricing options', 'premium service', 'follow-up materials'],
+    call_score: faker.number.int({ min: 60, max: 95 }),
+    user_name: faker.person.fullName(),
+    customer_name: faker.person.fullName(),
+    created_at: faker.date.recent().toISOString(),
+    filename: `call-recording-${mockId.substring(0, 8)}.wav`,
+    metadata: {
+      outcome: faker.helpers.arrayElement(['sale', 'follow-up', 'no-sale']),
+      product_discussed: faker.helpers.arrayElement(['Enterprise', 'Professional', 'Basic']),
+      call_duration_seconds: faker.number.int({ min: 120, max: 900 })
+    }
+  };
+};
