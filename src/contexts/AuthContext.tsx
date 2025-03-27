@@ -1,7 +1,9 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
+import { teamService } from "@/services/TeamService";
 
 interface AuthContextProps {
   user: User | null;
@@ -78,28 +80,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const fetchManagedUsers = async () => {
       try {
-        const { data, error } = await supabase
-          .from('team_members')
-          .select('*');
-
-        if (error || !data || data.length === 0) {
-          setManagedUsers([
-            { id: '1', name: 'John Doe', email: 'john@example.com', role: 'Sales Rep' },
-            { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'Sales Rep' },
-          ]);
-        } else {
-          setManagedUsers(data);
-        }
+        const fetchedUsers = await teamService.getTeamMembers();
+        setManagedUsers(fetchedUsers);
         
-        if (managedUsers.length > 0 && !selectedUser) {
-          setSelectedUser(managedUsers[0]);
+        if (fetchedUsers.length > 0 && !selectedUser) {
+          setSelectedUser(fetchedUsers[0]);
         }
       } catch (err) {
         console.error("Error fetching managed users:", err);
-        setManagedUsers([
+        // Fall back to default users
+        const defaultUsers = [
           { id: '1', name: 'John Doe', email: 'john@example.com', role: 'Sales Rep' },
           { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'Sales Rep' },
-        ]);
+        ];
+        setManagedUsers(defaultUsers);
+        
+        if (!selectedUser) {
+          setSelectedUser(defaultUsers[0]);
+        }
       }
     };
 

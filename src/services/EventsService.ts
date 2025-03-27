@@ -1,60 +1,62 @@
 
-import { useEffect } from 'react';
-import { create } from 'zustand';
+/**
+ * Constants for event names to ensure consistency
+ */
+export const EVENTS = {
+  TEAM_MEMBER_ADDED: 'team-member-added',
+  TEAM_MEMBER_REMOVED: 'team-member-removed',
+  MANAGED_USERS_UPDATED: 'managed-users-updated',
+  CALL_UPDATED: 'call-updated'
+};
 
-export type EventType = 
-  | 'team-member-added'
-  | 'team-member-removed'
-  | 'managed-users-updated'
-  | 'call-updated'
-  | 'connection-restored'
-  | 'connection-lost'
-  | 'transcript-created'
-  | 'bulk-upload-completed'
-  | 'recording-completed';
-
-interface EventsState {
-  events: Map<EventType, any[]>;
-  lastEvent: { type: EventType; payload: any } | null;
-  dispatchEvent: (type: EventType, payload?: any) => void;
-  subscribeToEvent: (type: EventType, callback: (payload: any) => void) => () => void;
-}
-
-export const useEventsStore = create<EventsState>((set, get) => ({
-  events: new Map(),
-  lastEvent: null,
-  dispatchEvent: (type, payload = {}) => {
-    const { events } = get();
-    const currentEvents = events.get(type) || [];
-    events.set(type, [...currentEvents, payload]);
-    
-    set({
-      events,
-      lastEvent: { type, payload }
-    });
-    
-    console.log('Event dispatched:', type, payload);
-    
-    // Also dispatch as a DOM event for broader compatibility
-    if (typeof window !== 'undefined') {
-      const event = new CustomEvent(type, { detail: payload });
-      window.dispatchEvent(event);
-    }
+/**
+ * Service for managing cross-component communication via events
+ */
+export const eventsService = {
+  /**
+   * Dispatch an event
+   */
+  dispatch(eventName: string, detail?: any) {
+    window.dispatchEvent(new CustomEvent(eventName, { detail }));
   },
-  subscribeToEvent: (type, callback) => {
-    const handler = (evt: CustomEvent) => callback(evt.detail);
-    window.addEventListener(type, handler as EventListener);
+  
+  /**
+   * Subscribe to an event
+   */
+  subscribe(eventName: string, handler: EventListener): () => void {
+    window.addEventListener(eventName, handler);
     
-    // Return unsubscribe function
+    // Return a function to unsubscribe
     return () => {
-      window.removeEventListener(type, handler as EventListener);
+      window.removeEventListener(eventName, handler);
     };
+  },
+  
+  /**
+   * Notify that team members have changed
+   */
+  notifyTeamMemberAdded(teamMember?: any) {
+    this.dispatch(EVENTS.TEAM_MEMBER_ADDED, teamMember);
+  },
+  
+  /**
+   * Notify that a team member was removed
+   */
+  notifyTeamMemberRemoved(teamMemberId?: string) {
+    this.dispatch(EVENTS.TEAM_MEMBER_REMOVED, teamMemberId);
+  },
+  
+  /**
+   * Notify that managed users list has been updated
+   */
+  notifyManagedUsersUpdated(users?: any[]) {
+    this.dispatch(EVENTS.MANAGED_USERS_UPDATED, users);
+  },
+  
+  /**
+   * Notify that a call has been updated
+   */
+  notifyCallUpdated(callId?: string, changes?: any) {
+    this.dispatch(EVENTS.CALL_UPDATED, { callId, changes });
   }
-}));
-
-export const useEventListener = (eventType: EventType, callback: (payload: any) => void) => {
-  useEffect(() => {
-    const unsubscribe = useEventsStore.getState().subscribeToEvent(eventType, callback);
-    return unsubscribe;
-  }, [eventType, callback]);
 };

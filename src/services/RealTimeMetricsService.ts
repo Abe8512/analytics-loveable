@@ -1,194 +1,84 @@
 
-import { useEffect, useMemo, useCallback } from "react";
-import {
-  useSharedTeamMetrics,
-  useSharedRepMetrics,
-  TeamMetricsData,
-  RepMetricsData,
-  DataFilters
-} from "./SharedDataService";
-import { useStableLoadingState } from "@/hooks/useStableLoadingState";
-import { errorHandler } from "./ErrorHandlingService";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useSharedTeamMetrics, useSharedRepMetrics, DataFilters, TeamMetricsData, RepMetricsData } from "@/services/SharedDataService";
 
-// Re-export TeamMetrics and RepMetrics for backward compatibility
-export type TeamMetrics = TeamMetricsData;
-export type RepMetrics = RepMetricsData;
-export type { TeamMetricsData, RepMetricsData, DataFilters };
+// Re-export the types from SharedDataService
+export type { TeamMetricsData, RepMetricsData };
 
-// Default metrics to use when data is loading or unavailable
-const DEFAULT_TEAM_METRICS: TeamMetricsData = {
-  performanceScore: 75,
-  totalCalls: 42,
-  conversionRate: 28,
-  avgSentiment: 0.68,
-  topKeywords: ["pricing", "features", "support"],
-  avgTalkRatio: { agent: 55, customer: 45 }
-};
+/**
+ * Service for real-time metrics updates
+ */
+export const realTimeMetricsService = {
+  /**
+   * Subscribe to real-time updates for a table
+   */
+  subscribeToTable(
+    tableName: string,
+    callback: (payload: any) => void
+  ): () => void {
+    try {
+      const channel = supabase
+        .channel('table-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: tableName,
+          },
+          (payload) => {
+            console.log(`Real-time update from ${tableName}:`, payload);
+            callback(payload);
+          }
+        )
+        .subscribe();
 
-// Default rep metrics for when data is loading or unavailable
-const DEFAULT_REP_METRICS: RepMetricsData[] = [
-  {
-    id: "1",
-    name: "John Doe",
-    callVolume: 25,
-    successRate: 65,
-    sentiment: 0.78,
-    insights: ["Asks good discovery questions", "Could improve closing technique"]
+      // Return unsubscribe function
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (error) {
+      console.error(`Error subscribing to ${tableName}:`, error);
+      return () => {}; // Empty cleanup function
+    }
   },
-  {
-    id: "2",
-    name: "Jane Smith",
-    callVolume: 32,
-    successRate: 72,
-    sentiment: 0.82,
-    insights: ["Excellent at handling objections", "Clear product explanations"]
-  }
-];
 
-/**
- * Hook for useStableLoadingState if it doesn't exist
- */
-const useDefaultStableLoadingState = (isLoading: boolean, delay: number = 300) => {
-  const [stableLoading, setStableLoading] = useState(isLoading);
-  
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    
-    if (isLoading) {
-      setStableLoading(true);
-    } else {
-      timer = setTimeout(() => setStableLoading(false), delay);
+  /**
+   * Enable real-time updates for a table
+   */
+  async enableRealTimeForTable(tableName: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase.rpc(
+        'add_table_to_realtime_publication',
+        { table_name: tableName }
+      );
+
+      if (error) {
+        console.error(`Error enabling real-time for ${tableName}:`, error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`Exception enabling real-time for ${tableName}:`, error);
+      return false;
     }
-    
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isLoading, delay]);
-  
-  return stableLoading;
-};
-
-// Import useState for the custom hook
-import { useState } from "react";
-
-/**
- * Optimized hook for real-time team metrics with improved performance
- */
-export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetricsData, boolean] => {
-  const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
-  
-  // Use our custom hook as a fallback if the imported one isn't available
-  const stableLoading = typeof useStableLoadingState === 'function' 
-    ? useStableLoadingState(isLoading, 500) 
-    : useDefaultStableLoadingState(isLoading, 500);
-  
-  // Stabilize metrics with memoization to prevent UI jitter
-  const stableMetrics = useMemo(() => {
-    // Always return metrics with defaults to ensure UI never shows blank values
-    return {
-      ...DEFAULT_TEAM_METRICS, // First spread defaults to ensure all properties have values
-      ...(metrics || {}), // Then override with actual metrics if available
-      // Ensure performance score has a value and is stabilized
-      performanceScore: metrics?.performanceScore !== undefined ? 
-        Math.floor(metrics.performanceScore) : DEFAULT_TEAM_METRICS.performanceScore,
-      // Ensure conversion rate has a value and is stabilized  
-      conversionRate: metrics?.conversionRate !== undefined ? 
-        Math.floor(metrics.conversionRate) : DEFAULT_TEAM_METRICS.conversionRate,
-      // Ensure total calls has a value and is stabilized
-      totalCalls: metrics?.totalCalls !== undefined ? 
-        Math.floor(metrics.totalCalls) : DEFAULT_TEAM_METRICS.totalCalls,
-      // Ensure talk ratio always has values and is stabilized
-      avgTalkRatio: {
-        agent: metrics?.avgTalkRatio?.agent !== undefined ? 
-          Math.floor(metrics.avgTalkRatio.agent) : DEFAULT_TEAM_METRICS.avgTalkRatio.agent,
-        customer: metrics?.avgTalkRatio?.customer !== undefined ? 
-          Math.floor(metrics.avgTalkRatio.customer) : DEFAULT_TEAM_METRICS.avgTalkRatio.customer
-      },
-      // Ensure we have valid defaults for other properties
-      topKeywords: metrics?.topKeywords?.length ? 
-        metrics.topKeywords : DEFAULT_TEAM_METRICS.topKeywords,
-      avgSentiment: metrics?.avgSentiment !== undefined ? 
-        Math.floor(metrics.avgSentiment * 100) / 100 : DEFAULT_TEAM_METRICS.avgSentiment
-    };
-  }, [metrics]);
-  
-  // Log errors for monitoring but don't impact the UI
-  useEffect(() => {
-    if (error && typeof errorHandler !== 'undefined') {
-      console.error("Error loading team metrics:", error);
-      errorHandler.handleError({
-        message: "Couldn't load team metrics",
-        technical: typeof error === 'string' ? error : JSON.stringify(error),
-        severity: "warning",
-        code: "TEAM_METRICS_ERROR"
-      }, "TeamMetrics");
-    } else if (error) {
-      console.error("Error loading team metrics:", error);
-    }
-  }, [error]);
-  
-  return [stableMetrics, stableLoading];
+  },
 };
 
 /**
- * Optimized hook for real-time rep metrics with improved performance
+ * Hook for real-time team metrics
  */
-export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetricsData[], boolean] => {
-  const filters: DataFilters = useMemo(() => 
-    repIds ? { repIds } : {}, [repIds]
-  );
-  
-  // Modified this part to ensure proper typing
-  const repMetricsResponse = useSharedRepMetrics(filters);
-  const { metrics, isLoading } = repMetricsResponse;
-  // Access the error property safely
-  const error = 'error' in repMetricsResponse ? repMetricsResponse.error : undefined;
-  
-  // Use our custom hook as a fallback if the imported one isn't available
-  const stableLoading = typeof useStableLoadingState === 'function' 
-    ? useStableLoadingState(isLoading, 500) 
-    : useDefaultStableLoadingState(isLoading, 500);
-  
-  // Use default metrics when loading or no data available
-  const stableMetrics = useMemo(() => {
-    // If no metrics or loading, return defaults with stabilized values
-    if (!metrics || metrics.length === 0) {
-      return DEFAULT_REP_METRICS.map(rep => ({
-        ...rep,
-        // Ensure all numeric values are integers to prevent decimal jitter
-        successRate: Math.floor(rep.successRate),
-        sentiment: Math.floor(rep.sentiment * 100) / 100,
-        callVolume: Math.floor(rep.callVolume)
-      }));
-    }
-    
-    // For actual metrics, ensure all values are stabilized with Math.floor
-    return metrics.map(rep => ({
-      ...rep,
-      // Floor percentage values for stability instead of rounding
-      successRate: Math.floor(rep.successRate),
-      sentiment: Math.floor(rep.sentiment * 100) / 100,
-      // Ensure call volume is stable
-      callVolume: Math.floor(rep.callVolume),
-      // Ensure insights array is never empty
-      insights: rep.insights && rep.insights.length > 0 ? 
-        rep.insights : ["No insights available"]
-    }));
-  }, [metrics]);
-  
-  // Handle errors
-  useEffect(() => {
-    if (error && typeof errorHandler !== 'undefined') {
-      errorHandler.handleError({
-        message: "Couldn't load rep metrics",
-        technical: error ? (typeof error === 'string' ? error : JSON.stringify(error)) : 'Unknown error',
-        severity: "warning",
-        code: "REP_METRICS_ERROR"
-      }, "RepMetrics");
-    } else if (error) {
-      console.error("Error loading rep metrics:", error);
-    }
-  }, [error]);
-  
-  return [stableMetrics, stableLoading];
+export const useTeamMetrics = (filters: DataFilters = {}) => {
+  // Use the shared team metrics hook from SharedDataService
+  return useSharedTeamMetrics(filters);
+};
+
+/**
+ * Hook for real-time rep metrics
+ */
+export const useRepMetrics = (filters: DataFilters = {}) => {
+  // Use the shared rep metrics hook from SharedDataService
+  return useSharedRepMetrics(filters);
 };
