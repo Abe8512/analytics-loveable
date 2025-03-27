@@ -1,9 +1,7 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { SentimentAnalysisService } from './SentimentAnalysisService';
 import type { Json } from '@/integrations/supabase/types';
 
-// Interfaces for the transcript analysis results
 export interface TranscriptAnalysisResult {
   sentimentScore: number;
   keyPhrases: string[];
@@ -32,12 +30,9 @@ export interface AnalyzedTranscript {
   updated_at: string;
 }
 
-// Create a TranscriptAnalysisService class with all required methods
 export class TranscriptAnalysisService {
-  // Analyze a transcript and return the analysis results
   async analyzeTranscript(transcriptId: string): Promise<TranscriptAnalysisResult | null> {
     try {
-      // First, get the transcript text
       const { data: transcript, error } = await supabase
         .from('call_transcripts')
         .select('*')
@@ -49,19 +44,15 @@ export class TranscriptAnalysisService {
         return null;
       }
 
-      // Parse and convert transcript_segments to SpeakerTurn[] if it exists
       let turns: SpeakerTurn[] = [];
       if (transcript.transcript_segments) {
         try {
-          // If transcript_segments is a string, parse it
           const segments = typeof transcript.transcript_segments === 'string' 
             ? JSON.parse(transcript.transcript_segments) 
             : transcript.transcript_segments;
             
-          // Check if it's an array we can iterate over
           if (Array.isArray(segments)) {
             turns = segments.map(segment => {
-              // Ensure each segment has the required SpeakerTurn properties
               return {
                 speaker: typeof segment.speaker === 'string' && 
                   (segment.speaker === 'agent' || segment.speaker === 'customer') 
@@ -76,13 +67,11 @@ export class TranscriptAnalysisService {
         }
       }
       
-      // Analyze sentiment for each turn
       const analyzedTurns = turns.map(turn => ({
         ...turn,
         sentiment: SentimentAnalysisService.analyzeSentiment(turn.text)
       }));
 
-      // Calculate overall sentiment score (simple average)
       const sentiments = analyzedTurns.map(t => 
         t.sentiment === 'positive' ? 1 : 
         t.sentiment === 'negative' ? -1 : 0
@@ -92,13 +81,10 @@ export class TranscriptAnalysisService {
         ? sentiments.reduce((sum, score) => sum + score, 0) / sentiments.length
         : 0;
 
-      // Extract key phrases (simplified implementation)
       const keyPhrases = this.extractKeyPhrases(transcript.text);
 
-      // Calculate keyword frequency
       const keywordFrequency = this.calculateKeywordFrequency(transcript.text);
 
-      // Calculate speaker ratio
       const agentWords = turns
         .filter(t => t.speaker === 'agent')
         .reduce((count, turn) => count + turn.text.split(/\s+/).length, 0);
@@ -114,18 +100,15 @@ export class TranscriptAnalysisService {
         customer: totalWords > 0 ? customerWords / totalWords : 0.5
       };
 
-      // Calculate call duration (if timestamps available)
       let callDuration = 0;
       if (turns.length > 0 && turns[0].timestamp && turns[turns.length - 1].timestamp) {
         const startTime = new Date(turns[0].timestamp).getTime();
         const endTime = new Date(turns[turns.length - 1].timestamp).getTime();
-        callDuration = (endTime - startTime) / 1000; // in seconds
+        callDuration = (endTime - startTime) / 1000;
       }
 
-      // Identify topics (simplified)
       const topics = this.identifyTopics(keyPhrases, keywordFrequency);
 
-      // Create the analysis result
       const analysisResult: TranscriptAnalysisResult = {
         sentimentScore,
         keyPhrases,
@@ -135,7 +118,6 @@ export class TranscriptAnalysisService {
         topics
       };
 
-      // Store the analysis in the database
       await this.saveAnalysisResults(transcriptId, analysisResult, analyzedTurns);
 
       return analysisResult;
@@ -145,21 +127,23 @@ export class TranscriptAnalysisService {
     }
   }
 
-  // Save analysis results to the database
   private async saveAnalysisResults(
     transcriptId: string, 
     analysis: TranscriptAnalysisResult,
     analyzedTurns: SpeakerTurn[]
   ): Promise<void> {
     try {
-      // Update the transcript with the analysis results - use field names that exist in the database
+      const callScore = typeof analysis.sentimentScore === 'number' 
+        ? Math.round(analysis.sentimentScore * 100) 
+        : 50;
+        
       const { error } = await supabase
         .from('call_transcripts')
         .update({
-          call_score: Math.round(analysis.sentimentScore * 100), // Convert to 0-100 scale
+          call_score: callScore,
           key_phrases: analysis.keyPhrases,
-          keywords: Object.keys(analysis.keywordFrequency).slice(0, 10), // Top 10 keywords
-          transcript_segments: JSON.stringify(analyzedTurns), // Convert to JSON string to ensure type compatibility
+          keywords: Object.keys(analysis.keywordFrequency).slice(0, 10),
+          transcript_segments: JSON.stringify(analyzedTurns),
           metadata: {
             ...analysis,
             analyzed_at: new Date().toISOString()
@@ -175,7 +159,6 @@ export class TranscriptAnalysisService {
     }
   }
 
-  // Extract key phrases from text (simplified)
   private extractKeyPhrases(text: string): string[] {
     if (!text || typeof text !== 'string') {
       return [];
@@ -185,7 +168,6 @@ export class TranscriptAnalysisService {
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
     
     for (const sentence of sentences) {
-      // Simple heuristic: sentences with 3-10 words that don't start with common words
       const words = sentence.trim().split(/\s+/);
       if (words.length >= 3 && words.length <= 10) {
         const firstWord = words[0].toLowerCase();
@@ -195,10 +177,9 @@ export class TranscriptAnalysisService {
       }
     }
     
-    return phrases.slice(0, 5); // Return top 5 phrases
+    return phrases.slice(0, 5);
   }
 
-  // Calculate keyword frequency
   private calculateKeywordFrequency(text: string): Record<string, number> {
     if (!text || typeof text !== 'string') {
       return {};
@@ -215,7 +196,6 @@ export class TranscriptAnalysisService {
       }
     }
     
-    // Sort by frequency and take top 20
     const sortedWords = Object.entries(frequency)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20);
@@ -223,12 +203,9 @@ export class TranscriptAnalysisService {
     return Object.fromEntries(sortedWords);
   }
 
-  // Identify topics from key phrases and keyword frequency
   private identifyTopics(keyPhrases: string[], keywordFrequency: Record<string, number>): string[] {
-    // Simplified implementation: take top keywords as topics
     const topics = Object.keys(keywordFrequency).slice(0, 5);
     
-    // Add any key phrases that aren't already included
     for (const phrase of keyPhrases) {
       const simplified = phrase.toLowerCase().replace(/[^a-z0-9 ]/g, '');
       if (!topics.some(topic => simplified.includes(topic))) {
@@ -237,15 +214,11 @@ export class TranscriptAnalysisService {
       if (topics.length >= 8) break;
     }
     
-    return topics.slice(0, 8); // Return max 8 topics
+    return topics.slice(0, 8);
   }
 
-  // Add the missing methods needed by DatabaseService
-  
-  // Split text by speaker
   splitBySpeaker(text: string, segments: any[], numSpeakers: number): SpeakerTurn[] {
     try {
-      // Simple implementation: alternating speakers
       const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
       const turns: SpeakerTurn[] = [];
       
@@ -254,7 +227,7 @@ export class TranscriptAnalysisService {
         turns.push({
           speaker,
           text: sentences[i].trim(),
-          timestamp: new Date(Date.now() + i * 10000).toISOString(), // Fake timestamps 10 seconds apart
+          timestamp: new Date(Date.now() + i * 10000).toISOString(),
           sentiment: SentimentAnalysisService.analyzeSentiment(sentences[i])
         });
       }
@@ -265,33 +238,23 @@ export class TranscriptAnalysisService {
       return [];
     }
   }
-  
-  // Extract keywords from text
+
   extractKeywords(text: string): string[] {
     const frequency = this.calculateKeywordFrequency(text);
-    return Object.keys(frequency).slice(0, 10); // Return top 10 keywords
+    return Object.keys(frequency).slice(0, 10);
   }
-  
-  // Analyze sentiment of text
+
   analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
     return SentimentAnalysisService.analyzeSentiment(text);
   }
-  
-  // Generate a call score based on text and sentiment
+
   generateCallScore(text: string, sentiment: string): number {
-    // Simple scoring: 
-    // - Positive sentiment: 75-100
-    // - Neutral sentiment: 50-75
-    // - Negative sentiment: 25-50
-    // - Text length also factors in (longer = higher within range)
-    
     const baseScore = 
       sentiment === 'positive' ? 75 : 
       sentiment === 'negative' ? 25 : 50;
     
-    // Adjust score based on text length (longer text = more detailed = better score)
-    const lengthFactor = Math.min(Math.max(text.length / 1000, 0), 1); // 0-1 based on text length
-    const lengthBonus = 25 * lengthFactor; // Add up to 25 points based on length
+    const lengthFactor = Math.min(Math.max(text.length / 1000, 0), 1);
+    const lengthBonus = 25 * lengthFactor;
     
     return Math.round(baseScore + lengthBonus);
   }

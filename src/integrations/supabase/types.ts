@@ -579,6 +579,24 @@ export type Database = {
         }
         Relationships: []
       }
+      call_details_view: {
+        Row: {
+          created_at: string | null
+          customer_name: string | null
+          duration: number | null
+          filename: string | null
+          id: string | null
+          rep_name: string | null
+          sentiment_agent: number | null
+          sentiment_customer: number | null
+          talk_ratio_agent: number | null
+          talk_ratio_customer: number | null
+          text: string | null
+          user_id: string | null
+          user_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       add_filename_column: {
@@ -653,6 +671,10 @@ export type Database = {
           p_created_by?: string
         }
         Returns: string
+      }
+      create_call_details_view: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       create_migrations_table_if_not_exists: {
         Args: Record<PropertyKey, never>

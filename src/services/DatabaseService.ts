@@ -49,6 +49,10 @@ export class DatabaseService {
    */
   public async saveCallTranscript(input: CallTranscriptInput) {
     try {
+      // Ensure numeric values are properly typed
+      const duration = typeof input.duration === 'number' ? input.duration : 0;
+      const callScore = typeof input.call_score === 'number' ? input.call_score : 50;
+      
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -57,8 +61,8 @@ export class DatabaseService {
           call_id: input.call_id,
           filename: input.filename,
           text: input.text,
-          duration: input.duration || 0,
-          call_score: input.call_score || 50,
+          duration: duration,
+          call_score: callScore,
           sentiment: input.sentiment || 'neutral',
           keywords: input.keywords || [],
           key_phrases: input.key_phrases || [],
@@ -79,10 +83,10 @@ export class DatabaseService {
               user_id: input.user_id || 'anonymous',
               text: input.text,
               filename: input.filename,
-              duration: input.duration || 0,
+              duration: duration,
               sentiment: input.sentiment || 'neutral',
               keywords: input.keywords || [],
-              call_score: input.call_score || 50,
+              call_score: callScore,
               created_at: new Date().toISOString()
             }
           }

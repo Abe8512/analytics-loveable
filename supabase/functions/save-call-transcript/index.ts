@@ -48,6 +48,10 @@ serve(async (req) => {
       sentiment = 'neutral'
     }
 
+    // Ensure numeric values are properly converted
+    const duration = typeof data.duration === 'number' ? data.duration : 0
+    const callScore = typeof data.call_score === 'number' ? data.call_score : 50
+
     // Direct insert to the call_transcripts table
     const { data: insertData, error } = await supabase
       .from('call_transcripts')
@@ -56,11 +60,11 @@ serve(async (req) => {
         user_id: data.user_id || 'anonymous',
         text: cleanText,
         filename: data.filename || 'unnamed_recording.mp3',
-        duration: data.duration || 0,
+        duration: duration,
         sentiment: sentiment,
         keywords: data.keywords || [],
         key_phrases: data.key_phrases || [],
-        call_score: data.call_score || 50,
+        call_score: callScore,
         metadata: data.metadata || {},
         user_name: data.user_name || null,
         customer_name: data.customer_name || null

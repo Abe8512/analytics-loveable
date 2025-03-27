@@ -64,7 +64,16 @@ export class BulkUploadProcessorService {
       
       progressCallback('processing', 60, 'Saving to database...');
       
-      // Save to database
+      // Convert numeric values explicitly to ensure proper types
+      const duration = typeof transcriptionResult.duration === 'number' 
+        ? transcriptionResult.duration 
+        : 0;
+        
+      const callScore = typeof sentimentScore === 'number' 
+        ? Math.round(sentimentScore * 100) 
+        : 50;
+      
+      // Save to database with proper typing
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -72,11 +81,11 @@ export class BulkUploadProcessorService {
           user_id: this.assignedUserId || 'anonymous',
           text: cleanText,
           filename: file.name,
-          duration: transcriptionResult.duration || 0,
+          duration: duration,
           sentiment: sentiment,
           keywords: keywords,
           key_phrases: keyPhrases,
-          call_score: Math.round(sentimentScore * 100),
+          call_score: callScore,
           transcript_segments: transcriptionResult.segments,
           metadata: {
             source: 'bulk_upload',
