@@ -1,240 +1,374 @@
 
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '../components/layout/DashboardLayout';
-import { Input } from '@/components/ui/input';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Card } from '@/components/ui/card';
+import {
+  Download,
+  Trash2,
+  Search,
+  Calendar,
+  SlidersHorizontal,
+  ArrowUpDown,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Download, Filter, Search, Calendar, Upload } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { format } from 'date-fns';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useCallTranscripts } from '@/services/CallTranscriptService';
-import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
-import { toast } from 'sonner';
-import ContentLoader from '@/components/ui/ContentLoader';
+import { Skeleton } from '@/components/ui/skeleton';
 import TranscriptViewer from '@/components/Transcripts/TranscriptViewer';
-import { useSearchParams } from 'react-router-dom';
-import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
-const Transcripts = () => {
-  const [searchParams] = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTranscriptId, setSelectedTranscriptId] = useState<string | null>(
-    searchParams.get('id')
-  );
+type SortField = 'date' | 'sentiment' | 'duration' | 'score';
+type SortOrder = 'asc' | 'desc';
+
+export default function Transcripts() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const viewId = params.get('id');
   
   const { transcripts, loading, fetchTranscripts } = useCallTranscripts();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   
-  // Refresh data when the component mounts or when selectedTranscriptId changes
   useEffect(() => {
-    fetchTranscripts();
+    // For demo purposes, you might want to force a refresh
+    fetchTranscripts({ force: true });
   }, [fetchTranscripts]);
   
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
+  // Filter transcripts based on search term
+  const filteredTranscripts = transcripts.filter(
+    (t) =>
+      t.text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.filename?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.user_name && t.user_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (t.customer_name && t.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
   
-  const filteredTranscripts = transcripts
-    ? transcripts.filter(transcript => 
-        transcript.text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transcript.filename?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transcript.user_name?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : [];
+  // Sort transcripts based on sort field and order
+  const sortedTranscripts = [...filteredTranscripts].sort((a, b) => {
+    switch (sortField) {
+      case 'date':
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      case 'sentiment':
+        const sentMap = { positive: 3, neutral: 2, negative: 1, undefined: 0 };
+        const sentA = sentMap[a.sentiment as keyof typeof sentMap] || 0;
+        const sentB = sentMap[b.sentiment as keyof typeof sentMap] || 0;
+        return sortOrder === 'asc' ? sentA - sentB : sentB - sentA;
+      case 'duration':
+        const durA = a.duration || 0;
+        const durB = b.duration || 0;
+        return sortOrder === 'asc' ? durA - durB : durB - durA;
+      case 'score':
+        const scoreA = a.call_score || 0;
+        const scoreB = b.call_score || 0;
+        return sortOrder === 'asc' ? scoreA - scoreB : scoreB - scoreA;
+      default:
+        return 0;
+    }
+  });
   
-  const handleRowClick = (id: string) => {
-    setSelectedTranscriptId(id);
-  };
-  
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'Unknown date';
-    try {
-      const date = new Date(dateStr);
-      return new Intl.DateTimeFormat('en-US', { 
-        month: 'short', 
-        day: '2-digit',
-        year: 'numeric'
-      }).format(date);
-    } catch (e) {
-      return 'Invalid date';
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
     }
   };
   
-  const formatDuration = (seconds: number) => {
+  const handleViewTranscript = (id: string) => {
+    navigate(`/transcripts?id=${id}`);
+  };
+  
+  const handleCloseTranscript = () => {
+    navigate('/transcripts');
+  };
+  
+  const formatDuration = (seconds?: number) => {
     if (!seconds) return '0:00';
     const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
   
-  const openBulkUploadModal = () => {
-    setIsModalOpen(true);
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'Unknown date';
+    try {
+      return format(new Date(dateStr), 'MMM dd, yyyy');
+    } catch (e) {
+      return dateStr;
+    }
   };
   
-  const closeBulkUploadModal = () => {
-    setIsModalOpen(false);
-    // Refresh transcripts after closing the modal
-    fetchTranscripts({ force: true });
-    toast('Transcript list refreshed');
+  const sentimentColors = {
+    positive: 'bg-green-100 text-green-800',
+    negative: 'bg-red-100 text-red-800',
+    neutral: 'bg-blue-100 text-blue-800',
   };
-
+  
   return (
     <DashboardLayout>
-      <div className="flex flex-col h-full">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Transcripts</h1>
-            <p className="text-muted-foreground">View and analyze your call transcripts</p>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => toast('Export functionality coming soon')}>
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-            <Button onClick={openBulkUploadModal}>
-              <Upload className="mr-2 h-4 w-4" />
-              Bulk Upload
-            </Button>
-          </div>
+      <div className="container py-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">Transcripts</h1>
+          <p className="text-sm text-muted-foreground">
+            View and analyze your call transcripts
+          </p>
         </div>
         
-        <BulkUploadModal isOpen={isModalOpen} onClose={closeBulkUploadModal} />
-        
-        <div className="flex flex-col lg:flex-row h-full gap-6">
-          {/* Transcripts List */}
-          <div className={cn(
-            "w-full lg:w-2/3 overflow-hidden",
-            selectedTranscriptId ? "lg:block" : "block"
-          )}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search transcripts..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={handleSearch}
-                />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left column - transcript list */}
+          <div className={`space-y-6 ${viewId ? 'lg:col-span-6' : 'lg:col-span-12'}`}>
+            <div className="flex flex-col sm:flex-row gap-2 justify-between items-start sm:items-center">
+              <div className="w-full sm:w-auto max-w-md">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500/50" />
+                  <Input
+                    type="search"
+                    placeholder="Search transcripts..."
+                    className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
-              <Button variant="outline" size="icon">
-                <Calendar className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon">
-                <Filter className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex gap-1">
+                      <Calendar className="h-4 w-4" />
+                      <span className="hidden sm:inline">Date Range</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-4">
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          Last 7 days
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          Last 30 days
+                        </Button>
+                      </div>
+                      <div className="grid gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <div className="text-xs mb-1">Start Date</div>
+                            <Input type="date" />
+                          </div>
+                          <div>
+                            <div className="text-xs mb-1">End Date</div>
+                            <Input type="date" />
+                          </div>
+                        </div>
+                        <Button size="sm">Apply</Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex gap-1">
+                      <SlidersHorizontal className="h-4 w-4" />
+                      <span className="hidden sm:inline">Filter</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-4">
+                    <div className="space-y-4">
+                      <div>
+                        <div className="text-xs mb-1">Sentiment</div>
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm">
+                            Positive
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            Neutral
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            Negative
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs mb-1">Duration</div>
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm">
+                            &lt; 5 min
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            5-15 min
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            &gt; 15 min
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex gap-1">
+                      <ArrowUpDown className="h-4 w-4" />
+                      <span className="hidden sm:inline">Sort</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleSort('date')}>
+                      Date {sortField === 'date' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSort('sentiment')}>
+                      Sentiment {sortField === 'sentiment' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSort('duration')}>
+                      Duration {sortField === 'duration' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSort('score')}>
+                      Score {sortField === 'score' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
             
-            <ContentLoader isLoading={loading} skeletonCount={5}>
-              <div className="rounded-md border overflow-hidden">
+            <Card>
+              <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-muted/50">
-                      <th className="text-left p-3 text-muted-foreground font-medium">Date</th>
-                      <th className="text-left p-3 text-muted-foreground font-medium hidden sm:table-cell">Content</th>
-                      <th className="text-center p-3 text-muted-foreground font-medium">Duration</th>
-                      <th className="text-center p-3 text-muted-foreground font-medium">Sentiment</th>
-                      <th className="text-center p-3 text-muted-foreground font-medium">Score</th>
-                      <th className="text-right p-3 text-muted-foreground font-medium">Actions</th>
+                    <tr className="border-b">
+                      <th className="text-left p-4 font-medium text-sm">Date</th>
+                      <th className="text-left p-4 font-medium text-sm">Content</th>
+                      <th className="text-left p-4 font-medium text-sm">Duration</th>
+                      <th className="text-left p-4 font-medium text-sm">Sentiment</th>
+                      <th className="text-left p-4 font-medium text-sm">Score</th>
+                      <th className="text-left p-4 font-medium text-sm">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTranscripts.length > 0 ? (
-                      filteredTranscripts.map((transcript) => (
-                        <tr 
-                          key={transcript.id} 
-                          className={cn(
-                            "cursor-pointer hover:bg-muted/50",
-                            selectedTranscriptId === transcript.id ? "bg-primary/10" : ""
-                          )}
-                          onClick={() => handleRowClick(transcript.id)}
-                        >
-                          <td className="p-3 align-top">
+                    {loading ? (
+                      Array(5)
+                        .fill(0)
+                        .map((_, i) => (
+                          <tr key={i} className="border-b">
+                            <td className="p-4">
+                              <Skeleton className="h-5 w-24" />
+                            </td>
+                            <td className="p-4">
+                              <Skeleton className="h-5 w-48" />
+                            </td>
+                            <td className="p-4">
+                              <Skeleton className="h-5 w-12" />
+                            </td>
+                            <td className="p-4">
+                              <Skeleton className="h-5 w-20" />
+                            </td>
+                            <td className="p-4">
+                              <Skeleton className="h-5 w-12" />
+                            </td>
+                            <td className="p-4">
+                              <Skeleton className="h-9 w-20" />
+                            </td>
+                          </tr>
+                        ))
+                    ) : sortedTranscripts.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-gray-500">
+                          No transcripts found. Upload audio files to see transcripts here.
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedTranscripts.map((transcript) => (
+                        <tr key={transcript.id} className="border-b">
+                          <td className="p-4 whitespace-nowrap">
                             {formatDate(transcript.created_at)}
                           </td>
-                          <td className="p-3 hidden sm:table-cell">
+                          <td className="p-4">
                             <div className="max-w-md truncate">
                               {transcript.text?.substring(0, 100)}...
                             </div>
                           </td>
-                          <td className="p-3 text-center">
-                            {formatDuration(transcript.duration || 0)}
+                          <td className="p-4 whitespace-nowrap">
+                            {formatDuration(transcript.duration)}
                           </td>
-                          <td className="p-3 text-center">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              transcript.sentiment === 'positive' ? 'bg-green-100 text-green-800' :
-                              transcript.sentiment === 'negative' ? 'bg-red-100 text-red-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
-                              {transcript.sentiment}
-                            </span>
+                          <td className="p-4">
+                            <Badge
+                              className={
+                                sentimentColors[
+                                  (transcript.sentiment as keyof typeof sentimentColors) || 'neutral'
+                                ]
+                              }
+                            >
+                              {transcript.sentiment || 'neutral'}
+                            </Badge>
                           </td>
-                          <td className="p-3 text-center">
-                            <div className="flex items-center justify-center">
-                              <div className="h-2 w-16 bg-gray-200 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full ${
-                                    (transcript.call_score || 0) > 70 ? 'bg-green-500' :
-                                    (transcript.call_score || 0) > 40 ? 'bg-yellow-500' : 'bg-red-500'
-                                  }`}
-                                  style={{ width: `${transcript.call_score || 0}%` }}
-                                ></div>
-                              </div>
-                              <span className="ml-2 text-sm">{transcript.call_score || 0}</span>
+                          <td className="p-4">
+                            <div
+                              className={`font-medium ${
+                                (transcript.call_score || 0) > 70
+                                  ? 'text-green-600'
+                                  : (transcript.call_score || 0) > 40
+                                  ? 'text-amber-500'
+                                  : 'text-red-500'
+                              }`}
+                            >
+                              {transcript.call_score || 0}
                             </div>
                           </td>
-                          <td className="p-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(`/transcripts?id=${transcript.id}`, '_blank');
-                                }}
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewTranscript(transcript.id)}
                               >
                                 View
+                              </Button>
+                              <Button variant="ghost" size="icon">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </td>
                         </tr>
                       ))
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8">
-                          {loading ? (
-                            <p>Loading transcripts...</p>
-                          ) : (
-                            <>
-                              <p className="text-muted-foreground">No transcripts found</p>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {searchTerm ? 'Try a different search term' : 'Upload audio files to get started'}
-                              </p>
-                            </>
-                          )}
-                        </td>
-                      </tr>
                     )}
                   </tbody>
                 </table>
-                <div className="p-3 border-t text-center text-sm text-muted-foreground">
-                  Showing {filteredTranscripts.length} transcripts
-                </div>
               </div>
-            </ContentLoader>
+              
+              <div className="p-4 text-sm text-center text-gray-500">
+                Showing {sortedTranscripts.length} of {transcripts.length} transcripts
+              </div>
+            </Card>
           </div>
           
-          {/* Transcript Viewer */}
-          {selectedTranscriptId && (
-            <div className="w-full lg:w-1/3 h-full overflow-auto">
-              <TranscriptViewer
-                transcriptId={selectedTranscriptId}
-                onClose={() => setSelectedTranscriptId(null)}
-              />
+          {/* Right column - transcript viewer */}
+          {viewId && (
+            <div className="lg:col-span-6">
+              <div className="h-full min-h-[600px]">
+                <TranscriptViewer transcriptId={viewId} onClose={handleCloseTranscript} />
+              </div>
             </div>
           )}
         </div>
       </div>
     </DashboardLayout>
   );
-};
-
-export default Transcripts;
+}

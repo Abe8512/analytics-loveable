@@ -75,18 +75,26 @@ export class BulkUploadProcessorService {
       
       // Get user name from team members if possible
       let userName = "Unknown Rep";
-      try {
-        const { data: userProfile, error: userError } = await supabase
-          .from('team_members')
-          .select('name')
-          .eq('user_id', this.assignedUserId)
-          .single();
-          
-        if (!userError && userProfile) {
-          userName = userProfile.name;
+      if (this.assignedUserId && this.assignedUserId.trim() !== '') {
+        try {
+          // Check if assigned user ID is a valid UUID before querying
+          if (this.assignedUserId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data: userProfile, error: userError } = await supabase
+              .from('team_members')
+              .select('name')
+              .eq('user_id', this.assignedUserId)
+              .single();
+              
+            if (!userError && userProfile) {
+              userName = userProfile.name;
+            }
+          } else {
+            console.log('Non-UUID format user ID, using as direct name:', this.assignedUserId);
+            userName = this.assignedUserId;
+          }
+        } catch (e) {
+          console.log('Error fetching user profile:', e);
         }
-      } catch (e) {
-        console.log('Error fetching user profile:', e);
       }
       
       // Try direct insert without ON CONFLICT
@@ -167,7 +175,11 @@ export class BulkUploadProcessorService {
           });
           
           if (edgeFunctionResult.error) {
-            throw new Error(`Edge function error: ${edgeFunctionResult.error.message || JSON.stringify(edgeFunctionResult.error)}`);
+            throw new Error(`Edge function error: ${
+              typeof edgeFunctionResult.error === 'string' 
+                ? edgeFunctionResult.error 
+                : JSON.stringify(edgeFunctionResult.error)
+            }`);
           }
           
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);

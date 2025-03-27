@@ -1,6 +1,6 @@
 
 import React, { useContext, useEffect, useState } from "react";
-import { Copy, Flag, Play, User, Mic } from "lucide-react";
+import { Copy, Flag, Play, User, Mic, Download } from "lucide-react";
 import AIWaveform from "../ui/AIWaveform";
 import { ThemeContext } from "@/App";
 import WhisperButton from "../Whisper/WhisperButton";
@@ -8,6 +8,8 @@ import SpeechToTextRecorder from "../Whisper/SpeechToTextRecorder";
 import { getStoredTranscriptions, StoredTranscription } from "@/services/WhisperService";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { CallTranscript as CallTranscriptType } from "@/types/call";
 
 interface MessageProps {
   sender: "agent" | "customer";
@@ -55,13 +57,51 @@ const Message = ({ sender, content, timestamp, flagged = false, highlight = fals
   );
 };
 
-const CallTranscript = () => {
+interface CallTranscriptProps {
+  transcriptId?: string;
+}
+
+const CallTranscript: React.FC<CallTranscriptProps> = ({ transcriptId }) => {
   const { isDarkMode } = useContext(ThemeContext);
   const { toast } = useToast();
-  const [transcript, setTranscript] = useState<StoredTranscription | null>(null);
+  const [transcript, setTranscript] = useState<StoredTranscription | CallTranscriptType | null>(null);
   const [parsedMessages, setParsedMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   
   useEffect(() => {
+    const fetchTranscript = async () => {
+      if (transcriptId) {
+        setLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('call_transcripts')
+            .select('*')
+            .eq('id', transcriptId)
+            .single();
+            
+          if (error) {
+            throw error;
+          }
+          
+          setTranscript(data as CallTranscriptType);
+          processTranscriptData(data as CallTranscriptType);
+        } catch (err) {
+          console.error('Error fetching transcript:', err);
+          // Fallback to local storage
+          loadLocalTranscription();
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // No transcriptId provided, try to load from local storage
+        loadLocalTranscription();
+      }
+    };
+    
+    fetchTranscript();
+  }, [transcriptId]);
+  
+  const loadLocalTranscription = () => {
     const transcriptions = getStoredTranscriptions();
     if (transcriptions.length > 0) {
       const latest = [...transcriptions].sort((a, b) => 
@@ -69,81 +109,139 @@ const CallTranscript = () => {
       )[0];
       
       setTranscript(latest);
+      processTranscriptData(latest);
+    }
+  };
+  
+  const processTranscriptData = (transcriptData: any) => {
+    if (transcriptData.transcript_segments && transcriptData.transcript_segments.length > 0) {
+      const messages = transcriptData.transcript_segments.map((segment: any) => {
+        const minutes = Math.floor(segment.start / 60);
+        const seconds = Math.floor(segment.start % 60);
+        const timestamp = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        const isInterruption = false;
+        
+        const text = segment.text.toLowerCase();
+        const highlight = text.includes("no") || 
+                         text.includes("problem") ||
+                         text.includes("not interested") ||
+                         text.includes("expensive");
+        
+        return {
+          id: segment.id,
+          sender: segment.speaker.toLowerCase().includes("agent") ? "agent" : "customer",
+          content: segment.text,
+          timestamp,
+          flagged: isInterruption,
+          highlight
+        };
+      });
       
-      if (latest.transcript_segments && latest.transcript_segments.length > 0) {
-        const messages = latest.transcript_segments.map((segment) => {
-          const minutes = Math.floor(segment.start / 60);
-          const seconds = Math.floor(segment.start % 60);
-          const timestamp = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      setParsedMessages(messages);
+    } else {
+      try {
+        const text = transcriptData.text;
+        
+        // Check if this is a real transcript or a simulated one
+        const isSimulated = text && text.toLowerCase().includes("simulated") && text.toLowerCase().includes("transcript");
+        
+        if (isSimulated) {
+          // Create a more realistic transcript for demo purposes
+          const demoMessages = [
+            {
+              id: 1,
+              sender: "agent",
+              content: "Hi there! This is Sarah from Future Sentiment Analytics. How can I help you today?",
+              timestamp: "00:00",
+              flagged: false,
+              highlight: false
+            },
+            {
+              id: 2,
+              sender: "customer",
+              content: "Hi Sarah, I'm calling about your sentiment analysis product. I saw it online and wanted to learn more.",
+              timestamp: "00:08",
+              flagged: false,
+              highlight: false
+            },
+            {
+              id: 3,
+              sender: "agent",
+              content: "Great! I'd be happy to tell you about our sentiment analysis tools. What kind of business do you run?",
+              timestamp: "00:16",
+              flagged: false,
+              highlight: false
+            },
+            {
+              id: 4,
+              sender: "customer",
+              content: "I manage a customer support team for a SaaS company. We're looking to analyze customer interactions.",
+              timestamp: "00:24",
+              flagged: false,
+              highlight: false
+            },
+            {
+              id: 5,
+              sender: "agent",
+              content: "Perfect! Our tool is designed exactly for that use case. It analyzes calls and provides real-time feedback on sentiment, helping your team adjust their approach during conversations.",
+              timestamp: "00:32",
+              flagged: false,
+              highlight: false
+            }
+          ];
+          setParsedMessages(demoMessages);
+          return;
+        }
+        
+        // If it's not a simulated transcript, try to parse it
+        const segments = text.split(/\n|(?:Agent:|Customer:|Speaker \d+:)/g).filter(Boolean).map(s => s.trim());
+        
+        const messages = segments.map((content, index) => {
+          const sender = index % 2 === 0 ? "agent" : "customer";
           
-          const isInterruption = false;
+          const minute = Math.floor(index * 45 / segments.length);
+          const second = Math.floor((index * 45 / segments.length - minute) * 60);
+          const timestamp = `${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
           
-          const text = segment.text.toLowerCase();
-          const highlight = text.includes("no") || 
-                           text.includes("problem") ||
-                           text.includes("not interested") ||
-                           text.includes("expensive");
+          const flagged = content.toLowerCase().includes("interrupt") || 
+                         (content.length < 20 && content.endsWith("--")) ||
+                         index > 0 && segments[index-1].length < 15;
+          
+          const highlight = content.toLowerCase().includes("no") || 
+                          content.toLowerCase().includes("problem") ||
+                          content.toLowerCase().includes("not interested") ||
+                          content.toLowerCase().includes("expensive");
           
           return {
-            id: segment.id,
-            sender: segment.speaker.toLowerCase().includes("agent") ? "agent" : "customer",
-            content: segment.text,
+            id: index + 1,
+            sender,
+            content,
             timestamp,
-            flagged: isInterruption,
+            flagged,
             highlight
           };
         });
         
         setParsedMessages(messages);
-      } else {
-        try {
-          const text = latest.text;
-          
-          const segments = text.split(/\n|(?:Agent:|Customer:|Speaker \d+:)/g).filter(Boolean).map(s => s.trim());
-          
-          const messages = segments.map((content, index) => {
-            const sender = index % 2 === 0 ? "agent" : "customer";
-            
-            const minute = Math.floor(index * 45 / segments.length);
-            const second = Math.floor((index * 45 / segments.length - minute) * 60);
-            const timestamp = `${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
-            
-            const flagged = content.toLowerCase().includes("interrupt") || 
-                           (content.length < 20 && content.endsWith("--")) ||
-                           index > 0 && segments[index-1].length < 15;
-            
-            const highlight = content.toLowerCase().includes("no") || 
-                            content.toLowerCase().includes("problem") ||
-                            content.toLowerCase().includes("not interested") ||
-                            content.toLowerCase().includes("expensive");
-            
-            return {
-              id: index + 1,
-              sender,
-              content,
-              timestamp,
-              flagged,
-              highlight
-            };
-          });
-          
-          setParsedMessages(messages);
-        } catch (error) {
-          console.error("Error parsing transcript:", error);
-          setParsedMessages([{
-            id: 1,
-            sender: "agent",
-            content: latest.text,
-            timestamp: "00:00"
-          }]);
-        }
+      } catch (error) {
+        console.error("Error parsing transcript:", error);
+        setParsedMessages([{
+          id: 1,
+          sender: "agent",
+          content: transcript?.text || "No transcript content available",
+          timestamp: "00:00"
+        }]);
       }
     }
-  }, []);
+  };
   
   const handleCopy = () => {
     if (transcript) {
-      navigator.clipboard.writeText(transcript.text);
+      const textToCopy = transcript.text || 
+        parsedMessages.map(msg => `${msg.sender}: ${msg.content}`).join('\n');
+        
+      navigator.clipboard.writeText(textToCopy);
       toast({
         title: "Copied to clipboard",
         description: "Transcript text has been copied to your clipboard"
@@ -152,7 +250,7 @@ const CallTranscript = () => {
   };
   
   const handleSpeechInput = (text: string) => {
-    if (text && transcript) {
+    if (text) {
       const newMessage = {
         id: parsedMessages.length + 1,
         sender: "agent",
@@ -173,12 +271,37 @@ const CallTranscript = () => {
 
   const getCallInfo = () => {
     if (!transcript) return "No transcript available";
-    const customer = transcript.speakerName || "Customer";
-    const duration = transcript.duration 
-      ? `${Math.floor(transcript.duration / 60)}:${(transcript.duration % 60).toString().padStart(2, '0')}`
+    
+    // Try different properties based on object type
+    const customer = 
+      (transcript as CallTranscriptType).customer_name ||
+      (transcript as StoredTranscription).speakerName || 
+      "Customer";
+      
+    let duration = 0;
+    
+    if ((transcript as CallTranscriptType).duration) {
+      duration = (transcript as CallTranscriptType).duration;
+    } else if ((transcript as StoredTranscription).duration) {
+      duration = (transcript as StoredTranscription).duration;
+    }
+    
+    const formattedDuration = duration 
+      ? `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`
       : "Unknown duration";
-    return `Call with ${customer} • ${duration}`;
+      
+    return `Call with ${customer} • ${formattedDuration}`;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-pulse text-center">
+          <p className="text-muted-foreground">Loading transcript...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -188,7 +311,7 @@ const CallTranscript = () => {
         </p>
         
         <div className="flex items-center gap-2">
-          {transcript && <WhisperButton recordingId={transcript.id} />}
+          {transcript && <WhisperButton recordingId={transcriptId || (transcript as StoredTranscription).id} />}
           
           <SpeechToTextRecorder 
             onTranscriptionComplete={handleSpeechInput}
@@ -215,22 +338,39 @@ const CallTranscript = () => {
             <Copy className="h-4 w-4" />
             <span className="hidden sm:inline">Copy</span>
           </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            disabled={!transcript}
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Download</span>
+          </Button>
         </div>
       </div>
       
       {transcript ? (
         <div className="flex-1 overflow-y-auto px-4 my-3 divide-y divide-border">
-          {parsedMessages.map((message) => (
-            <Message
-              key={message.id}
-              sender={message.sender}
-              content={message.content}
-              timestamp={message.timestamp}
-              flagged={message.flagged}
-              highlight={message.highlight}
-              isDarkMode={isDarkMode}
-            />
-          ))}
+          {parsedMessages.length > 0 ? (
+            parsedMessages.map((message) => (
+              <Message
+                key={message.id}
+                sender={message.sender}
+                content={message.content}
+                timestamp={message.timestamp}
+                flagged={message.flagged}
+                highlight={message.highlight}
+                isDarkMode={isDarkMode}
+              />
+            ))
+          ) : (
+            <div className="py-4 text-center text-muted-foreground">
+              <p>No conversation segments available</p>
+              <p className="text-sm mt-2">This transcript doesn't contain detailed conversation data</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
