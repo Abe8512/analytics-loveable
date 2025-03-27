@@ -1,20 +1,19 @@
-
 import { useEffect, useMemo, useCallback } from "react";
 import {
   useSharedTeamMetrics,
   useSharedRepMetrics,
-  type TeamMetricsData as TeamMetrics,
-  type RepMetricsData as RepMetrics,
-  type DataFilters
+  TeamMetricsData,
+  RepMetricsData,
+  DataFilters
 } from "./SharedDataService";
 import { useStableLoadingState } from "@/hooks/useStableLoadingState";
 import { errorHandler } from "./ErrorHandlingService";
 
 // Re-export TeamMetrics and RepMetrics for backward compatibility
-export type { TeamMetrics, RepMetrics };
+export type { TeamMetricsData, RepMetricsData };
 
 // Default metrics to use when data is loading or unavailable
-const DEFAULT_TEAM_METRICS: TeamMetrics = {
+const DEFAULT_TEAM_METRICS: TeamMetricsData = {
   performanceScore: 75,
   totalCalls: 42,
   conversionRate: 28,
@@ -24,7 +23,7 @@ const DEFAULT_TEAM_METRICS: TeamMetrics = {
 };
 
 // Default rep metrics for when data is loading or unavailable
-const DEFAULT_REP_METRICS: RepMetrics[] = [
+const DEFAULT_REP_METRICS: RepMetricsData[] = [
   {
     id: "1",
     name: "John Doe",
@@ -72,7 +71,7 @@ import { useState } from "react";
 /**
  * Optimized hook for real-time team metrics with improved performance
  */
-export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boolean] => {
+export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetricsData, boolean] => {
   const { metrics, isLoading, error } = useSharedTeamMetrics(filters);
   
   // Use our custom hook as a fallback if the imported one isn't available
@@ -131,7 +130,7 @@ export const useRealTimeTeamMetrics = (filters?: DataFilters): [TeamMetrics, boo
 /**
  * Optimized hook for real-time rep metrics with improved performance
  */
-export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetrics[], boolean] => {
+export const useRealTimeRepMetrics = (repIds?: string[]): [RepMetricsData[], boolean] => {
   const filters: DataFilters = useMemo(() => 
     repIds ? { repIds } : {}, [repIds]
   );

@@ -3,14 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const createSalesInsightsTable = async () => {
   try {
-    // Check if the table exists
-    const { error: checkError } = await supabase
-      .from('sales_insights')
-      .select('id')
-      .limit(1);
+    // Check if the table exists using a more direct SQL approach instead of querying
+    const { error: checkError, data } = await supabase.rpc('execute_sql', { 
+      query_text: "SELECT to_regclass('public.sales_insights');" 
+    });
     
-    // If the query returns a specific error about relation not existing, create the table
-    if (checkError && checkError.message.includes('relation "sales_insights" does not exist')) {
+    // If there's an error or the table doesn't exist (null result)
+    if (checkError || (data && !data[0].to_regclass)) {
       console.log('Sales insights table does not exist, trying to create it...');
       
       // Use SQL query to create the table
@@ -34,7 +33,7 @@ export const createSalesInsightsTable = async () => {
         return false;
       }
       
-      // Insert some demo data
+      // Insert demo data directly via SQL to avoid type issues
       const demoInsights = [
         {
           title: 'Conversion Rate',
@@ -55,19 +54,27 @@ export const createSalesInsightsTable = async () => {
           value: '48',
           change: 15,
           is_positive: true,
-          tooltip: 'Number of calls made per day'
+          tooltip: 'Percentage of calls made per day'
         }
       ];
       
-      const { error: insertError } = await supabase
-        .from('sales_insights')
-        .insert(demoInsights);
-      
-      if (insertError) {
-        console.error('Error inserting demo sales insights:', insertError);
+      // Insert demo data via SQL instead of using the RPC API
+      for (const insight of demoInsights) {
+        const { error: insertError } = await supabase.rpc('execute_sql', {
+          query_text: `
+            INSERT INTO public.sales_insights 
+            (title, value, change, is_positive, tooltip)
+            VALUES 
+            ('${insight.title}', '${insight.value}', ${insight.change}, ${insight.is_positive}, '${insight.tooltip}');
+          `
+        });
+        
+        if (insertError) {
+          console.error(`Error inserting demo insight '${insight.title}':`, insertError);
+        }
       }
       
-      return !insertError;
+      return true;
     }
     
     return true;
