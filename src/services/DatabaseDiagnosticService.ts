@@ -14,6 +14,20 @@ interface DatabaseColumn {
   exists: boolean;
 }
 
+interface DiagnosticResult {
+  connected: boolean;
+  tables: {
+    name: string;
+    exists: boolean;
+    columns: Array<{
+      name: string;
+      type: string;
+      exists: boolean;
+    }>;
+  }[];
+  status: string;
+}
+
 export class DatabaseDiagnosticService {
   private schemaCache: Record<string, any> = {};
   
@@ -32,7 +46,7 @@ export class DatabaseDiagnosticService {
         return false;
       }
       
-      return data;
+      return data as boolean;
     } catch (error) {
       console.error(`Exception checking if table ${tableName} exists:`, error);
       errorHandler.handleError(error, 'DatabaseDiagnosticService.checkTableExists');
@@ -51,7 +65,7 @@ export class DatabaseDiagnosticService {
         return [];
       }
       
-      return data || [];
+      return data as any[] || [];
     } catch (error) {
       console.error('Exception getting table metadata:', error);
       errorHandler.handleError(error, 'DatabaseDiagnosticService.getTableMetadata');
@@ -70,7 +84,7 @@ export class DatabaseDiagnosticService {
         return [];
       }
       
-      return (data || []).map((column: any) => ({
+      return (data as any[] || []).map((column: any) => ({
         name: column.column_name,
         type: column.data_type,
         exists: true
@@ -87,8 +101,8 @@ export class DatabaseDiagnosticService {
       // Use RPC call to check if column exists
       const { data, error } = await supabase
         .rpc('check_column_exists', { 
-          table_name: tableName,
-          column_name: columnName
+          p_table_name: tableName,
+          p_column_name: columnName
         });
       
       if (error) {
@@ -96,7 +110,7 @@ export class DatabaseDiagnosticService {
         return false;
       }
       
-      return data;
+      return data as boolean;
     } catch (error) {
       console.error(`Exception checking if column ${columnName} exists in table ${tableName}:`, error);
       errorHandler.handleError(error, 'DatabaseDiagnosticService.checkColumnExists');
@@ -104,13 +118,7 @@ export class DatabaseDiagnosticService {
     }
   }
   
-  async getDatabaseDiagnostics(): Promise<{
-    tables: DatabaseTable[];
-    connections: {
-      canConnect: boolean;
-      status: string;
-    };
-  }> {
+  async runDiagnostic(): Promise<DiagnosticResult> {
     try {
       // Check connection
       const connectionCheck = await this.checkConnection();
@@ -133,21 +141,17 @@ export class DatabaseDiagnosticService {
       
       return {
         tables,
-        connections: {
-          canConnect: connectionCheck.canConnect,
-          status: connectionCheck.status
-        }
+        connected: connectionCheck.canConnect,
+        status: connectionCheck.status
       };
     } catch (error) {
       console.error('Error getting database diagnostics:', error);
-      errorHandler.handleError(error, 'DatabaseDiagnosticService.getDatabaseDiagnostics');
+      errorHandler.handleError(error, 'DatabaseDiagnosticService.runDiagnostic');
       
       return {
         tables: [],
-        connections: {
-          canConnect: false,
-          status: 'Error getting database diagnostics'
-        }
+        connected: false,
+        status: 'Error getting database diagnostics'
       };
     }
   }
@@ -187,6 +191,38 @@ export class DatabaseDiagnosticService {
         status: error instanceof Error ? error.message : 'Unknown error connecting to database'
       };
     }
+  }
+
+  formatResults(diagnosticResults: DiagnosticResult): string {
+    let result = '';
+
+    // Format connection status
+    result += `Connection: ${diagnosticResults.connected ? 'Connected' : 'Disconnected'}\n`;
+    result += `Status: ${diagnosticResults.status}\n\n`;
+
+    // Format tables information
+    result += 'Tables:\n';
+    result += '==============================\n';
+    
+    if (diagnosticResults.tables.length === 0) {
+      result += 'No tables found or unable to retrieve table information.\n';
+    } else {
+      diagnosticResults.tables.forEach(table => {
+        result += `Table: ${table.name} (${table.exists ? 'Exists' : 'Missing'})\n`;
+        
+        result += '  Columns:\n';
+        if (table.columns.length === 0) {
+          result += '    No columns found or unable to retrieve column information.\n';
+        } else {
+          table.columns.forEach(column => {
+            result += `    - ${column.name} (${column.type})\n`;
+          });
+        }
+        result += '\n';
+      });
+    }
+
+    return result;
   }
 }
 

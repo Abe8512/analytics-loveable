@@ -73,8 +73,8 @@ $$;
 
 -- Function to check if a column exists
 CREATE OR REPLACE FUNCTION public.check_column_exists(
-  table_name TEXT,
-  column_name TEXT
+  p_table_name TEXT,
+  p_column_name TEXT
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -86,10 +86,53 @@ BEGIN
   SELECT EXISTS (
     SELECT FROM information_schema.columns
     WHERE table_schema = 'public'
-    AND table_name = check_column_exists.table_name
-    AND column_name = check_column_exists.column_name
+    AND table_name = check_column_exists.p_table_name
+    AND column_name = check_column_exists.p_column_name
   ) INTO column_exists;
   
   RETURN column_exists;
+END;
+$$;
+
+-- Create call_details_view if it doesn't exist
+CREATE OR REPLACE FUNCTION public.create_call_details_view()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Check if the view already exists
+  IF NOT EXISTS (
+    SELECT FROM information_schema.views
+    WHERE table_schema = 'public'
+    AND table_name = 'call_details_view'
+  ) THEN
+    -- Create the view
+    EXECUTE '
+      CREATE OR REPLACE VIEW public.call_details_view AS
+      SELECT 
+        c.id,
+        c.user_id,
+        c.created_at,
+        c.duration,
+        c.sentiment_agent,
+        c.sentiment_customer,
+        c.talk_ratio_agent,
+        c.talk_ratio_customer,
+        c.filename,
+        ct.text,
+        ct.customer_name,
+        ct.user_name,
+        tm.name as rep_name
+      FROM 
+        calls c
+      LEFT JOIN 
+        call_transcripts ct ON c.id = ct.call_id
+      LEFT JOIN 
+        team_members tm ON c.user_id = tm.user_id::text
+      ORDER BY 
+        c.created_at DESC;
+    ';
+  END IF;
 END;
 $$;
