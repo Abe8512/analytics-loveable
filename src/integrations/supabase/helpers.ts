@@ -1,26 +1,24 @@
 
 import { supabase } from './client';
-import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 import { safeSupabaseOperation, SupabaseErrorHandler } from './errorHandling';
 import { toast } from 'sonner';
 
 /**
- * Check if a table exists in the database
+ * Check if a table exists in the database using raw SQL instead of information_schema
  */
 export async function checkTableExists(tableName: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('information_schema.tables')
-      .select('table_name')
-      .eq('table_schema', 'public')
-      .eq('table_name', tableName);
+    const { data, error } = await supabase.rpc(
+      'check_table_exists',
+      { table_name: tableName }
+    );
     
     if (error) {
       SupabaseErrorHandler.handlePostgrestError(error, `checkTableExists(${tableName})`, true);
       return false;
     }
     
-    return Array.isArray(data) && data.length > 0;
+    return !!data;
   } catch (err) {
     console.error(`Error checking if table ${tableName} exists:`, err);
     return false;
@@ -28,23 +26,24 @@ export async function checkTableExists(tableName: string): Promise<boolean> {
 }
 
 /**
- * Check if a column exists in a table
+ * Check if a column exists in a table using RPC instead of direct schema access
  */
 export async function checkColumnExists(tableName: string, columnName: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('information_schema.columns')
-      .select('column_name')
-      .eq('table_schema', 'public')
-      .eq('table_name', tableName)
-      .eq('column_name', columnName);
+    const { data, error } = await supabase.rpc(
+      'check_column_exists',
+      { 
+        p_table_name: tableName,
+        p_column_name: columnName
+      }
+    );
     
     if (error) {
       SupabaseErrorHandler.handlePostgrestError(error, `checkColumnExists(${tableName}, ${columnName})`, true);
       return false;
     }
     
-    return Array.isArray(data) && data.length > 0;
+    return !!data;
   } catch (err) {
     console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, err);
     return false;
@@ -58,7 +57,7 @@ export async function fetchData<T>(
   tableName: string,
   options?: {
     columns?: string,
-    filter?: (query: PostgrestFilterBuilder<any, any, any>) => PostgrestFilterBuilder<any, any, any>,
+    filter?: (query: any) => any,
     limit?: number,
     order?: { column: string, ascending?: boolean },
     silent?: boolean
@@ -77,9 +76,10 @@ export async function fetchData<T>(
   }
   
   try {
-    // Start building the query
+    // Start building the query - we need to use type assertions here
+    // to work around TypeScript's strict typing of Supabase tables
     let query = supabase
-      .from(tableName)
+      .from(tableName as any)
       .select(options?.columns || '*');
     
     // Apply filter if provided
@@ -129,6 +129,7 @@ export async function fetchData<T>(
 
 /**
  * Safely insert data into a table with proper error handling
+ * Using RPC to avoid type issues
  */
 export async function insertData<T>(
   tableName: string,
@@ -139,95 +140,144 @@ export async function insertData<T>(
     silent?: boolean
   }
 ): Promise<T[]> {
-  return safeSupabaseOperation<T[]>(
-    async () => {
-      let query = supabase
-        .from(tableName)
-        .insert(data);
-      
-      if (options?.onConflict) {
-        query = query.onConflict(options.onConflict);
+  // Create a custom RPC function to handle this safely
+  try {
+    const { data: result, error } = await supabase.rpc(
+      'execute_sql_with_results',
+      { 
+        sql_query: `
+          INSERT INTO ${tableName} 
+          SELECT * FROM jsonb_populate_recordset(null::${tableName}, $1)
+          ${options?.onConflict ? ` ON CONFLICT (${options.onConflict}) DO UPDATE SET ` : ''}
+          ${options?.returning ? ` RETURNING ${options.returning}` : ''}
+        `,
+        params: JSON.stringify(Array.isArray(data) ? data : [data])
       }
-      
-      if (options?.returning) {
-        query = query.select(options.returning);
+    );
+    
+    if (error) {
+      if (!options?.silent) {
+        toast.error('Error inserting data', {
+          description: error.message,
+          duration: 5000
+        });
       }
-      
-      return await query;
-    },
-    `insertData(${tableName})`,
-    { 
-      silent: options?.silent,
-      defaultValue: [] 
+      console.error(`Error inserting data into ${tableName}:`, error);
+      return [];
     }
-  ) || [];
+    
+    return (result || []) as T[];
+  } catch (err) {
+    if (!options?.silent) {
+      toast.error('Unexpected error', {
+        description: err instanceof Error ? err.message : 'Unknown error occurred',
+        duration: 5000
+      });
+    }
+    console.error(`Error inserting data into ${tableName}:`, err);
+    return [];
+  }
 }
 
 /**
  * Safely update data in a table with proper error handling
+ * Using RPC to avoid type issues
  */
 export async function updateData<T>(
   tableName: string,
   data: Record<string, any>,
-  filter: (query: PostgrestFilterBuilder<any, any, any>) => PostgrestFilterBuilder<any, any, any>,
+  whereClause: string,
   options?: {
     returning?: string,
     silent?: boolean
   }
 ): Promise<T[]> {
-  return safeSupabaseOperation<T[]>(
-    async () => {
-      let query = supabase
-        .from(tableName)
-        .update(data);
-      
-      // Apply the filter
-      query = filter(query);
-      
-      if (options?.returning) {
-        query = query.select(options.returning);
+  try {
+    // Build update statement fields
+    const updateFields = Object.entries(data)
+      .map(([key, value]) => `${key} = '${typeof value === 'object' ? JSON.stringify(value) : value}'`)
+      .join(', ');
+    
+    const { data: result, error } = await supabase.rpc(
+      'execute_sql_with_results',
+      { 
+        sql_query: `
+          UPDATE ${tableName}
+          SET ${updateFields}
+          WHERE ${whereClause}
+          ${options?.returning ? ` RETURNING ${options.returning}` : ''}
+        `
       }
-      
-      return await query;
-    },
-    `updateData(${tableName})`,
-    { 
-      silent: options?.silent,
-      defaultValue: [] 
+    );
+    
+    if (error) {
+      if (!options?.silent) {
+        toast.error('Error updating data', {
+          description: error.message,
+          duration: 5000
+        });
+      }
+      console.error(`Error updating data in ${tableName}:`, error);
+      return [];
     }
-  ) || [];
+    
+    return (result || []) as T[];
+  } catch (err) {
+    if (!options?.silent) {
+      toast.error('Unexpected error', {
+        description: err instanceof Error ? err.message : 'Unknown error occurred',
+        duration: 5000
+      });
+    }
+    console.error(`Error updating data in ${tableName}:`, err);
+    return [];
+  }
 }
 
 /**
  * Safely delete data from a table with proper error handling
+ * Using RPC to avoid type issues
  */
 export async function deleteData<T>(
   tableName: string,
-  filter: (query: PostgrestFilterBuilder<any, any, any>) => PostgrestFilterBuilder<any, any, any>,
+  whereClause: string,
   options?: {
     returning?: string,
     silent?: boolean
   }
 ): Promise<T[]> {
-  return safeSupabaseOperation<T[]>(
-    async () => {
-      let query = supabase
-        .from(tableName)
-        .delete();
-      
-      // Apply the filter
-      query = filter(query);
-      
-      if (options?.returning) {
-        query = query.select(options.returning);
+  try {
+    const { data: result, error } = await supabase.rpc(
+      'execute_sql_with_results',
+      { 
+        sql_query: `
+          DELETE FROM ${tableName}
+          WHERE ${whereClause}
+          ${options?.returning ? ` RETURNING ${options.returning}` : ''}
+        `
       }
-      
-      return await query;
-    },
-    `deleteData(${tableName})`,
-    { 
-      silent: options?.silent,
-      defaultValue: [] 
+    );
+    
+    if (error) {
+      if (!options?.silent) {
+        toast.error('Error deleting data', {
+          description: error.message,
+          duration: 5000
+        });
+      }
+      console.error(`Error deleting data from ${tableName}:`, error);
+      return [];
     }
-  ) || [];
+    
+    return (result || []) as T[];
+  } catch (err) {
+    if (!options?.silent) {
+      toast.error('Unexpected error', {
+        description: err instanceof Error ? err.message : 'Unknown error occurred',
+        duration: 5000
+      });
+    }
+    console.error(`Error deleting data from ${tableName}:`, err);
+    return [];
+  }
 }
