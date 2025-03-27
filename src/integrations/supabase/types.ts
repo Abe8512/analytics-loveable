@@ -176,6 +176,7 @@ export type Database = {
       }
       call_transcripts: {
         Row: {
+          assigned_to: string | null
           call_id: string | null
           call_score: number | null
           created_at: string | null
@@ -188,6 +189,7 @@ export type Database = {
           keywords: string[] | null
           metadata: Json | null
           sentiment: string | null
+          speaker_count: number | null
           start_time: string | null
           text: string
           transcript_segments: Json | null
@@ -196,6 +198,7 @@ export type Database = {
           user_name: string | null
         }
         Insert: {
+          assigned_to?: string | null
           call_id?: string | null
           call_score?: number | null
           created_at?: string | null
@@ -208,6 +211,7 @@ export type Database = {
           keywords?: string[] | null
           metadata?: Json | null
           sentiment?: string | null
+          speaker_count?: number | null
           start_time?: string | null
           text: string
           transcript_segments?: Json | null
@@ -216,6 +220,7 @@ export type Database = {
           user_name?: string | null
         }
         Update: {
+          assigned_to?: string | null
           call_id?: string | null
           call_score?: number | null
           created_at?: string | null
@@ -228,6 +233,7 @@ export type Database = {
           keywords?: string[] | null
           metadata?: Json | null
           sentiment?: string | null
+          speaker_count?: number | null
           start_time?: string | null
           text?: string
           transcript_segments?: Json | null
@@ -596,6 +602,20 @@ export type Database = {
       }
     }
     Views: {
+      activity_metrics_summary: {
+        Row: {
+          active_reps: number | null
+          avg_duration: number | null
+          avg_sentiment: number | null
+          avg_talk_ratio: number | null
+          call_count: number | null
+          call_to_demo_ratio: number | null
+          negative_calls: number | null
+          positive_calls: number | null
+          report_date: string | null
+        }
+        Relationships: []
+      }
       alert_activity_view: {
         Row: {
           alert_id: string | null
@@ -648,6 +668,12 @@ export type Database = {
       }
       adjust_talk_ratio_constraints: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      analyze_call_sentiment: {
+        Args: {
+          call_id: string
+        }
         Returns: undefined
       }
       apply_all_fixes: {
@@ -859,6 +885,10 @@ export type Database = {
           table_name: string
         }
         Returns: Json
+      }
+      is_service_role: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
       query: {
         Args: {
