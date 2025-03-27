@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { SentimentAnalysisService } from './SentimentAnalysisService';
 import type { Json } from '@/integrations/supabase/types';
@@ -432,6 +433,16 @@ export class TranscriptAnalysisService {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
         .map(entry => entry[0]);
+      
+      // Convert analyzedTurns to a structure compatible with Json type
+      const jsonSafeTurns = analyzedTurns.map(turn => ({
+        speaker: turn.speaker,
+        text: turn.text,
+        timestamp: turn.timestamp,
+        start: turn.start,
+        end: turn.end,
+        sentiment: turn.sentiment
+      }));
         
       const { error } = await supabase
         .from('call_transcripts')
@@ -440,7 +451,7 @@ export class TranscriptAnalysisService {
           sentiment: sentimentLabel,
           key_phrases: analysis.keyPhrases,
           keywords: topKeywords,
-          transcript_segments: analyzedTurns,
+          transcript_segments: jsonSafeTurns as Json,
           metadata: {
             ...analysis,
             analyzed_at: new Date().toISOString()

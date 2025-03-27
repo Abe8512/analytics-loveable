@@ -74,7 +74,7 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     // Set default values for pagination
     const limit = options?.limit || DEFAULT_PAGE_SIZE;
     const page = Math.max(currentPage, 1);
-    const offset = options?.offset !== undefined ? options?.offset : (page - is1) * limit;
+    const offset = options?.offset !== undefined ? options?.offset : (page - 1) * limit;
     
     // Create a cache key based on all filter options
     const cacheKey = JSON.stringify({
