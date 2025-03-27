@@ -39,7 +39,9 @@ export interface StoredTranscription {
   call_score?: number;
 }
 
-// Helper functions outside the hook for direct import
+export const SUPPORTED_AUDIO_FORMATS = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/m4a', 'audio/x-m4a', 'audio/ogg', 'audio/webm'];
+export const MAX_AUDIO_FILE_SIZE = 20 * 1024 * 1024;
+
 export const getOpenAIKey = () => {
   return localStorage.getItem('openai_api_key') || '';
 };
@@ -109,8 +111,28 @@ export const useWhisperService = () => {
       setSpeechRecognition(recognition);
     }
   }, []);
+
+  const validateAudioFile = (file: File): { valid: boolean; error?: string } => {
+    // Check if the file type is supported
+    if (!SUPPORTED_AUDIO_FORMATS.includes(file.type)) {
+      return { 
+        valid: false, 
+        error: `Unsupported file format: ${file.type}. Supported formats: WAV, MP3, M4A, OGG, WEBM.` 
+      };
+    }
+    
+    // Check file size
+    if (file.size > MAX_AUDIO_FILE_SIZE) {
+      return { 
+        valid: false, 
+        error: `File size exceeds maximum allowed (20MB). Current size: ${Math.round(file.size / (1024 * 1024))}MB.` 
+      };
+    }
+    
+    // File passed validation
+    return { valid: true };
+  };
   
-  // Transcribe audio from a file
   const transcribeAudio = async (
     audioFile: File, 
     onProgressUpdate?: (progress: number) => void
@@ -118,6 +140,12 @@ export const useWhisperService = () => {
     try {
       setIsTranscribing(true);
       setError(null);
+      
+      // Validate the audio file
+      const validation = validateAudioFile(audioFile);
+      if (!validation.valid) {
+        throw new Error(validation.error);
+      }
       
       // Log info about the audio file
       console.log(`Transcribing file: ${audioFile.name}`, {
@@ -131,7 +159,10 @@ export const useWhisperService = () => {
       if (useLocalWhisper) {
         console.log('Using local Whisper mode (browser-based)');
         // Use browser's speech recognition (simulated for now)
-        return await transcribeWithLocalWhisper(audioFile);
+        const result = await transcribeWithLocalWhisper(audioFile);
+        transcribedText = result.text;
+        segments = result.segments || [];
+        if (onProgressUpdate) onProgressUpdate(100);
       } else {
         // Use OpenAI API
         try {
@@ -141,49 +172,43 @@ export const useWhisperService = () => {
           // Set initial progress
           if (onProgressUpdate) onProgressUpdate(10);
           
-          transcribedText = await callSupabaseWhisperEdgeFunction(audioFile, onProgressUpdate);
+          const edgeFunctionResult = await callSupabaseWhisperEdgeFunction(audioFile, onProgressUpdate);
+          transcribedText = edgeFunctionResult.text;
+          segments = edgeFunctionResult.segments || [];
           console.log('Transcription completed via Edge Function');
         } catch (edgeFuncError) {
           console.warn('Edge function failed, falling back to direct API call:', edgeFuncError);
           toast.warning('Edge function failed, falling back to direct API call');
           
+          // If edge function failed and we have no API key, throw a more helpful error
+          if (!getOpenAIKey()) {
+            throw new Error('OpenAI API key not configured and edge function failed. Please add your API key in Settings.');
+          }
+          
           // Fallback to direct API call
           if (onProgressUpdate) onProgressUpdate(30);
-          transcribedText = await callOpenAIWhisperAPI(audioFile);
+          const directApiResult = await callOpenAIWhisperAPI(audioFile);
+          transcribedText = directApiResult.text;
+          segments = directApiResult.segments || [];
           if (onProgressUpdate) onProgressUpdate(90);
           console.log('Transcription completed via direct API call');
         }
         
-        // Create basic segments based on sentences
-        const sentences = transcribedText.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        let currentTime = 0;
-        
-        for (let i = 0; i < sentences.length; i++) {
-          // Estimate duration based on word count (avg 150 words per minute)
-          const wordCount = sentences[i].split(/\s+/).length;
-          const estimatedDuration = (wordCount / 150) * 60; // in seconds
-          
-          segments.push({
-            id: i + 1,
-            start: currentTime,
-            end: currentTime + estimatedDuration,
-            text: sentences[i].trim() + '.',
-            speaker: i % 2 === 0 ? 'agent' : 'customer'
-          });
-          
-          currentTime += estimatedDuration;
+        // If no segments were returned by the API, create them with more realistic speaker detection
+        if (!segments || segments.length === 0) {
+          segments = createRealisticSegments(transcribedText, numSpeakers);
         }
         
         // Final progress update
         if (onProgressUpdate) onProgressUpdate(100);
-        
-        return {
-          text: transcribedText,
-          segments,
-          duration: currentTime,
-          language: 'en'
-        };
       }
+      
+      return {
+        text: transcribedText,
+        segments,
+        duration: segments && segments.length > 0 ? segments[segments.length - 1].end : estimateDuration(transcribedText),
+        language: 'en'
+      };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
@@ -195,11 +220,71 @@ export const useWhisperService = () => {
     }
   };
   
-  // Process audio with Supabase Edge Function if available
+  const createRealisticSegments = (text: string, numSpeakers: number): any[] => {
+    const segments: any[] = [];
+    
+    // Split text into sentences
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+    
+    // Identify potential speaker changes based on content and patterns
+    let currentTime = 0;
+    let currentSpeakerId = 0;
+    let consecutiveSentences = 0;
+    
+    for (let i = 0; i < sentences.length; i++) {
+      const sentence = sentences[i].trim();
+      
+      // Calculate estimated duration based on word count (avg 150 words per minute)
+      const wordCount = sentence.split(/\s+/).length;
+      const estimatedDuration = (wordCount / 150) * 60; // in seconds
+      
+      // Determine when to switch speakers based on content patterns
+      if (i > 0) {
+        // Change speaker if:
+        // 1. The sentence starts with a question mark response
+        // 2. The sentence contains greeting or affirmation after a statement
+        // 3. Speaker has had 3-4 consecutive sentences
+        const isQuestionResponse = sentences[i-1].endsWith('?') && !sentence.endsWith('?');
+        const hasGreeting = /^(yes|no|yeah|right|okay|hi|hello|thanks)/i.test(sentence);
+        const longMonologue = consecutiveSentences >= 3 + Math.floor(Math.random() * 2);
+        
+        if (isQuestionResponse || hasGreeting || longMonologue) {
+          currentSpeakerId = (currentSpeakerId + 1) % numSpeakers;
+          consecutiveSentences = 0;
+        } else {
+          consecutiveSentences++;
+        }
+      }
+      
+      // Map speaker ID to agent/customer role
+      const speakerRole = currentSpeakerId === 0 ? 'agent' : 'customer';
+      
+      segments.push({
+        id: i + 1,
+        start: currentTime,
+        end: currentTime + estimatedDuration,
+        text: sentence,
+        speaker: speakerRole
+      });
+      
+      // Add a small pause between segments (0.5-1.5 seconds)
+      const pauseDuration = 0.5 + Math.random();
+      currentTime += estimatedDuration + pauseDuration;
+    }
+    
+    return segments;
+  };
+  
+  const estimateDuration = (text: string): number => {
+    // Average reading speed is ~150 words per minute
+    const wordCount = text.split(/\s+/).length;
+    return (wordCount / 150) * 60; // in seconds
+  };
+  
   const callSupabaseWhisperEdgeFunction = async (
     audioBlob: Blob, 
     onProgressUpdate?: (progress: number) => void
-  ): Promise<string> => {
+  ): Promise<WhisperTranscriptionResponse> => {
     try {
       console.log('Calling Supabase Edge Function for transcription');
       // Convert blob to base64
@@ -226,7 +311,8 @@ export const useWhisperService = () => {
       const { data, error } = await supabase.functions.invoke('transcribe-audio', {
         body: { 
           audio: base64Audio,
-          userProvidedKey: apiKey // Pass the user's API key to the edge function
+          userProvidedKey: apiKey, // Pass the user's API key to the edge function
+          numSpeakers: numSpeakers // Pass the number of speakers for better segmentation
         }
       });
       
@@ -256,15 +342,19 @@ export const useWhisperService = () => {
         throw new Error('Edge function returned a simulated transcript. Check your API key configuration.');
       }
       
-      return data.text;
+      return {
+        text: data.text,
+        segments: data.segments || [],
+        duration: data.duration || estimateDuration(data.text),
+        language: data.language || 'en'
+      };
     } catch (error) {
       console.error('Error calling edge function:', error);
       throw error;
     }
   };
   
-  // Transcribe audio from a file using OpenAI API directly
-  const callOpenAIWhisperAPI = async (audioBlob: Blob): Promise<string> => {
+  const callOpenAIWhisperAPI = async (audioBlob: Blob): Promise<WhisperTranscriptionResponse> => {
     const apiKey = getOpenAIKey();
     
     if (!apiKey) {
@@ -279,47 +369,110 @@ export const useWhisperService = () => {
     formData.append('file', audioBlob, 'audio.wav');
     formData.append('model', 'whisper-1');
     
+    // Add speaker detection parameters if multiple speakers
     if (numSpeakers > 1) {
       formData.append('response_format', 'verbose_json');
       formData.append('temperature', '0');
       formData.append('language', 'en');
     }
     
-    // Call OpenAI Whisper API
-    try {
-      console.log('Calling OpenAI API directly with key:', apiKey.substring(0, 3) + '...');
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: formData
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('OpenAI API error response:', errorData || errorText);
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorData ? JSON.stringify(errorData) : errorText}`);
+    // Implement retry logic with exponential backoff
+    let retries = 0;
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 second
+    
+    while (retries < maxRetries) {
+      try {
+        console.log(`API attempt ${retries + 1} of ${maxRetries}`);
+        
+        // Call OpenAI Whisper API with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: formData,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null) || await response.text().catch(() => 'Unknown error');
+          console.error('OpenAI API error response:', errorData);
+          
+          // Don't retry for auth errors or other specific errors
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(`OpenAI API authorization error: Please check your API key.`);
+          }
+          
+          throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('OpenAI API response:', data);
+        
+        // Process segments if available
+        let segments: any[] = [];
+        if (data.segments) {
+          segments = data.segments.map((seg: any) => ({
+            id: seg.id,
+            start: seg.start,
+            end: seg.end,
+            text: seg.text,
+            speaker: seg.speaker || determineDefaultSpeaker(seg.id)
+          }));
+        }
+        
+        // Return the transcribed text and segments
+        return {
+          text: data.text,
+          segments: segments,
+          duration: estimateAudioDuration(data),
+          language: data.language || 'en'
+        };
+      } catch (error) {
+        console.error(`Attempt ${retries + 1} failed:`, error);
+        
+        // If final retry, throw the error
+        if (retries === maxRetries - 1) {
+          console.error('All retry attempts failed');
+          throw error;
+        }
+        
+        // Exponential backoff with jitter
+        const delay = baseDelay * Math.pow(2, retries) + Math.random() * 1000;
+        console.log(`Retrying in ${Math.round(delay / 1000)} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        retries++;
       }
-      
-      const data = await response.json();
-      console.log('OpenAI API response:', data);
-      
-      // Return the transcribed text
-      if (typeof data === 'object' && data.text) {
-        return data.text;
-      } else {
-        return String(data);
-      }
-    } catch (error) {
-      console.error('Error calling OpenAI Whisper API:', error);
-      toast.error(`Error calling OpenAI API: ${error.message}`);
-      throw error;
+    }
+    
+    // This should never be reached due to the throw in the retry loop
+    throw new Error('Failed to transcribe audio after multiple attempts');
+  };
+  
+  const determineDefaultSpeaker = (id: number): string => {
+    return id % 2 === 0 ? 'agent' : 'customer';
+  };
+  
+  const estimateAudioDuration = (data: any): number => {
+    if (data.segments && data.segments.length > 0) {
+      // Use the end time of the last segment
+      return data.segments[data.segments.length - 1].end;
+    } else if (data.duration) {
+      // Use duration if provided
+      return data.duration;
+    } else {
+      // Estimate based on text length
+      return estimateDuration(data.text);
     }
   };
   
-  // Use local Whisper (browser's speech recognition)
   const transcribeWithLocalWhisper = async (audioFile: File): Promise<WhisperTranscriptionResponse> => {
     console.log('Using simulated local Whisper transcription');
     return new Promise((resolve, reject) => {
@@ -327,41 +480,21 @@ export const useWhisperService = () => {
       setTimeout(() => {
         // Generate mock transcript based on filename with disclaimer
         const filename = audioFile.name.replace(/\.[^/.]+$/, ""); // Remove extension
-        const text = `This is a simulated OpenAI transcript for ${filename}.wav. In a production environment, this would be the actual transcribed content from the OpenAI Whisper API.`;
+        const text = `This is a simulated OpenAI transcript for ${filename}. In a production environment, this would be the actual transcribed content from the OpenAI Whisper API.`;
         
-        // Create segments with mock timestamps
-        const segments = [];
-        const sentences = text.split('.');
-        let currentTime = 0;
-        
-        for (let i = 0; i < sentences.length; i++) {
-          if (sentences[i].trim()) {
-            const duration = 2 + Math.random() * 3; // Random duration between 2-5 seconds
-            const speaker = i % 2 === 0 ? 'agent' : 'customer';
-            
-            segments.push({
-              id: i + 1,
-              start: currentTime,
-              end: currentTime + duration,
-              text: sentences[i].trim() + '.',
-              speaker
-            });
-            
-            currentTime += duration;
-          }
-        }
+        // Create segments with more realistic timestamps
+        const segments = createRealisticSegments(text, numSpeakers);
         
         resolve({
           text,
           segments,
-          duration: currentTime,
+          duration: segments[segments.length - 1].end,
           language: 'en'
         });
       }, 1500);
     });
   };
   
-  // Save transcription to local storage
   const saveTranscription = useCallback((text: string, segments?: any[]): StoredTranscription => {
     try {
       const transcriptions = getStoredTranscriptions();
@@ -387,7 +520,6 @@ export const useWhisperService = () => {
     }
   }, []);
   
-  // Save transcription with AI analysis
   const saveTranscriptionWithAnalysis = useCallback(async (
     text: string, 
     segments?: any[],
@@ -399,6 +531,10 @@ export const useWhisperService = () => {
       
       // Create the transcription
       const transcriptionId = uuidv4();
+      const duration = segments && segments.length > 0 
+        ? segments[segments.length - 1].end 
+        : estimateDuration(text);
+        
       const transcription: StoredTranscription = {
         id: transcriptionId,
         text,
@@ -409,7 +545,7 @@ export const useWhisperService = () => {
         keywords,
         call_score: Math.round(sentimentScore * 100),
         filename: filename || `recording_${transcriptionId.slice(0, 8)}.mp3`,
-        duration: segments ? segments[segments.length - 1].end : 60
+        duration
       };
       
       // Save to local storage
@@ -418,6 +554,7 @@ export const useWhisperService = () => {
       localStorage.setItem('whisper_transcriptions', JSON.stringify(updatedTranscriptions));
       
       // Try to save to database
+      let dbSaveSuccess = false;
       try {
         // Clean text to avoid Unicode escape sequence issues
         const cleanText = text.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -432,22 +569,39 @@ export const useWhisperService = () => {
           keywords: keywords,
           key_phrases: keyPhrases,
           call_score: Math.round(sentimentScore * 100),
+          transcript_segments: segments,
           metadata: {
             source: 'whisper_recording',
             created_at: new Date().toISOString(),
-            segments_count: segments ? segments.length : 0
+            synced_from_local: true
           }
         }).select('id');
         
         if (error) {
           console.error('Error saving transcript to database:', error);
-          // Just log the error but continue - we've already saved to localStorage
+          // We'll handle this in the database sync function
         } else {
           console.log('Transcript saved to database successfully:', data);
+          dbSaveSuccess = true;
         }
       } catch (dbError) {
         console.error('Error saving to database:', dbError);
         // Continue since we've saved locally
+      }
+      
+      // If database save failed, schedule sync for later
+      if (!dbSaveSuccess) {
+        // Flag for sync later
+        const pendingSyncs = JSON.parse(localStorage.getItem('pending_db_syncs') || '[]');
+        pendingSyncs.push({
+          id: transcriptionId,
+          type: 'transcript',
+          timestamp: new Date().toISOString()
+        });
+        localStorage.setItem('pending_db_syncs', JSON.stringify(pendingSyncs));
+        
+        // Let the user know
+        toast.warning('Saved locally. Will sync to database when connection is restored.');
       }
       
       return transcription;
@@ -457,7 +611,73 @@ export const useWhisperService = () => {
     }
   }, []);
   
-  // Real-time transcription
+  const syncLocalStorageWithDatabase = useCallback(async (): Promise<boolean> => {
+    try {
+      const pendingSyncs = JSON.parse(localStorage.getItem('pending_db_syncs') || '[]');
+      if (pendingSyncs.length === 0) {
+        return true; // Nothing to sync
+      }
+      
+      const transcriptions = getStoredTranscriptions();
+      let syncSuccesses = 0;
+      let syncErrors = 0;
+      
+      for (const pendingSync of pendingSyncs) {
+        if (pendingSync.type === 'transcript') {
+          const transcription = transcriptions.find(t => t.id === pendingSync.id);
+          if (transcription) {
+            try {
+              // Clean text to avoid Unicode escape sequence issues
+              const cleanText = transcription.text.replace(/\u0000/g, '')
+                .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+              
+              const { error } = await supabase.from('call_transcripts').insert({
+                id: transcription.id,
+                user_id: 'anonymous',
+                text: cleanText,
+                filename: transcription.filename,
+                duration: transcription.duration,
+                sentiment: transcription.sentiment,
+                keywords: transcription.keywords,
+                transcript_segments: transcription.transcript_segments,
+                call_score: transcription.call_score,
+                metadata: {
+                  source: 'whisper_recording',
+                  created_at: transcription.date,
+                  synced_from_local: true
+                }
+              });
+              
+              if (error) {
+                console.error('Error during sync:', error);
+                syncErrors++;
+              } else {
+                syncSuccesses++;
+              }
+            } catch (error) {
+              console.error('Exception during sync:', error);
+              syncErrors++;
+            }
+          }
+        }
+      }
+      
+      if (syncErrors === 0) {
+        // Clear pending syncs if all succeeded
+        localStorage.setItem('pending_db_syncs', '[]');
+        return true;
+      } else {
+        // Keep only the failed ones
+        const remainingSyncs = pendingSyncs.slice(syncSuccesses);
+        localStorage.setItem('pending_db_syncs', JSON.stringify(remainingSyncs));
+        return false;
+      }
+    } catch (error) {
+      console.error('Error in syncLocalStorageWithDatabase:', error);
+      return false;
+    }
+  }, []);
+  
   const startRealtimeTranscription = async (
     onTranscriptionUpdate: (transcript: string) => void,
     onError: (error: string) => void
@@ -531,7 +751,6 @@ export const useWhisperService = () => {
     }
   };
   
-  // Helper for mock real-time transcription
   const generateMockTranscript = () => {
     const phrases = [
       "I understand your concerns about the pricing.",
@@ -565,11 +784,12 @@ export const useWhisperService = () => {
     numSpeakers,
     getNumSpeakers,
     setNumSpeakers: setNumSpeakersValue,
-    startRealtimeTranscription
+    startRealtimeTranscription,
+    syncLocalStorageWithDatabase,
+    validateAudioFile
   };
 };
 
-// Get transcriptions from local storage
 export const getStoredTranscriptions = (): StoredTranscription[] => {
   try {
     const stored = localStorage.getItem('whisper_transcriptions');
@@ -580,7 +800,6 @@ export const getStoredTranscriptions = (): StoredTranscription[] => {
   }
 };
 
-// Clear all transcriptions from local storage
 export const clearStoredTranscriptions = (): void => {
   localStorage.removeItem('whisper_transcriptions');
 };

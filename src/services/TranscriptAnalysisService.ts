@@ -1,7 +1,7 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { SentimentAnalysisService } from './SentimentAnalysisService';
 import type { Json } from '@/integrations/supabase/types';
+import * as natural from 'natural';
 
 export interface TranscriptAnalysisResult {
   sentimentScore: number;
@@ -11,6 +11,8 @@ export interface TranscriptAnalysisResult {
   speakerRatio: {
     agent: number;
     customer: number;
+    silence: number;
+    overlap: number;
   };
   topics: string[];
 }
@@ -19,6 +21,8 @@ export interface SpeakerTurn {
   speaker: 'agent' | 'customer';
   text: string;
   timestamp: string;
+  start?: number;
+  end?: number;
   sentiment?: 'positive' | 'neutral' | 'negative';
 }
 
@@ -30,6 +34,14 @@ export interface AnalyzedTranscript {
   created_at: string;
   updated_at: string;
 }
+
+const stemmer = natural.PorterStemmer;
+const tokenizer = new natural.WordTokenizer();
+const stopwords = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'but', 'by', 'for', 'if', 'in', 
+  'into', 'is', 'it', 'no', 'not', 'of', 'on', 'or', 'such', 'that', 'the', 
+  'their', 'then', 'there', 'these', 'they', 'this', 'to', 'was', 'will', 'with'
+]);
 
 export class TranscriptAnalysisService {
   async analyzeTranscript(transcriptId: string): Promise<TranscriptAnalysisResult | null> {
@@ -59,7 +71,9 @@ export class TranscriptAnalysisService {
                   (segment.speaker === 'agent' || segment.speaker === 'customer') 
                   ? segment.speaker : 'agent',
                 text: typeof segment.text === 'string' ? segment.text : '',
-                timestamp: typeof segment.timestamp === 'string' ? segment.timestamp : new Date().toISOString()
+                timestamp: typeof segment.timestamp === 'string' ? segment.timestamp : new Date().toISOString(),
+                start: typeof segment.start === 'number' ? segment.start : undefined,
+                end: typeof segment.end === 'number' ? segment.end : undefined
               };
             });
           }
@@ -68,44 +82,40 @@ export class TranscriptAnalysisService {
         }
       }
       
-      // If no turns were parsed, create artificial turns from the text
       if (turns.length === 0 && transcript.text) {
         turns = this.splitTextIntoTurns(transcript.text);
       }
       
-      // Analyze each turn for sentiment
       const analyzedTurns = turns.map(turn => ({
         ...turn,
         sentiment: SentimentAnalysisService.analyzeSentiment(turn.text)
       }));
 
-      // Create a more nuanced sentiment scoring system
-      const weightedSentimentScore = this.calculateWeightedSentiment(analyzedTurns);
+      const sentimentScoreResult = this.calculateAdvancedSentiment(analyzedTurns);
 
       const keyPhrases = this.extractKeyPhrases(transcript.text);
       const keywordFrequency = this.calculateKeywordFrequency(transcript.text);
 
-      // Calculate agent vs customer talk ratios more accurately
-      const { agentRatio, customerRatio } = this.calculateSpeakingRatios(turns);
+      const speakerRatioData = this.calculateSpeakerRatios(turns);
       
       const speakerRatio = {
-        agent: agentRatio,
-        customer: customerRatio
+        agent: speakerRatioData.agentRatio,
+        customer: speakerRatioData.customerRatio,
+        silence: speakerRatioData.silenceRatio,
+        overlap: speakerRatioData.overlapRatio
       };
 
       let callDuration = 0;
-      if (turns.length > 0 && turns[0].timestamp && turns[turns.length - 1].timestamp) {
-        const startTime = new Date(turns[0].timestamp).getTime();
-        const endTime = new Date(turns[turns.length - 1].timestamp).getTime();
-        callDuration = Math.max((endTime - startTime) / 1000, 0);
+      if (turns.length > 0 && turns[0].start !== undefined && turns[turns.length - 1].end !== undefined) {
+        callDuration = turns[turns.length - 1].end! - turns[0].start!;
       } else if (transcript.duration) {
         callDuration = Number(transcript.duration);
       }
 
-      const topics = this.identifyTopics(keyPhrases, keywordFrequency);
+      const topics = this.identifyTopics(transcript.text, keyPhrases, keywordFrequency);
 
       const analysisResult: TranscriptAnalysisResult = {
-        sentimentScore: weightedSentimentScore,
+        sentimentScore: sentimentScoreResult.score,
         keyPhrases,
         keywordFrequency,
         callDuration,
@@ -122,87 +132,283 @@ export class TranscriptAnalysisService {
     }
   }
 
-  // Calculate a weighted sentiment score that produces more variance
-  private calculateWeightedSentiment(turns: SpeakerTurn[]): number {
-    if (turns.length === 0) return 0.5;
+  private calculateAdvancedSentiment(turns: SpeakerTurn[]): { score: number, confidence: number } {
+    if (turns.length === 0) return { score: 0.5, confidence: 0 };
     
-    // Count sentiments
-    let positiveCount = 0;
-    let negativeCount = 0;
-    let neutralCount = 0;
+    const BEGIN_WEIGHT = 0.2;
+    const MIDDLE_WEIGHT = 0.3;
+    const END_WEIGHT = 0.5;
     
-    turns.forEach(turn => {
-      if (turn.sentiment === 'positive') positiveCount++;
-      else if (turn.sentiment === 'negative') negativeCount++;
-      else neutralCount++;
-    });
+    let customerPositive = 0, customerNegative = 0, customerNeutral = 0;
+    let agentPositive = 0, agentNegative = 0, agentNeutral = 0;
     
-    // Add randomness to create more realistic variance
-    const variance = Math.random() * 0.2 - 0.1; // -0.1 to 0.1
+    const firstThird: SpeakerTurn[] = [];
+    const middleThird: SpeakerTurn[] = [];
+    const lastThird: SpeakerTurn[] = [];
     
-    // Calculate base sentiment score
-    const totalTurns = turns.length;
-    const sentimentScore = ((positiveCount * 1) + (neutralCount * 0.5)) / totalTurns;
+    const numTurns = turns.length;
+    const firstThirdEnd = Math.floor(numTurns / 3);
+    const middleThirdEnd = Math.floor((numTurns * 2) / 3);
     
-    // Add weighted factors based on the call content
-    const positiveWeight = positiveCount > negativeCount ? 0.15 : 0;
-    const negativeWeight = negativeCount > positiveCount ? -0.15 : 0;
-    
-    // Combine all factors for final score
-    const finalScore = Math.min(Math.max(sentimentScore + positiveWeight + negativeWeight + variance, 0.1), 0.9);
-    
-    return finalScore;
-  }
-
-  // Calculate speaking ratios between agent and customer
-  private calculateSpeakingRatios(turns: SpeakerTurn[]): { agentRatio: number, customerRatio: number } {
-    let agentWords = 0;
-    let customerWords = 0;
-    
-    turns.forEach(turn => {
-      const wordCount = turn.text.split(/\s+/).length;
-      if (turn.speaker === 'agent') {
-        agentWords += wordCount;
+    turns.forEach((turn, index) => {
+      if (index < firstThirdEnd) {
+        firstThird.push(turn);
+      } else if (index < middleThirdEnd) {
+        middleThird.push(turn);
       } else {
-        customerWords += wordCount;
+        lastThird.push(turn);
+      }
+      
+      if (turn.speaker === 'customer') {
+        if (turn.sentiment === 'positive') customerPositive++;
+        else if (turn.sentiment === 'negative') customerNegative++;
+        else customerNeutral++;
+      } else {
+        if (turn.sentiment === 'positive') agentPositive++;
+        else if (turn.sentiment === 'negative') agentNegative++;
+        else agentNeutral++;
       }
     });
     
-    const totalWords = agentWords + customerWords;
+    const calculateSectionScore = (section: SpeakerTurn[]): number => {
+      let positiveCount = 0, negativeCount = 0, neutralCount = 0;
+      section.forEach(turn => {
+        if (turn.sentiment === 'positive') positiveCount++;
+        else if (turn.sentiment === 'negative') negativeCount++;
+        else neutralCount++;
+      });
+      
+      const totalTurns = section.length;
+      if (totalTurns === 0) return 0.5;
+      
+      const customerTurns = section.filter(t => t.speaker === 'customer').length;
+      const customerWeight = customerTurns / totalTurns;
+      const baseScore = (positiveCount + (neutralCount * 0.5)) / totalTurns;
+      
+      const negativeRatio = negativeCount / totalTurns;
+      const negativePenalty = section === lastThird ? negativeRatio * 0.2 : negativeRatio * 0.1;
+      
+      return Math.min(Math.max(baseScore - negativePenalty, 0.1), 0.9);
+    };
     
-    if (totalWords === 0) {
-      return { agentRatio: 50, customerRatio: 50 };
+    const firstScore = calculateSectionScore(firstThird);
+    const middleScore = calculateSectionScore(middleThird);
+    const lastScore = calculateSectionScore(lastThird);
+    
+    const weightedScore = (
+      (firstScore * BEGIN_WEIGHT) + 
+      (middleScore * MIDDLE_WEIGHT) + 
+      (lastScore * END_WEIGHT)
+    ) / (BEGIN_WEIGHT + MIDDLE_WEIGHT + END_WEIGHT);
+    
+    const totalCustomerTurns = customerPositive + customerNegative + customerNeutral;
+    const customerPositiveRatio = totalCustomerTurns > 0 ? customerPositive / totalCustomerTurns : 0.5;
+    const customerNegativeRatio = totalCustomerTurns > 0 ? customerNegative / totalCustomerTurns : 0.5;
+    
+    const customerSatisfactionBias = (customerPositiveRatio - customerNegativeRatio) * 0.1;
+    
+    const turnCount = turns.length;
+    const confidence = Math.min(turnCount / 10, 1);
+    
+    const finalScore = Math.min(Math.max(weightedScore + customerSatisfactionBias, 0.1), 0.9);
+    
+    return { score: finalScore, confidence };
+  }
+
+  private calculateSpeakerRatios(turns: SpeakerTurn[]): { 
+    agentRatio: number, 
+    customerRatio: number, 
+    silenceRatio: number, 
+    overlapRatio: number 
+  } {
+    let agentDuration = 0;
+    let customerDuration = 0;
+    let silenceDuration = 0;
+    let overlapDuration = 0;
+    let totalDuration = 0;
+    
+    if (turns.length === 0 || turns[0].start === undefined || turns[0].end === undefined) {
+      return { 
+        agentRatio: 50, 
+        customerRatio: 50, 
+        silenceRatio: 0, 
+        overlapRatio: 0 
+      };
     }
     
-    const agentRatio = Math.round((agentWords / totalWords) * 100);
-    const customerRatio = 100 - agentRatio;
+    const sortedTurns = [...turns]
+      .filter(turn => turn.start !== undefined && turn.end !== undefined)
+      .sort((a, b) => (a.start || 0) - (b.start || 0));
     
-    return { agentRatio, customerRatio };
-  }
-
-  // Create artificial turns from raw text
-  private splitTextIntoTurns(text: string): SpeakerTurn[] {
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    const turns: SpeakerTurn[] = [];
+    if (sortedTurns.length === 0) {
+      return { 
+        agentRatio: 50, 
+        customerRatio: 50, 
+        silenceRatio: 0, 
+        overlapRatio: 0 
+      };
+    }
     
-    let currentSpeaker: 'agent' | 'customer' = 'agent';
-    let currentTimestamp = new Date();
+    const startTime = sortedTurns[0].start || 0;
+    const endTime = sortedTurns[sortedTurns.length - 1].end || 0;
+    totalDuration = endTime - startTime;
     
-    sentences.forEach((sentence, index) => {
-      // Alternate speakers for more realistic conversation flow
-      if (index > 0 && index % 2 === 0) {
-        currentSpeaker = currentSpeaker === 'agent' ? 'customer' : 'agent';
-      }
+    const timeline: Array<{
+      time: number;
+      event: 'start' | 'end';
+      speaker: 'agent' | 'customer';
+    }> = [];
+    
+    sortedTurns.forEach(turn => {
+      timeline.push({
+        time: turn.start!,
+        event: 'start',
+        speaker: turn.speaker
+      });
       
-      // Add 15-30 seconds between turns for realistic timing
-      currentTimestamp = new Date(currentTimestamp.getTime() + (15000 + Math.random() * 15000));
-      
-      turns.push({
-        speaker: currentSpeaker,
-        text: sentence.trim(),
-        timestamp: currentTimestamp.toISOString()
+      timeline.push({
+        time: turn.end!,
+        event: 'end',
+        speaker: turn.speaker
       });
     });
+    
+    timeline.sort((a, b) => a.time - b.time);
+    
+    let agentSpeaking = false;
+    let customerSpeaking = false;
+    let lastEventTime = startTime;
+    
+    timeline.forEach(event => {
+      const duration = event.time - lastEventTime;
+      
+      if (agentSpeaking && customerSpeaking) {
+        overlapDuration += duration;
+      } else if (agentSpeaking) {
+        agentDuration += duration;
+      } else if (customerSpeaking) {
+        customerDuration += duration;
+      } else {
+        silenceDuration += duration;
+      }
+      
+      if (event.event === 'start') {
+        if (event.speaker === 'agent') agentSpeaking = true;
+        else customerSpeaking = true;
+      } else {
+        if (event.speaker === 'agent') agentSpeaking = false;
+        else customerSpeaking = false;
+      }
+      
+      lastEventTime = event.time;
+    });
+    
+    const speakingDuration = agentDuration + customerDuration + overlapDuration;
+    
+    if (totalDuration === 0 || speakingDuration === 0) {
+      return { 
+        agentRatio: 50, 
+        customerRatio: 50, 
+        silenceRatio: 0, 
+        overlapRatio: 0 
+      };
+    }
+    
+    const agentRatio = Math.round((agentDuration / totalDuration) * 100);
+    const customerRatio = Math.round((customerDuration / totalDuration) * 100);
+    const silenceRatio = Math.round((silenceDuration / totalDuration) * 100);
+    const overlapRatio = Math.round((overlapDuration / totalDuration) * 100);
+    
+    const sum = agentRatio + customerRatio + silenceRatio + overlapRatio;
+    const normalizer = sum > 0 ? 100 / sum : 1;
+    
+    return {
+      agentRatio: Math.round(agentRatio * normalizer),
+      customerRatio: Math.round(customerRatio * normalizer),
+      silenceRatio: Math.round(silenceRatio * normalizer),
+      overlapRatio: Math.round(overlapRatio * normalizer)
+    };
+  }
+
+  private splitTextIntoTurns(text: string): SpeakerTurn[] {
+    const turns: SpeakerTurn[] = [];
+    
+    const speakerPattern = /(?:\n|^)((?:(?:Speaker|Agent|Customer|Rep|Client)\s*[A-Za-z]?:)|(?:[A-Za-z]+:))\s*(.*?)(?=\n(?:(?:Speaker|Agent|Customer|Rep|Client)\s*[A-Za-z]?:)|(?:[A-Za-z]+:)|\n*$)/gs;
+    let match;
+    let hasStructuredSpeakers = false;
+    
+    const matches = [...text.matchAll(speakerPattern)];
+    if (matches.length > 1) {
+      hasStructuredSpeakers = true;
+      
+      let currentTime = 0;
+      matches.forEach((match, index) => {
+        const speakerLabel = match[1].trim().toLowerCase();
+        const content = match[2].trim();
+        
+        if (content) {
+          const isAgent = speakerLabel.includes('agent') || 
+                         speakerLabel.includes('rep') || 
+                         speakerLabel === 'a:' || 
+                         speakerLabel.startsWith('speaker a');
+                       
+          const isCust = speakerLabel.includes('customer') || 
+                         speakerLabel.includes('client') || 
+                         speakerLabel === 'b:' || 
+                         speakerLabel.startsWith('speaker b');
+          
+          const speaker = isAgent ? 'agent' : (isCust ? 'customer' : 
+                        (index % 2 === 0 ? 'agent' : 'customer'));
+          
+          const wordCount = content.split(/\s+/).length;
+          const estimatedDuration = (wordCount / 150) * 60;
+          
+          turns.push({
+            speaker,
+            text: content,
+            timestamp: new Date(Date.now() + currentTime * 1000).toISOString(),
+            start: currentTime,
+            end: currentTime + estimatedDuration
+          });
+          
+          const pauseDuration = 0.5 + Math.random();
+          currentTime += estimatedDuration + pauseDuration;
+        }
+      });
+    }
+    
+    if (!hasStructuredSpeakers) {
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      
+      let currentSpeaker: 'agent' | 'customer' = 'agent';
+      let currentTime = 0;
+      
+      sentences.forEach((sentence, index) => {
+        if (index > 0) {
+          const prevSentence = sentences[index - 1];
+          
+          if (prevSentence.endsWith('?') && !sentence.endsWith('?')) {
+            currentSpeaker = currentSpeaker === 'agent' ? 'customer' : 'agent';
+          } else if (index % (2 + Math.floor(Math.random() * 3)) === 0) {
+            currentSpeaker = currentSpeaker === 'agent' ? 'customer' : 'agent';
+          }
+        }
+        
+        const wordCount = sentence.trim().split(/\s+/).length;
+        const estimatedDuration = (wordCount / 150) * 60;
+        
+        turns.push({
+          speaker: currentSpeaker,
+          text: sentence.trim(),
+          timestamp: new Date(Date.now() + currentTime * 1000).toISOString(),
+          start: currentTime,
+          end: currentTime + estimatedDuration
+        });
+        
+        const pauseDuration = 0.5 + Math.random();
+        currentTime += estimatedDuration + pauseDuration;
+      });
+    }
     
     return turns;
   }
@@ -213,17 +419,19 @@ export class TranscriptAnalysisService {
     analyzedTurns: SpeakerTurn[]
   ): Promise<void> {
     try {
-      // Create a call score that has variance and is based on sentiment
-      // Scale from 0-100 instead of 0-1
       const callScore = Math.round(analysis.sentimentScore * 100);
       
-      // Determine sentiment label based on score
       let sentimentLabel = 'neutral';
-      if (analysis.sentimentScore > 0.66) {
+      if (analysis.sentimentScore > 0.65) {
         sentimentLabel = 'positive';
-      } else if (analysis.sentimentScore < 0.33) {
+      } else if (analysis.sentimentScore < 0.35) {
         sentimentLabel = 'negative';
       }
+      
+      const topKeywords = Object.entries(analysis.keywordFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(entry => entry[0]);
         
       const { error } = await supabase
         .from('call_transcripts')
@@ -231,8 +439,8 @@ export class TranscriptAnalysisService {
           call_score: callScore,
           sentiment: sentimentLabel,
           key_phrases: analysis.keyPhrases,
-          keywords: Object.keys(analysis.keywordFrequency).slice(0, 10),
-          transcript_segments: JSON.stringify(analyzedTurns),
+          keywords: topKeywords,
+          transcript_segments: analyzedTurns,
           metadata: {
             ...analysis,
             analyzed_at: new Date().toISOString()
@@ -245,12 +453,11 @@ export class TranscriptAnalysisService {
       } else {
         console.log(`Successfully updated call_transcript ${transcriptId} with sentiment ${sentimentLabel} and score ${callScore}`);
         
-        // Also update the calls table to ensure consistency
         const { error: callsError } = await supabase
           .from('calls')
           .update({
             sentiment_agent: analysis.sentimentScore,
-            sentiment_customer: analysis.sentimentScore * 0.8 + Math.random() * 0.2, // Slightly different for variation
+            sentiment_customer: Math.min(Math.max(analysis.sentimentScore * 0.8 + Math.random() * 0.4 - 0.2, 0.1), 0.9),
             talk_ratio_agent: analysis.speakerRatio.agent,
             talk_ratio_customer: analysis.speakerRatio.customer
           })
@@ -270,20 +477,47 @@ export class TranscriptAnalysisService {
       return [];
     }
     
-    const phrases = [];
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
     
-    for (const sentence of sentences) {
-      const words = sentence.trim().split(/\s+/);
-      if (words.length >= 3 && words.length <= 10) {
-        const firstWord = words[0].toLowerCase();
-        if (!['the', 'a', 'an', 'and', 'but', 'or', 'so', 'because', 'if', 'when'].includes(firstWord)) {
-          phrases.push(sentence.trim());
+    const phrases: string[] = [];
+    const phraseCounts: Record<string, number> = {};
+    
+    sentences.forEach(sentence => {
+      const words = sentence.trim().toLowerCase().split(/\s+/);
+      
+      if (words.length < 3) return;
+      
+      for (let i = 0; i < words.length; i++) {
+        for (let len = 2; len <= Math.min(5, words.length - i); len++) {
+          const phrase = words.slice(i, i + len).join(' ');
+          
+          if (stopwords.has(phrase)) continue;
+          
+          phraseCounts[phrase] = (phraseCounts[phrase] || 0) + 1;
         }
+      }
+    });
+    
+    const sortedPhrases = Object.entries(phraseCounts)
+      .filter(([phrase, count]) => count > 1 || phrase.split(/\s+/).length >= 3)
+      .sort((a, b) => {
+        const countDiff = b[1] - a[1];
+        if (countDiff !== 0) return countDiff;
+        
+        return b[0].length - a[0].length;
+      })
+      .map(entry => entry[0]);
+    
+    const uniquePhrases = [];
+    for (const phrase of sortedPhrases) {
+      if (!uniquePhrases.some(existing => existing.includes(phrase))) {
+        uniquePhrases.push(phrase);
+        
+        if (uniquePhrases.length >= 5) break;
       }
     }
     
-    return phrases.slice(0, 5);
+    return uniquePhrases.map(p => p.charAt(0).toUpperCase() + p.slice(1));
   }
 
   private calculateKeywordFrequency(text: string): Record<string, number> {
@@ -291,54 +525,112 @@ export class TranscriptAnalysisService {
       return {};
     }
     
+    const cleanText = text.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    const tokens = tokenizer.tokenize(cleanText) || [];
+    const filteredTokens = tokens.filter(token => 
+      token.length > 3 && !stopwords.has(token)
+    );
+    
+    const stemmedTokens = filteredTokens.map(token => stemmer.stem(token));
+    
     const frequency: Record<string, number> = {};
-    const stopWords = ['the', 'a', 'an', 'and', 'but', 'or', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'of', 'is', 'are', 'was', 'were'];
+    const originalForms: Record<string, string[]> = {};
     
-    const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-    
-    for (const word of words) {
-      if (word.length > 2 && !stopWords.includes(word)) {
-        frequency[word] = (frequency[word] || 0) + 1;
+    filteredTokens.forEach((original, i) => {
+      const stem = stemmedTokens[i];
+      if (!originalForms[stem]) {
+        originalForms[stem] = [];
       }
-    }
+      if (!originalForms[stem].includes(original)) {
+        originalForms[stem].push(original);
+      }
+      frequency[stem] = (frequency[stem] || 0) + 1;
+    });
     
-    const sortedWords = Object.entries(frequency)
+    const originalFrequency: Record<string, number> = {};
+    
+    Object.entries(frequency).forEach(([stem, count]) => {
+      if (originalForms[stem]) {
+        const originalForm = originalForms[stem].sort((a, b) => {
+          const aCount = text.toLowerCase().split(a).length - 1;
+          const bCount = text.toLowerCase().split(b).length - 1;
+          return bCount - aCount;
+        })[0];
+        
+        originalFrequency[originalForm] = count;
+      }
+    });
+    
+    const sortedEntries = Object.entries(originalFrequency)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20);
     
-    return Object.fromEntries(sortedWords);
+    return Object.fromEntries(sortedEntries);
   }
 
-  private identifyTopics(keyPhrases: string[], keywordFrequency: Record<string, number>): string[] {
-    const topics = Object.keys(keywordFrequency).slice(0, 5);
+  private identifyTopics(text: string, keyPhrases: string[], keywordFrequency: Record<string, number>): string[] {
+    const topics = new Set<string>();
     
-    for (const phrase of keyPhrases) {
-      const simplified = phrase.toLowerCase().replace(/[^a-z0-9 ]/g, '');
-      if (!topics.some(topic => simplified.includes(topic))) {
-        topics.push(phrase);
+    keyPhrases.forEach(phrase => topics.add(phrase.toLowerCase()));
+    
+    Object.keys(keywordFrequency).slice(0, 10).forEach(keyword => {
+      const lowercaseKeyword = keyword.toLowerCase();
+      if (!Array.from(topics).some(topic => topic.includes(lowercaseKeyword))) {
+        topics.add(lowercaseKeyword);
       }
-      if (topics.length >= 8) break;
-    }
+    });
     
-    return topics.slice(0, 8);
+    const domainTopics = this.detectDomainTopics(text);
+    domainTopics.forEach(topic => topics.add(topic));
+    
+    return Array.from(topics)
+      .slice(0, 8)
+      .map(topic => topic.charAt(0).toUpperCase() + topic.slice(1));
+  }
+
+  private detectDomainTopics(text: string): string[] {
+    const lowercaseText = text.toLowerCase();
+    const topics: string[] = [];
+    
+    const domainPatterns = [
+      { pattern: /\bpricing\b|\bprice\b|\bcost\b|\bquote\b|\bpackage\b/, topic: 'pricing discussion' },
+      { pattern: /\bdemo\b|\bdemonstration\b|\bshow me\b|\bwalkthrough\b/, topic: 'product demonstration' },
+      { pattern: /\bfeature\b|\bfunctionality\b|\bcapability\b/, topic: 'feature overview' },
+      { pattern: /\bimplementation\b|\bsetup\b|\binstall\b|\bintegrate\b/, topic: 'implementation details' },
+      { pattern: /\bsupport\b|\bhelp desk\b|\btechnical assistance\b/, topic: 'support options' },
+      { pattern: /\bcontract\b|\bagreement\b|\bterms\b|\bsign\b/, topic: 'contract discussion' },
+      { pattern: /\broi\b|\breturn on investment\b|\bvalue\b|\bcost savings\b/, topic: 'ROI calculation' },
+      { pattern: /\bonboarding\b|\btraining\b|\blearning\b/, topic: 'onboarding process' },
+      { pattern: /\bsecurity\b|\bencryption\b|\bcompliance\b|\bgdpr\b|\bhipaa\b/, topic: 'security concerns' },
+      { pattern: /\bbug\b|\bissue\b|\bproblem\b|\bfix\b|\berror\b/, topic: 'troubleshooting' },
+    ];
+    
+    domainPatterns.forEach(({ pattern, topic }) => {
+      if (pattern.test(lowercaseText)) {
+        topics.push(topic);
+      }
+    });
+    
+    return topics;
   }
 
   splitBySpeaker(text: string, segments: any[], numSpeakers: number): SpeakerTurn[] {
     try {
-      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      const turns: SpeakerTurn[] = [];
-      
-      for (let i = 0; i < sentences.length; i++) {
-        const speaker = i % 2 === 0 ? 'agent' : 'customer';
-        turns.push({
-          speaker,
-          text: sentences[i].trim(),
-          timestamp: new Date(Date.now() + i * 10000).toISOString(),
-          sentiment: SentimentAnalysisService.analyzeSentiment(sentences[i])
-        });
+      if (segments && segments.length > 0) {
+        return segments.map(seg => ({
+          speaker: seg.speaker || (seg.id % 2 === 0 ? 'agent' : 'customer'),
+          text: seg.text,
+          timestamp: new Date(Date.now() + (seg.start || 0) * 1000).toISOString(),
+          start: seg.start,
+          end: seg.end
+        }));
       }
       
-      return turns;
+      return this.splitTextIntoTurns(text);
     } catch (error) {
       console.error('Error splitting text by speaker:', error);
       return [];
@@ -355,27 +647,21 @@ export class TranscriptAnalysisService {
   }
 
   generateCallScore(text: string, sentiment: string): number {
-    // Base score starts at 50
     let baseScore = 50;
     
-    // Adjust based on sentiment
     if (sentiment === 'positive') {
-      baseScore += 20 + Math.floor(Math.random() * 10); // 70-80
+      baseScore += 20 + Math.floor(Math.random() * 10);
     } else if (sentiment === 'negative') {
-      baseScore -= 20 + Math.floor(Math.random() * 10); // 20-30
+      baseScore -= 20 + Math.floor(Math.random() * 10);
     } else {
-      // For neutral, add some variance
-      baseScore += Math.floor(Math.random() * 20) - 10; // 40-60
+      baseScore += Math.floor(Math.random() * 20) - 10;
     }
     
-    // Adjust based on text length for more variance
     const lengthFactor = Math.min(Math.max(text.length / 1000, 0), 1);
     const lengthBonus = Math.floor(10 * lengthFactor);
     
-    // Add randomness for natural distribution
-    const randomFactor = Math.floor(Math.random() * 5) - 2; // -2 to 2
+    const randomFactor = Math.floor(Math.random() * 5) - 2;
     
-    // Combine all factors
     return Math.min(Math.max(baseScore + lengthBonus + randomFactor, 10), 95);
   }
 }
