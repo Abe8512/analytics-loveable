@@ -15,6 +15,7 @@ import ConnectionMonitor from './components/ui/ConnectionMonitor';
 import Analytics from './pages/Analytics';
 import CallActivity from './pages/CallActivity';
 import Performance from './pages/Performance';
+import PerformanceMetrics from './pages/PerformanceMetrics';
 import { SharedFilterProvider } from './contexts/SharedFilterContext';
 import { createContext, useState, useEffect } from 'react';
 
@@ -75,6 +76,7 @@ function App() {
                 <Route path="/transcripts" element={<Transcripts />} />
                 <Route path="/call-activity" element={<CallActivity />} />
                 <Route path="/performance" element={<Performance />} />
+                <Route path="/performance-metrics" element={<PerformanceMetrics />} />
               </Routes>
             </SharedFilterProvider>
           </QueryProvider>

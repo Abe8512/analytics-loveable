@@ -1,4 +1,3 @@
-
 import React, { useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
@@ -128,6 +127,7 @@ const SidebarNav = ({ isOpen = false, setIsOpen = () => {}, collapsed = false, s
     { icon: Users, label: "Team", path: "/team" },
     { icon: GitCompare, label: "Call Comparison", path: "/call-comparison" },
     { icon: MessageSquare, label: "Messaging", path: "/messaging" },
+    { icon: LineChart, label: "Performance Metrics", path: "/performance-metrics" }
   ];
 
   const sidebarContent = (

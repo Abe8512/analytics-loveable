@@ -11,6 +11,9 @@ import { motion } from 'framer-motion';
 import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
 import { useBulkUploadService } from '@/services/BulkUploadService';
 import { getOpenAIKey } from '@/services/WhisperService';
+import { Button } from '@/components/ui/button';
+import { LineChart } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -82,8 +85,15 @@ const Dashboard = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
+          className="flex justify-between items-center"
         >
           <PerformanceMetrics />
+          <Link to="/performance-metrics">
+            <Button variant="outline" className="flex items-center gap-2">
+              <LineChart className="h-4 w-4" />
+              View Detailed Metrics
+            </Button>
+          </Link>
         </motion.div>
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
