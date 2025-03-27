@@ -7,8 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Phone, User, UserCheck, Clock } from 'lucide-react';
 import { teamService } from '@/services/TeamService';
-import { useEventListener } from '@/services/EventsService';
-import { EVENT_TYPES } from '@/services/EventsService';
+import { useEventListener } from '@/services/events/hooks';
 
 interface CallActivityProps {
   selectedUserId?: string | null;
@@ -48,11 +47,11 @@ const TeamMembersTable: React.FC<CallActivityProps> = ({
     fetchTeamMembers();
   }, []);
   
-  useEventListener(EVENT_TYPES.TEAM_MEMBER_ADDED, () => {
+  useEventListener('team-member-added', () => {
     fetchTeamMembers();
   });
   
-  useEventListener(EVENT_TYPES.TEAM_MEMBER_REMOVED, () => {
+  useEventListener('team-member-removed', () => {
     fetchTeamMembers();
   });
 

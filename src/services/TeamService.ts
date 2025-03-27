@@ -3,17 +3,17 @@ import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
 import { dispatchEvent } from './events/store';
-import { EVENT_TYPES } from './events/types';
+import { EventType } from './events/types';
 
 // Define the team member interface
 interface TeamMember {
   id: string;
   name: string;
-  email?: string;
+  email: string; // Making email required to match supabase schema
   role?: string;
   avatar_url?: string;
   member_id?: string;
-  user_id?: string;
+  user_id: string; // Making user_id required to match supabase schema
 }
 
 // Helper function to generate demo team members
@@ -94,7 +94,8 @@ const addTeamMember = async (member: Omit<TeamMember, 'id'>): Promise<TeamMember
     const newMember: TeamMember = {
       ...member,
       id: uuidv4(),
-      user_id: member.user_id || uuidv4() // Ensure user_id is set
+      user_id: member.user_id || uuidv4(), // Ensure user_id is set
+      email: member.email || `${member.name.toLowerCase().replace(' ', '.')}@example.com` // Ensure email is set
     };
     
     const tableMissing = await isTeamMembersTableMissing();
@@ -113,7 +114,7 @@ const addTeamMember = async (member: Omit<TeamMember, 'id'>): Promise<TeamMember
       }
       
       // Dispatch event for components to refresh
-      dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, data);
+      dispatchEvent('team-member-added' as EventType, data);
       
       return data;
     } else {
@@ -123,7 +124,7 @@ const addTeamMember = async (member: Omit<TeamMember, 'id'>): Promise<TeamMember
       storeTeamMembers(teamMembers);
       
       // Dispatch event for components to refresh
-      dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, newMember);
+      dispatchEvent('team-member-added' as EventType, newMember);
       
       return newMember;
     }
@@ -157,7 +158,7 @@ const removeTeamMember = async (id: string): Promise<boolean> => {
     storeTeamMembers(filteredMembers);
     
     // Dispatch event for components to refresh
-    dispatchEvent(EVENT_TYPES.TEAM_MEMBER_REMOVED, id);
+    dispatchEvent('team-member-removed' as EventType, id);
     
     return true;
   } catch (error) {
@@ -190,9 +191,12 @@ const getTeamMembers = async (): Promise<TeamMember[]> => {
         storeTeamMembers(demoMembers);
         
         try {
-          await supabase
-            .from('team_members')
-            .insert(demoMembers);
+          // Insert demo members one by one to avoid type mismatch issues
+          for (const member of demoMembers) {
+            await supabase
+              .from('team_members')
+              .insert([member]);
+          }
         } catch (insertError) {
           console.error("Error inserting demo team members:", insertError);
         }
@@ -238,12 +242,13 @@ const useTeamMembers = () => {
     const removedListener = (data: any) => refreshTeamMembers();
     
     // Add event listeners
-    const removeAddedListener = dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, addedListener);
-    const removeRemovedListener = dispatchEvent(EVENT_TYPES.TEAM_MEMBER_REMOVED, removedListener);
+    const removeAddedListener = addEventListener('team-member-added' as EventType, addedListener);
+    const removeRemovedListener = addEventListener('team-member-removed' as EventType, removedListener);
     
     // Cleanup function
     return () => {
-      // These aren't functions, so we don't need to call them
+      removeAddedListener();
+      removeRemovedListener();
     };
   }, []);
   

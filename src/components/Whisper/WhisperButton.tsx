@@ -6,6 +6,8 @@ import { ThemeContext } from "@/App";
 import { useToast } from "@/hooks/use-toast";
 import { getStoredTranscriptions } from "@/services/WhisperService";
 import { useNavigate } from "react-router-dom";
+import { dispatchEvent } from "@/services/events/store";
+import { EventType } from "@/services/events/types";
 
 interface WhisperButtonProps {
   recordingId: string;
@@ -42,6 +44,9 @@ const WhisperButton = ({ recordingId }: WhisperButtonProps) => {
           title: "Transcript Available",
           description: "Viewing transcript details",
         });
+        
+        // Dispatch an event to notify other components
+        dispatchEvent('transcript-created' as EventType, { transcript: transcription });
         
         // Navigate to the transcript view with the ID
         navigate(`/transcripts?id=${transcription.id}`);

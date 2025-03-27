@@ -1,149 +1,209 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { TeamMetric, RepMetric, MetricsHookResult } from './RealTimeMetrics.types';
+import { useEventListener } from '@/services/events/hooks';
+import { EventType } from '@/services/events/types';
 
-// Mock data for development
-const mockTeamMetrics: TeamMetric[] = [
-  {
-    id: '1',
-    team_name: 'Sales Team A',
-    call_count: 145,
-    avg_sentiment: 0.75,
-    avg_duration: 12.3,
-    conversion_rate: 0.32
-  },
-  {
-    id: '2',
-    team_name: 'Sales Team B',
-    call_count: 98,
-    avg_sentiment: 0.82,
-    avg_duration: 14.7,
-    conversion_rate: 0.28
+// Helper to check if table exists
+const isTableMissing = async (tableName: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from(tableName)
+      .select('id')
+      .limit(1);
+    
+    return error?.message.includes(`relation "${tableName}" does not exist`) || false;
+  } catch (error) {
+    console.error(`Error checking if ${tableName} table exists:`, error);
+    return true; // Assume missing if we can't check
   }
-];
+};
 
-const mockRepMetrics: RepMetric[] = [
-  {
-    id: '1',
-    rep_name: 'John Doe',
-    call_count: 42,
-    avg_sentiment: 0.68,
-    avg_duration: 10.5,
-    conversion_rate: 0.25
-  },
-  {
-    id: '2',
-    rep_name: 'Jane Smith',
-    call_count: 37,
-    avg_sentiment: 0.91,
-    avg_duration: 15.2,
-    conversion_rate: 0.42
-  }
-];
+// Generate mock team metrics
+const generateMockTeamMetrics = (): TeamMetric[] => {
+  return [
+    {
+      id: "team1",
+      team_name: "Sales Team Alpha",
+      call_count: 128,
+      avg_sentiment: 0.75,
+      avg_duration: 325,
+      conversion_rate: 0.45
+    },
+    {
+      id: "team2",
+      team_name: "Sales Team Beta",
+      call_count: 96,
+      avg_sentiment: 0.68,
+      avg_duration: 298,
+      conversion_rate: 0.38
+    },
+    {
+      id: "team3",
+      team_name: "Sales Team Gamma",
+      call_count: 152,
+      avg_sentiment: 0.82,
+      avg_duration: 345,
+      conversion_rate: 0.52
+    }
+  ];
+};
 
-// Team metrics hook
+// Generate mock rep metrics
+const generateMockRepMetrics = (): RepMetric[] => {
+  return [
+    {
+      id: "rep1",
+      rep_name: "John Doe",
+      call_count: 45,
+      avg_sentiment: 0.78,
+      avg_duration: 310,
+      conversion_rate: 0.48
+    },
+    {
+      id: "rep2",
+      rep_name: "Jane Smith",
+      call_count: 38,
+      avg_sentiment: 0.82,
+      avg_duration: 295,
+      conversion_rate: 0.52
+    },
+    {
+      id: "rep3",
+      rep_name: "Dave Wilson",
+      call_count: 42,
+      avg_sentiment: 0.71,
+      avg_duration: 325,
+      conversion_rate: 0.40
+    }
+  ];
+};
+
+/**
+ * React hook for team metrics
+ */
 export const useTeamMetrics = (): MetricsHookResult<TeamMetric> => {
   const [metrics, setMetrics] = useState<TeamMetric[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = useCallback(async () => {
+    setIsLoading(true);
+    
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Try to fetch from database
-      let data;
-      try {
-        const { data: dbData, error: dbError } = await supabase
+      // Check if table exists first
+      const tableMissing = await isTableMissing('team_metrics_summary');
+      
+      if (tableMissing) {
+        // Use mock data if table doesn't exist
+        setMetrics(generateMockTeamMetrics());
+        setError(null);
+      } else {
+        // Fetch from database if table exists
+        const { data, error: fetchError } = await supabase
           .from('team_metrics_summary')
           .select('*');
-
-        if (dbError) throw dbError;
-        data = dbData;
-      } catch (dbError) {
-        console.warn('Error fetching team metrics from database, using mock data', dbError);
-        // Fall back to mock data
-        data = mockTeamMetrics;
+        
+        if (fetchError) {
+          throw new Error(`Failed to fetch team metrics: ${fetchError.message}`);
+        }
+        
+        if (data && data.length > 0) {
+          setMetrics(data);
+        } else {
+          // Use mock data if no records found
+          setMetrics(generateMockTeamMetrics());
+        }
+        setError(null);
       }
-
-      // Transform data if needed
-      const formattedMetrics: TeamMetric[] = data.map((item: any) => ({
-        id: item.id || String(Math.random()),
-        team_name: item.team_name || 'Unknown Team',
-        call_count: Number(item.call_count || 0),
-        avg_sentiment: Number(item.avg_sentiment || 0),
-        avg_duration: Number(item.avg_duration || 0),
-        conversion_rate: Number(item.conversion_rate || 0)
-      }));
-
-      setMetrics(formattedMetrics);
     } catch (err) {
-      console.error('Error in useTeamMetrics:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-      setMetrics(mockTeamMetrics); // Fall back to mock data on error
+      console.error('Error fetching team metrics:', err);
+      setError(err as Error);
+      
+      // Fallback to mock data on error
+      setMetrics(generateMockTeamMetrics());
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMetrics();
-  }, []);
+  }, [fetchMetrics]);
+
+  // Listen for events that should trigger a refresh
+  useEventListener('call-updated' as EventType, () => {
+    fetchMetrics();
+  });
+
+  useEventListener('team-member-added' as EventType, () => {
+    fetchMetrics();
+  });
 
   return { metrics, isLoading, error, refresh: fetchMetrics };
 };
 
-// Rep metrics hook
+/**
+ * React hook for rep metrics
+ */
 export const useRepMetrics = (): MetricsHookResult<RepMetric> => {
   const [metrics, setMetrics] = useState<RepMetric[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = useCallback(async () => {
+    setIsLoading(true);
+    
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Try to fetch from database
-      let data;
-      try {
-        const { data: dbData, error: dbError } = await supabase
+      // Check if table exists first
+      const tableMissing = await isTableMissing('rep_metrics_summary');
+      
+      if (tableMissing) {
+        // Use mock data if table doesn't exist
+        setMetrics(generateMockRepMetrics());
+        setError(null);
+      } else {
+        // Fetch from database if table exists
+        const { data, error: fetchError } = await supabase
           .from('rep_metrics_summary')
           .select('*');
-
-        if (dbError) throw dbError;
-        data = dbData;
-      } catch (dbError) {
-        console.warn('Error fetching rep metrics from database, using mock data', dbError);
-        // Fall back to mock data
-        data = mockRepMetrics;
+        
+        if (fetchError) {
+          throw new Error(`Failed to fetch rep metrics: ${fetchError.message}`);
+        }
+        
+        if (data && data.length > 0) {
+          setMetrics(data);
+        } else {
+          // Use mock data if no records found
+          setMetrics(generateMockRepMetrics());
+        }
+        setError(null);
       }
-
-      // Transform data if needed
-      const formattedMetrics: RepMetric[] = data.map((item: any) => ({
-        id: item.id || String(Math.random()),
-        rep_name: item.rep_name || 'Unknown Rep',
-        call_count: Number(item.call_count || 0),
-        avg_sentiment: Number(item.avg_sentiment || 0),
-        avg_duration: Number(item.avg_duration || 0),
-        conversion_rate: Number(item.conversion_rate || 0)
-      }));
-
-      setMetrics(formattedMetrics);
     } catch (err) {
-      console.error('Error in useRepMetrics:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-      setMetrics(mockRepMetrics); // Fall back to mock data on error
+      console.error('Error fetching rep metrics:', err);
+      setError(err as Error);
+      
+      // Fallback to mock data on error
+      setMetrics(generateMockRepMetrics());
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMetrics();
-  }, []);
+  }, [fetchMetrics]);
+
+  // Listen for events that should trigger a refresh
+  useEventListener('call-updated' as EventType, () => {
+    fetchMetrics();
+  });
+
+  useEventListener('team-member-added' as EventType, () => {
+    fetchMetrics();
+  });
 
   return { metrics, isLoading, error, refresh: fetchMetrics };
 };

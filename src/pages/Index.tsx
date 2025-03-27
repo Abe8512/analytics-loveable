@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Phone, User, BarChart } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useTeamMetrics } from '@/services/RealTimeMetricsService';
-import { useEventListener } from '@/services/EventsService';
+import { useEventListener } from '@/services/events/hooks';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 const Index = () => {
@@ -21,7 +21,7 @@ const Index = () => {
     sentiment: 'Positive',
   });
 
-  useEventListener('CALL_UPDATED', (data: any) => {
+  useEventListener('call-updated', (data: any) => {
     if (data && data.data) {
       setLatestCall(data.data);
     }

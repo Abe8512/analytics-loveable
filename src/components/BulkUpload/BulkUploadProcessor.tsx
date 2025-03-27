@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/components/ui/use-toast";
-import { useEventsStore } from '@/services/events';
+import { dispatchEvent } from '@/services/events/store';
+import { EventType } from '@/services/events/types';
 import { useBulkUploadService, BulkUploadFilter } from '@/services/BulkUploadService';
 import { Progress } from "@/components/ui/progress";
 
@@ -30,7 +31,6 @@ const BulkUploadProcessor: React.FC = () => {
   const [modelName, setModelName] = useState('');
   const { refreshTranscripts } = useBulkUploadService();
   const { toast } = useToast();
-	const dispatchEvent = useEventsStore((state) => state.dispatchEvent);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -85,7 +85,7 @@ const BulkUploadProcessor: React.FC = () => {
 
     setIsUploading(true);
     setUploadProgress(0);
-    dispatchEvent('upload-started' as any);
+    dispatchEvent('bulk-upload-started' as EventType);
 
     try {
       const totalRows = csvData.length;
@@ -93,14 +93,14 @@ const BulkUploadProcessor: React.FC = () => {
 
       for (const data of csvData) {
         try {
-          dispatchEvent('upload-progress' as any, { progress: (uploadedCount / totalRows) * 100 });
+          dispatchEvent('bulk-upload-progress' as EventType, { progress: (uploadedCount / totalRows) * 100 });
           setUploadProgress((uploadedCount / totalRows) * 100);
 
           // Mock upload functionality since we don't have the actual uploadTranscript method
           await new Promise(resolve => setTimeout(resolve, 500)); // Simulate upload time
 
           uploadedCount++;
-          dispatchEvent('upload-progress' as any, { progress: (uploadedCount / totalRows) * 100 });
+          dispatchEvent('bulk-upload-progress' as EventType, { progress: (uploadedCount / totalRows) * 100 });
           setUploadProgress((uploadedCount / totalRows) * 100);
         } catch (uploadError: any) {
           console.error('Upload failed for row:', data, uploadError);
@@ -109,13 +109,13 @@ const BulkUploadProcessor: React.FC = () => {
             title: "Upload error",
             description: `Failed to upload row: ${data.filename || 'Unknown'}. ${uploadError?.message || 'Unknown error'}`
           });
-          dispatchEvent('upload-error' as any, { error: uploadError });
+          dispatchEvent('bulk-upload-error' as EventType, { error: uploadError });
         }
       }
 
       setIsUploading(false);
       setUploadProgress(100);
-      dispatchEvent('upload-completed' as any);
+      dispatchEvent('bulk-upload-completed' as EventType);
       toast({
         title: "Upload complete",
         description: `Successfully uploaded ${uploadedCount} of ${totalRows} rows.`,
@@ -123,7 +123,7 @@ const BulkUploadProcessor: React.FC = () => {
     } catch (error: any) {
       console.error('Bulk upload process failed:', error);
       setIsUploading(false);
-      dispatchEvent('upload-error' as any, { error });
+      dispatchEvent('bulk-upload-error' as EventType, { error });
       toast({
         variant: "destructive",
         title: "Upload error",
@@ -135,7 +135,7 @@ const BulkUploadProcessor: React.FC = () => {
   const processData = async () => {
     setIsProcessing(true);
     setProcessingProgress(0);
-    dispatchEvent('processing-started' as any);
+    dispatchEvent('processing-started' as EventType);
 
     try {
       const totalRows = csvData.length;
@@ -143,14 +143,14 @@ const BulkUploadProcessor: React.FC = () => {
 
       for (const data of csvData) {
         try {
-          dispatchEvent('processing-progress' as any, { progress: (processedCount / totalRows) * 100 });
+          dispatchEvent('processing-progress' as EventType, { progress: (processedCount / totalRows) * 100 });
           setProcessingProgress((processedCount / totalRows) * 100);
 
           // Mock processing functionality
           await new Promise(resolve => setTimeout(resolve, 800)); // Simulate processing time
 
           processedCount++;
-          dispatchEvent('processing-progress' as any, { progress: (processedCount / totalRows) * 100 });
+          dispatchEvent('processing-progress' as EventType, { progress: (processedCount / totalRows) * 100 });
           setProcessingProgress((processedCount / totalRows) * 100);
         } catch (processError: any) {
           console.error('Processing failed for row:', data, processError);
@@ -159,13 +159,13 @@ const BulkUploadProcessor: React.FC = () => {
             title: "Processing error",
             description: `Failed to process row: ${data.filename || 'Unknown'}. ${processError?.message || 'Unknown error'}`
           });
-          dispatchEvent('processing-error' as any, { error: processError });
+          dispatchEvent('processing-error' as EventType, { error: processError });
         }
       }
 
       setIsProcessing(false);
       setProcessingProgress(100);
-      dispatchEvent('processing-completed' as any);
+      dispatchEvent('processing-completed' as EventType);
       toast({
         title: "Processing complete",
         description: `Successfully processed ${processedCount} of ${totalRows} rows.`,
@@ -173,7 +173,7 @@ const BulkUploadProcessor: React.FC = () => {
     } catch (error: any) {
       console.error('Bulk processing failed:', error);
       setIsProcessing(false);
-      dispatchEvent('processing-error' as any, { error });
+      dispatchEvent('processing-error' as EventType, { error });
       toast({
         variant: "destructive",
         title: "Processing error",

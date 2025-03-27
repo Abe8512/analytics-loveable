@@ -120,6 +120,9 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
   }
 }));
 
-// Export the addEventListener function for external use
+// Export the key functions for external use
 export const addEventListener = useEventsStore.getState().addEventListener;
+export const removeEventListener = useEventsStore.getState().removeEventListener;
 export const dispatchEvent = useEventsStore.getState().dispatchEvent;
+export const addListener = useEventsStore.getState().addListener;
+export const removeListener = useEventsStore.getState().removeListener;

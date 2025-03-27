@@ -3,25 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEventListener } from '@/services/events/hooks';
-
-// Import or define EventType locally if it's not exported from hooks
-type EventType = 
-  | 'transcript-created'
-  | 'transcript-updated'
-  | 'transcript-deleted'
-  | 'transcripts-updated'
-  | 'transcripts-refreshed'
-  | 'bulk-upload-started'
-  | 'bulk-upload-completed'
-  | 'bulk-upload-progress'
-  | 'team-member-added'
-  | 'team-member-removed'
-  | 'managed-users-updated'
-  | 'call-updated'
-  | 'recording-completed'
-  | 'sentiment-updated'
-  | 'connection-restored'
-  | 'connection-lost';
+import { EventType } from '@/services/events/types';
 
 export interface SentimentTrend {
   date: string;
@@ -121,17 +103,17 @@ export const useSentimentTrends = () => {
   }, [fetchSentimentTrends]);
 
   // Listen for events that should trigger a refresh
-  useEventListener('sentiment-updated' as EventType, () => {
+  useEventListener('sentiment-updated', () => {
     console.log('Sentiment updated, refreshing trends...');
     fetchSentimentTrends();
   });
 
-  useEventListener('transcript-created' as EventType, () => {
+  useEventListener('transcript-created', () => {
     console.log('New transcript created, refreshing sentiment trends...');
     fetchSentimentTrends();
   });
 
-  useEventListener('bulk-upload-completed' as EventType, () => {
+  useEventListener('bulk-upload-completed', () => {
     console.log('Bulk upload completed, refreshing sentiment trends...');
     fetchSentimentTrends();
   });
