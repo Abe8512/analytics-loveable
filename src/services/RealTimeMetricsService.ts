@@ -26,6 +26,7 @@ export interface RepMetric {
   top_keywords?: string[];
 }
 
+// Main hook that provides both team and rep metrics
 export const useRealTimeMetrics = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [repMetrics, setRepMetrics] = useState<RepMetric[]>([]);
@@ -36,17 +37,30 @@ export const useRealTimeMetrics = () => {
   
   const checkTableExists = useCallback(async (tableName: string): Promise<boolean> => {
     try {
-      // Use the SQL function to check if the table exists
-      const { data, error } = await supabase.rpc('check_table_exists', {
-        table_name: tableName
-      });
-      
+      // Check if table exists in the database
+      const { data, error } = await supabase
+        .from('schema_migrations')
+        .select('id')
+        .limit(1);
+        
       if (error) {
-        console.error('Error checking if table exists:', error);
+        console.error('Error checking schema:', error);
         return false;
       }
       
-      return !!data;
+      // Now specifically check for our table
+      const { data: tableData, error: tableError } = await supabase
+        .from(tableName)
+        .select('id')
+        .limit(1);
+        
+      // If we get a specific error about the relation not existing, the table doesn't exist
+      if (tableError && tableError.message.includes('does not exist')) {
+        console.log(`Table ${tableName} does not exist`);
+        return false;
+      }
+      
+      return !tableError;
     } catch (err) {
       console.error(`Error checking if ${tableName} exists:`, err);
       return false;
@@ -91,7 +105,7 @@ export const useRealTimeMetrics = () => {
       }
       
       // Map database records to TeamMetric interface
-      const mappedTeamMetrics: TeamMetric[] = callMetricsData.map(record => ({
+      const mappedTeamMetrics: TeamMetric[] = callMetricsData ? callMetricsData.map(record => ({
         team_name: 'Sales Team',
         call_count: record.total_calls || 0,
         avg_sentiment: record.avg_sentiment || 0.5,
@@ -99,7 +113,7 @@ export const useRealTimeMetrics = () => {
         conversion_rate: record.conversion_rate || 0,
         success_rate: record.performance_score || 50,
         date: record.report_date
-      }));
+      })) : [];
       
       setTeamMetrics(mappedTeamMetrics);
       setLastRefreshed(new Date());
@@ -160,7 +174,7 @@ export const useRealTimeMetrics = () => {
       }
       
       // Map database records to RepMetric interface
-      const mappedRepMetrics: RepMetric[] = repMetricsData.map(record => ({
+      const mappedRepMetrics: RepMetric[] = repMetricsData ? repMetricsData.map(record => ({
         rep_name: record.rep_name || `Rep ${record.rep_id.substring(0, 5)}`,
         rep_id: record.rep_id,
         call_count: record.call_volume || 0,
@@ -169,7 +183,7 @@ export const useRealTimeMetrics = () => {
         conversion_rate: 0, // Not available in the original data
         success_rate: record.success_rate || 0,
         top_keywords: record.top_keywords || []
-      }));
+      })) : [];
       
       setRepMetrics(mappedRepMetrics);
       setLastRefreshed(new Date());
@@ -240,11 +254,12 @@ export const useRealTimeMetrics = () => {
     
     // Set up event listeners for metrics updates
     const unsubscribe = useEventsStore.subscribe((state) => {
-      state.addEventListener('calls-updated' as EventType, () => {
+      const unsub = state.addEventListener('calls-updated' as EventType, () => {
         console.log('Calls updated event received, refreshing metrics...');
         refreshTeamMetrics();
         refreshRepMetrics();
       });
+      return unsub;
     });
     
     // Set up realtime subscription
@@ -292,4 +307,15 @@ export const useRealTimeMetrics = () => {
     lastRefreshed,
     refreshData
   };
+};
+
+// Export separate hooks for components that only need team or rep metrics
+export const useTeamMetrics = () => {
+  const { teamMetrics, isLoading, error, refreshData } = useRealTimeMetrics();
+  return { metrics: teamMetrics, isLoading, error, refresh: refreshData };
+};
+
+export const useRepMetrics = () => {
+  const { repMetrics, isLoading, error, refreshData } = useRealTimeMetrics();
+  return { metrics: repMetrics, isLoading, error, refresh: refreshData };
 };

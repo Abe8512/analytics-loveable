@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { dispatchEvent } from '@/services/events/store';
@@ -319,17 +318,7 @@ class TeamService {
       refreshTeamMembers();
       
       // Set up event listeners
-      const unsubscribe = useEventsStore.subscribe((state) => {
-        // Listen for team member added event
-        state.addEventListener('TEAM_MEMBER_ADDED' as EventType, () => {
-          refreshTeamMembers();
-        });
-        
-        // Listen for team member removed event
-        state.addEventListener('TEAM_MEMBER_REMOVED' as EventType, () => {
-          refreshTeamMembers();
-        });
-      });
+      const unsubscribe = subscribeToTeamMemberEvents();
       
       return () => {
         unsubscribe();
@@ -341,3 +330,30 @@ class TeamService {
 }
 
 export const teamService = new TeamService();
+
+const subscribeToTeamMemberEvents = () => {
+  return useEventsStore.subscribe((state) => {
+    const unsubs = [];
+    
+    // Add listener for team member added event
+    unsubs.push(state.addEventListener('team-member-added', (payload) => {
+      console.log('Team member added event received:', payload);
+      refreshTeamMembers();
+    }));
+    
+    // Add listener for team member removed event
+    unsubs.push(state.addEventListener('team-member-removed', (payload) => {
+      console.log('Team member removed event received:', payload);
+      refreshTeamMembers();
+    }));
+    
+    // Return combined unsubscribe function
+    return () => {
+      unsubs.forEach(unsub => {
+        if (typeof unsub === 'function') {
+          unsub();
+        }
+      });
+    };
+  });
+};
