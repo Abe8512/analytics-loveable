@@ -16,7 +16,7 @@ export interface CallTranscriptFilter {
 }
 
 export interface UseCallTranscriptsResult {
-  transcripts: CallTranscript[] | null;
+  transcripts: CallTranscript[];
   loading: boolean;
   error: Error | null;
   totalCount: number;
@@ -24,7 +24,7 @@ export interface UseCallTranscriptsResult {
 }
 
 export const useCallTranscripts = (): UseCallTranscriptsResult => {
-  const [transcripts, setTranscripts] = useState<CallTranscript[] | null>(null);
+  const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -39,7 +39,7 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     const now = new Date();
     if (
       !options?.force && 
-      transcripts && 
+      transcripts.length > 0 && 
       lastFetch && 
       now.getTime() - lastFetch.getTime() < CACHE_TTL
     ) {

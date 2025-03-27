@@ -36,7 +36,7 @@ export default function Transcripts() {
   const params = new URLSearchParams(location.search);
   const viewId = params.get('id');
   
-  const { transcripts, loading, fetchTranscripts } = useCallTranscripts();
+  const { transcripts = [], loading, fetchTranscripts } = useCallTranscripts();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -47,13 +47,13 @@ export default function Transcripts() {
   }, [fetchTranscripts]);
   
   // Filter transcripts based on search term
-  const filteredTranscripts = transcripts.filter(
+  const filteredTranscripts = Array.isArray(transcripts) ? transcripts.filter(
     (t) =>
-      t.text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.filename?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.text || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.filename || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.user_name && t.user_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (t.customer_name && t.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  ) : [];
   
   // Sort transcripts based on sort field and order
   const sortedTranscripts = [...filteredTranscripts].sort((a, b) => {
@@ -299,7 +299,7 @@ export default function Transcripts() {
                           </td>
                           <td className="p-4">
                             <div className="max-w-md truncate">
-                              {transcript.text?.substring(0, 100)}...
+                              {transcript.text ? transcript.text.substring(0, 100) + "..." : "No text available"}
                             </div>
                           </td>
                           <td className="p-4 whitespace-nowrap">
@@ -308,9 +308,8 @@ export default function Transcripts() {
                           <td className="p-4">
                             <Badge
                               className={
-                                sentimentColors[
-                                  (transcript.sentiment as keyof typeof sentimentColors) || 'neutral'
-                                ]
+                                transcript.sentiment && sentimentColors[transcript.sentiment as keyof typeof sentimentColors] 
+                                || sentimentColors.neutral
                               }
                             >
                               {transcript.sentiment || 'neutral'}
@@ -354,7 +353,7 @@ export default function Transcripts() {
               </div>
               
               <div className="p-4 text-sm text-center text-gray-500">
-                Showing {sortedTranscripts.length} of {transcripts.length} transcripts
+                Showing {sortedTranscripts.length} of {Array.isArray(transcripts) ? transcripts.length : 0} transcripts
               </div>
             </Card>
           </div>

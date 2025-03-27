@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CallTranscript } from '@/types/call';
+import { toast } from '@/hooks/use-toast';
 
 interface TranscriptViewerProps {
   transcriptId: string;
@@ -28,13 +29,17 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
           .from('call_transcripts')
           .select('*')
           .eq('id', transcriptId)
-          .single();
+          .maybeSingle();
           
         if (error) {
           throw error;
         }
         
-        setTranscript(data as CallTranscript);
+        if (data) {
+          setTranscript(data as CallTranscript);
+        } else {
+          setError('Transcript not found');
+        }
       } catch (err) {
         console.error('Error fetching transcript:', err);
         setError('Failed to load transcript');
@@ -106,6 +111,32 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
     }
   };
 
+  const handleDownload = () => {
+    if (!transcript || !transcript.text) {
+      toast({
+        title: "Error",
+        description: "No transcript content available to download",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Create a blob with the transcript text
+    const blob = new Blob([transcript.text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create a download link and trigger it
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transcript-${transcript.id.substring(0, 8)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card className="h-full overflow-auto">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 sticky top-0 z-10 bg-card">
@@ -116,14 +147,14 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
       </CardHeader>
       <CardContent className="space-y-4 pb-6">
         <div>
-          <h3 className="text-lg font-semibold mb-1">{transcript.filename}</h3>
-          <p className="text-sm text-muted-foreground">{formatDate(transcript.created_at)}</p>
+          <h3 className="text-lg font-semibold mb-1">{transcript.filename || "Unnamed Transcript"}</h3>
+          <p className="text-sm text-muted-foreground">{formatDate(transcript.created_at || null)}</p>
         </div>
         
         <div className="flex flex-wrap gap-2">
           <Badge variant={transcript.sentiment === 'positive' ? 'default' : 
                           transcript.sentiment === 'negative' ? 'destructive' : 'secondary'}>
-            {transcript.sentiment}
+            {transcript.sentiment || 'neutral'}
           </Badge>
           
           <Badge variant="outline" className="flex items-center gap-1">
@@ -142,7 +173,12 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
             <Play className="h-3 w-3" />
             Play
           </Button>
-          <Button variant="outline" size="sm" className="flex items-center gap-1">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1"
+            onClick={handleDownload}
+          >
             <Download className="h-3 w-3" />
             Download
           </Button>
