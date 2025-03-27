@@ -145,7 +145,7 @@ const Team = () => {
               {teamMembers.map((member) => (
                 <TeamMemberCard
                   key={member.id}
-                  teamMember={{
+                  member={{
                     id: member.id,
                     name: member.name,
                     email: member.email || '',

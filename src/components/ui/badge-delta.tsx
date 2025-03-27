@@ -4,9 +4,9 @@ import { Badge } from './badge';
 import { ArrowUpIcon, ArrowDownIcon, MinusIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type DeltaType = 'increase' | 'decrease' | 'neutral';
+export type DeltaType = 'increase' | 'decrease' | 'neutral';
 
-interface BadgeDeltaProps {
+export interface BadgeDeltaProps {
   deltaType: DeltaType;
   children: React.ReactNode;
   className?: string;
@@ -32,3 +32,5 @@ export function BadgeDelta({ deltaType, children, className }: BadgeDeltaProps) 
     </Badge>
   );
 }
+
+export default BadgeDelta;

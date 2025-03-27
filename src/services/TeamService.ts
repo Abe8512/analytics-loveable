@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
 import { dispatchEvent } from './events/store';
 import { EventType } from './events/types';
+import { addEventListener, removeEventListener } from './events/store';
 
 // Define the team member interface
 interface TeamMember {
@@ -238,17 +239,19 @@ const useTeamMembers = () => {
   useEffect(() => {
     refreshTeamMembers();
     
-    const addedListenerFunction = (event: any) => refreshTeamMembers();
-    const removedListenerFunction = (event: any) => refreshTeamMembers();
-    
     // Add event listeners
-    const addedListenerCleanup = addEventListener('team-member-added' as EventType, addedListenerFunction);
-    const removedListenerCleanup = addEventListener('team-member-removed' as EventType, removedListenerFunction);
+    const removeAddedListener = addEventListener('team-member-added' as EventType, () => {
+      refreshTeamMembers();
+    });
+    
+    const removeRemovedListener = addEventListener('team-member-removed' as EventType, () => {
+      refreshTeamMembers();
+    });
     
     // Cleanup function
     return () => {
-      if (addedListenerCleanup) addedListenerCleanup();
-      if (removedListenerCleanup) removedListenerCleanup();
+      if (removeAddedListener) removeAddedListener();
+      if (removeRemovedListener) removeRemovedListener();
     };
   }, []);
   

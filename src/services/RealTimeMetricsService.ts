@@ -2,19 +2,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { TeamMetric, RepMetric, MetricsHookResult, RepMetricDb, TeamMetricDb } from './RealTimeMetrics.types';
-import { useEventListener } from '@/services/events/hooks';
+import { addEventListener } from '@/services/events/store';
 import { EventType } from '@/services/events/types';
 
 // Helper to check if table exists
 const isTableMissing = async (tableName: string): Promise<boolean> => {
   try {
     // Use a safer approach that doesn't rely on dynamic table names
-    const { error } = await supabase
-      .rpc('check_table_exists', { table_name: tableName })
-      .single();
+    const { data, error } = await supabase
+      .rpc('check_table_exists', { table_name: tableName });
     
     // If the function doesn't exist or returns an error, consider the table missing
-    return !!error;
+    if (error) {
+      console.error(`Error checking if ${tableName} table exists:`, error);
+      return true;
+    }
+    
+    return !data;
   } catch (error) {
     console.error(`Error checking if ${tableName} table exists:`, error);
     return true; // Assume missing if we can't check
@@ -125,15 +129,16 @@ export const useTeamMetrics = (): MetricsHookResult<TeamMetric> => {
         setMetrics(generateMockTeamMetrics());
         setError(null);
       } else {
-        // Fetch from database if table exists
+        // Fetch from database using a direct query instead of RPC
         const { data, error: fetchError } = await supabase
-          .rpc('get_team_metrics_summary');
+          .from('team_metrics_summary')
+          .select('*');
         
         if (fetchError) {
           throw new Error(`Failed to fetch team metrics: ${fetchError.message}`);
         }
         
-        if (data && data.length > 0) {
+        if (data && Array.isArray(data) && data.length > 0) {
           setMetrics(convertTeamDbMetricsToAppMetrics(data as TeamMetricDb[]));
         } else {
           // Use mock data if no records found
@@ -157,13 +162,20 @@ export const useTeamMetrics = (): MetricsHookResult<TeamMetric> => {
   }, [fetchMetrics]);
 
   // Listen for events that should trigger a refresh
-  useEventListener('call-updated' as EventType, () => {
-    fetchMetrics();
-  });
+  useEffect(() => {
+    const removeCallUpdatedListener = addEventListener('call-updated' as EventType, () => {
+      fetchMetrics();
+    });
 
-  useEventListener('team-member-added' as EventType, () => {
-    fetchMetrics();
-  });
+    const removeTeamMemberAddedListener = addEventListener('team-member-added' as EventType, () => {
+      fetchMetrics();
+    });
+
+    return () => {
+      if (removeCallUpdatedListener) removeCallUpdatedListener();
+      if (removeTeamMemberAddedListener) removeTeamMemberAddedListener();
+    };
+  }, [fetchMetrics]);
 
   return { metrics, isLoading, error, refresh: fetchMetrics };
 };
@@ -197,7 +209,7 @@ export const useRepMetrics = (): MetricsHookResult<RepMetric> => {
           throw new Error(`Failed to fetch rep metrics: ${fetchError.message}`);
         }
         
-        if (data && data.length > 0) {
+        if (data && Array.isArray(data) && data.length > 0) {
           setMetrics(convertRepDbMetricsToAppMetrics(data as RepMetricDb[]));
         } else {
           // Use mock data if no records found
@@ -221,13 +233,20 @@ export const useRepMetrics = (): MetricsHookResult<RepMetric> => {
   }, [fetchMetrics]);
 
   // Listen for events that should trigger a refresh
-  useEventListener('call-updated' as EventType, () => {
-    fetchMetrics();
-  });
+  useEffect(() => {
+    const removeCallUpdatedListener = addEventListener('call-updated' as EventType, () => {
+      fetchMetrics();
+    });
 
-  useEventListener('team-member-added' as EventType, () => {
-    fetchMetrics();
-  });
+    const removeTeamMemberAddedListener = addEventListener('team-member-added' as EventType, () => {
+      fetchMetrics();
+    });
+
+    return () => {
+      if (removeCallUpdatedListener) removeCallUpdatedListener();
+      if (removeTeamMemberAddedListener) removeTeamMemberAddedListener();
+    };
+  }, [fetchMetrics]);
 
   return { metrics, isLoading, error, refresh: fetchMetrics };
 };
