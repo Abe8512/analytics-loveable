@@ -73,7 +73,7 @@ export class BulkUploadProcessorService {
         ? Math.round(sentimentScore * 100) 
         : 50;
       
-      // Modified insert without ON CONFLICT clause
+      // Modified insert without ON CONFLICT clause - this was causing the error
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -105,9 +105,11 @@ export class BulkUploadProcessorService {
         try {
           progressCallback('processing', 70, 'Using edge function fallback...');
           
+          // Modified to pass the exact structure expected by the edge function
+          // without any ON CONFLICT references that might be causing issues
           const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
             body: { 
-              data: {
+              transcript: {
                 id: transcriptId,
                 user_id: this.assignedUserId || 'anonymous',
                 text: cleanText,
@@ -117,6 +119,7 @@ export class BulkUploadProcessorService {
                 keywords: keywords,
                 key_phrases: keyPhrases,
                 call_score: callScore,
+                transcript_segments: transcriptionResult.segments,
                 metadata: {
                   source: 'bulk_upload',
                   created_at: new Date().toISOString(),
@@ -147,11 +150,38 @@ export class BulkUploadProcessorService {
           progressCallback('complete', 100, 'File processed successfully', undefined, finalTranscriptId);
         } catch (fallbackError) {
           console.error('Fallback also failed:', fallbackError);
-          progressCallback('error', 0, undefined, 
-            fallbackError instanceof Error ? 
-            `Database error: ${fallbackError.message}` : 
-            'Unknown database error');
-          return;
+          
+          // Try direct insert again without returning the ID
+          try {
+            progressCallback('processing', 80, 'Trying simplified insert...');
+            
+            const { error: insertError } = await supabase
+              .from('call_transcripts')
+              .insert({
+                id: transcriptId,
+                user_id: this.assignedUserId || 'anonymous',
+                text: cleanText,
+                filename: file.name,
+                duration: duration,
+                sentiment: sentiment,
+                keywords: keywords,
+                key_phrases: keyPhrases,
+                call_score: callScore
+              });
+              
+            if (insertError) {
+              throw new Error(`Final insert attempt also failed: ${insertError.message}`);
+            }
+            
+            progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
+          } catch (finalError) {
+            // All attempts failed
+            progressCallback('error', 0, undefined, 
+              finalError instanceof Error ? 
+              `Database error: ${finalError.message}` : 
+              'Unknown database error');
+            return;
+          }
         }
       } else {
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);

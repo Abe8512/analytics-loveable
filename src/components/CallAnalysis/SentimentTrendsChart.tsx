@@ -31,6 +31,7 @@ export const SentimentTrendsChart = () => {
           
         if (error) {
           console.error('Error fetching sentiment trends:', error);
+          generatePlaceholderData();
           return;
         }
         
@@ -45,6 +46,7 @@ export const SentimentTrendsChart = () => {
             
           if (transcriptsError) {
             console.error('Error fetching transcripts for sentiment:', transcriptsError);
+            generatePlaceholderData();
             return;
           }
           
