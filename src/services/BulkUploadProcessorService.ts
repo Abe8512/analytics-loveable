@@ -1,6 +1,7 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService, databaseService } from './DatabaseService';
-import { EventsService, EventTypes } from './EventsService';
+import { useEventsStore } from './events';
 import { getSentimentScore } from './AIService';
 
 interface ProcessingResult {
@@ -18,28 +19,47 @@ interface ProcessingResult {
  * Service for processing bulk uploads of audio files and transcripts
  */
 export class BulkUploadProcessorService {
+  private assignedUserId: string = '';
+  
+  /**
+   * Set the user ID to assign to uploaded calls
+   */
+  setAssignedUserId(userId: string) {
+    this.assignedUserId = userId;
+  }
+  
   /**
    * Process a single file
    */
-  public async processFile(file: File, teamMember: string): Promise<ProcessingResult> {
-    return await processAudioFile(file, teamMember);
+  public async processFile(
+    file: File, 
+    progressCallback: (status: string, progress: number, result?: string, error?: string, transcriptId?: string) => void
+  ): Promise<ProcessingResult> {
+    try {
+      progressCallback('processing', 10);
+      return await processAudioFile(file, this.assignedUserId);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      progressCallback('error', 0, undefined, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
   }
   
   /**
    * Process multiple files
    */
-  public async processFiles(files: File[], teamMember: string): Promise<ProcessingResult[]> {
+  public async processFiles(files: File[]): Promise<ProcessingResult[]> {
     const results: ProcessingResult[] = [];
     
     for (const file of files) {
       try {
-        const result = await processAudioFile(file, teamMember);
+        const result = await processAudioFile(file, this.assignedUserId);
         results.push(result);
       } catch (error) {
         console.error(`Error processing file ${file.name}:`, error);
         results.push({
           success: false,
-          message: `Error processing file ${file.name}: ${error.message || 'Unknown error'}`
+          message: `Error processing file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
         });
       }
     }
@@ -117,7 +137,7 @@ const processAudioFile = async (file: File, teamMember: string): Promise<Process
     );
     
     // Dispatch event to update UI
-    EventsService.dispatch(EventTypes.TRANSCRIPT_SAVED, transcriptResult);
+    useEventsStore.getState().dispatchEvent('transcript-created', transcriptResult);
     
     // Extract sentiment and keywords from transcript
     const { sentiment, sentimentScore, keywords, keyPhrases } = await getSentimentScore(fileContent);
@@ -136,7 +156,7 @@ const processAudioFile = async (file: File, teamMember: string): Promise<Process
     console.error("Error processing audio file:", error);
     return {
       success: false,
-      message: `File processing failed: ${error.message || 'Unknown error'}`,
+      message: `File processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 };

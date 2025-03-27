@@ -14,7 +14,7 @@ export interface BulkUploadFilter {
 
 export const useBulkUploadService = () => {
   const whisperService = useWhisperService();
-  const bulkUploadProcessor = new BulkUploadProcessorService(whisperService);
+  const bulkUploadProcessor = new BulkUploadProcessorService();
   const { fetchTranscripts } = useCallTranscripts();
   const { 
     files, 

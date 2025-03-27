@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,48 @@ interface RepMetricsData {
   sentiment: number;
   keywords: string[];
 }
+
+// Helper function to get mock analytics data
+const getAnalyticsData = async (): Promise<AnalyticsData> => {
+  // This would normally be an API call, but we'll use mock data for now
+  const mockData: AnalyticsData = {
+    totalCalls: 184,
+    avgDuration: 420, // 7 minutes in seconds
+    positiveSentiment: 120,
+    negativeSentiment: 25,
+    neutralSentiment: 39,
+    callsPerDay: Array.from({ length: 7 }, (_, i) => ({
+      date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      value: 20 + Math.floor(Math.random() * 15)
+    })),
+    pipelineData: [
+      { name: 'Lead', value: 45 },
+      { name: 'Discovery', value: 32 },
+      { name: 'Proposal', value: 18 },
+      { name: 'Negotiation', value: 12 },
+      { name: 'Closed', value: 8 }
+    ],
+    conversionData: Array.from({ length: 7 }, (_, i) => ({
+      date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      value: 30 + Math.floor(Math.random() * 15)
+    })),
+    revenueData: Array.from({ length: 14 }, (_, i) => ({
+      date: new Date(Date.now() - (13 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      value: 5000 + Math.floor(Math.random() * 3000)
+    })),
+    productMixData: [
+      { name: 'Software', value: 42 },
+      { name: 'Hardware', value: 28 },
+      { name: 'Services', value: 18 },
+      { name: 'Training', value: 12 }
+    ]
+  };
+  
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  return mockData;
+};
 
 const AnalyticsPage = () => {
   const [loading, setLoading] = useState(true);

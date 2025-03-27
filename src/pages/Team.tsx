@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,7 +9,7 @@ import { Plus, User, Mail, Briefcase, RefreshCw, Trash2 } from "lucide-react";
 import { v4 } from 'uuid';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
-import { EventsService, EventTypes } from '@/services/EventsService';
+import { useEventsStore } from '@/services/events';
 import {
   Table,
   TableBody,
@@ -165,7 +166,7 @@ const Team = () => {
       setTeamMembers([...teamMembers, updatedMember]);
       
       // Notify other components through the EventsService
-      EventsService.dispatch(EventTypes.TEAM_MEMBER_ADDED, updatedMember);
+      useEventsStore.getState().dispatchEvent('team-member-added', updatedMember);
       
       toast.success(`${member.name} added to team!`);
     } catch (err) {
