@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,12 +29,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import AdvancedCallMetrics from '@/components/CallAnalysis/AdvancedCallMetrics';
 
 const Performance = () => {
   const { isManager, isAdmin } = useAuth();
   const { toast } = useToast();
   const { filters, updateDateRange } = useSharedFilters();
   const [activeTab, setActiveTab] = useState("trends");
+  const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(true);
   
   const handleExport = () => {
     toast({
@@ -127,6 +128,7 @@ const Performance = () => {
               <TabsTrigger value="goals">Goal Tracking</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
               <TabsTrigger value="live-analysis">Live Call Analysis</TabsTrigger>
+              <TabsTrigger value="advanced">Advanced Metrics</TabsTrigger>
               {isManager && <TabsTrigger value="scoring">Scoring Criteria</TabsTrigger>}
               <TabsTrigger value="simulator">AI Simulator</TabsTrigger>
               <TabsTrigger value="learning">Learning Path</TabsTrigger>
@@ -146,6 +148,71 @@ const Performance = () => {
             
             <TabsContent value="live-analysis">
               <LiveCallAnalysis />
+            </TabsContent>
+            
+            <TabsContent value="advanced">
+              <div className="grid grid-cols-1 gap-4">
+                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-800">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-blue-100 dark:bg-blue-800 p-2 rounded-full">
+                          <BarChart2 className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-medium">Advanced Call Analysis</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            AI-powered metrics that analyze conversation dynamics, sentiment patterns, and objection handling
+                          </p>
+                        </div>
+                      </div>
+                      <Button 
+                        variant={showAdvancedMetrics ? "default" : "outline"}
+                        onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
+                        className="shrink-0"
+                      >
+                        {showAdvancedMetrics ? "Hide Metrics" : "Show Metrics"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {showAdvancedMetrics && (
+                  <>
+                    <AdvancedCallMetrics />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Team Talk Ratio Analysis</CardTitle>
+                          <CardDescription>
+                            Conversation balance across team members
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8 text-muted-foreground">
+                            <p>Select a date range and team to view team-wide metrics</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Objection Handling Comparison</CardTitle>
+                          <CardDescription>
+                            Compare objection handling across team members
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8 text-muted-foreground">
+                            <p>Select a date range and team to view comparative metrics</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </>
+                )}
+              </div>
             </TabsContent>
             
             <TabsContent value="scoring">

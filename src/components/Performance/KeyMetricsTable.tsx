@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { fixCallSentiments } from '@/utils/fixCallSentiments';
+import { AdvancedMetricsService } from '@/services/AdvancedMetricsService';
 
 interface KeyMetricsTableProps {
   dateRange?: {
