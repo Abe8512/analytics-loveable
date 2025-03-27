@@ -73,6 +73,22 @@ export class BulkUploadProcessorService {
         ? Math.round(sentimentScore * 100) 
         : 50;
       
+      // Get user name from team members if possible
+      let userName = "Unknown Rep";
+      try {
+        const { data: userProfile, error: userError } = await supabase
+          .from('team_members')
+          .select('name')
+          .eq('user_id', this.assignedUserId)
+          .single();
+          
+        if (!userError && userProfile) {
+          userName = userProfile.name;
+        }
+      } catch (e) {
+        console.log('Error fetching user profile:', e);
+      }
+      
       // Try direct insert without ON CONFLICT
       try {
         const { data, error } = await supabase
@@ -88,6 +104,8 @@ export class BulkUploadProcessorService {
             key_phrases: keyPhrases,
             call_score: callScore,
             transcript_segments: transcriptionResult.segments,
+            user_name: userName,
+            customer_name: 'Customer',
             metadata: {
               source: 'bulk_upload',
               created_at: new Date().toISOString(),
@@ -110,7 +128,8 @@ export class BulkUploadProcessorService {
         eventsStore.dispatchEvent('call-uploaded', {
           transcriptId,
           fileName: file.name,
-          assignedTo: this.assignedUserId
+          assignedTo: this.assignedUserId,
+          userName: userName
         });
         
         return;
@@ -133,6 +152,8 @@ export class BulkUploadProcessorService {
                 keywords: keywords,
                 key_phrases: keyPhrases,
                 call_score: callScore,
+                user_name: userName,
+                customer_name: 'Customer',
                 metadata: {
                   source: 'bulk_upload',
                   created_at: new Date().toISOString(),
@@ -156,7 +177,8 @@ export class BulkUploadProcessorService {
           eventsStore.dispatchEvent('call-uploaded', {
             transcriptId,
             fileName: file.name,
-            assignedTo: this.assignedUserId
+            assignedTo: this.assignedUserId,
+            userName: userName
           });
           
           return;
@@ -172,6 +194,8 @@ export class BulkUploadProcessorService {
               .insert({
                 id: transcriptId,
                 user_id: this.assignedUserId || 'anonymous',
+                user_name: userName,
+                customer_name: 'Customer',
                 text: cleanText || "No transcript available",
                 filename: file.name
               });
@@ -187,7 +211,8 @@ export class BulkUploadProcessorService {
             eventsStore.dispatchEvent('call-uploaded', {
               transcriptId,
               fileName: file.name,
-              assignedTo: this.assignedUserId
+              assignedTo: this.assignedUserId,
+              userName: userName
             });
             
             return;

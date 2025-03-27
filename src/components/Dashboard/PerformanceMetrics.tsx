@@ -8,8 +8,22 @@ import {
   BarChart2, UserCheck, Clock
 } from 'lucide-react';
 
-const PerformanceMetrics: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(true);
+interface PerformanceMetricsProps {
+  metricsData?: {
+    totalCalls: number;
+    avgDuration: number;
+    positiveSentiment: number;
+    callScore: number;
+    conversionRate: number;
+  };
+  isLoading?: boolean;
+}
+
+const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ 
+  metricsData, 
+  isLoading: propsLoading = false 
+}) => {
+  const [isLoading, setIsLoading] = useState(propsLoading);
   const [metrics, setMetrics] = useState({
     totalCalls: 0,
     avgDuration: 0,
@@ -19,6 +33,13 @@ const PerformanceMetrics: React.FC = () => {
   });
   
   useEffect(() => {
+    // If metrics are passed as props, use them directly
+    if (metricsData) {
+      setMetrics(metricsData);
+      setIsLoading(propsLoading);
+      return;
+    }
+    
     const fetchMetrics = async () => {
       try {
         // Fetch from call_metrics_summary for latest data
@@ -26,8 +47,7 @@ const PerformanceMetrics: React.FC = () => {
           .from('call_metrics_summary')
           .select('*')
           .order('report_date', { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
           
         if (error) {
           console.error('Error fetching metrics:', error);
@@ -42,15 +62,15 @@ const PerformanceMetrics: React.FC = () => {
           return;
         }
         
-        if (data) {
+        if (data && data.length > 0) {
           setMetrics({
-            totalCalls: data.total_calls || 0,
-            avgDuration: data.avg_duration || 0,
-            positiveSentiment: data.positive_sentiment_count 
-              ? Math.round((data.positive_sentiment_count / data.total_calls) * 100) 
+            totalCalls: data[0].total_calls || 0,
+            avgDuration: data[0].avg_duration || 0,
+            positiveSentiment: data[0].positive_sentiment_count 
+              ? Math.round((data[0].positive_sentiment_count / data[0].total_calls) * 100) 
               : 0,
-            callScore: data.performance_score || 0,
-            conversionRate: data.conversion_rate || 0
+            callScore: data[0].performance_score || 0,
+            conversionRate: data[0].conversion_rate ? Math.round(data[0].conversion_rate * 100) : 0
           });
         }
       } catch (err) {
@@ -61,7 +81,7 @@ const PerformanceMetrics: React.FC = () => {
     };
     
     fetchMetrics();
-  }, []);
+  }, [metricsData, propsLoading]);
   
   const metricCards = [
     {
@@ -82,7 +102,7 @@ const PerformanceMetrics: React.FC = () => {
     },
     {
       title: 'Positive Sentiment',
-      value: metrics.positiveSentiment,
+      value: Math.round(metrics.positiveSentiment),
       unit: '%',
       icon: <UserCheck className="h-4 w-4 text-muted-foreground" />,
       change: '+8%',
@@ -90,7 +110,7 @@ const PerformanceMetrics: React.FC = () => {
     },
     {
       title: 'Call Score',
-      value: metrics.callScore,
+      value: Math.round(metrics.callScore),
       unit: '',
       icon: <BarChart2 className="h-4 w-4 text-muted-foreground" />,
       change: '+6%',

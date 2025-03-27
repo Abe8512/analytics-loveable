@@ -88,7 +88,9 @@ serve(async (req) => {
             id: transcriptId,
             user_id: data.user_id || 'anonymous',
             text: cleanText || "No transcript available",
-            filename: data.filename || 'unnamed_recording.mp3'
+            filename: data.filename || 'unnamed_recording.mp3',
+            user_name: data.user_name || null,
+            customer_name: data.customer_name || null
           })
         
         if (minimalError) {

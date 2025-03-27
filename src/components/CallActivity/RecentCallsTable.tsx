@@ -35,8 +35,13 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
 }) => {
   const navigate = useNavigate();
   const { filters } = useSharedFilters();
-  const { transcripts, loading } = useCallTranscripts();
+  const { transcripts, loading, fetchTranscripts } = useCallTranscripts();
   const [calls, setCalls] = useState<Call[]>([]);
+  
+  // Refresh data to ensure we have the latest transcripts
+  useEffect(() => {
+    fetchTranscripts({ force: true });
+  }, [fetchTranscripts]);
   
   // Convert transcripts to call format
   useEffect(() => {
@@ -47,10 +52,10 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
         userName: transcript.user_name || 'Unknown Rep',
         customerName: transcript.customer_name || 'Unknown Customer',
         duration: transcript.duration || 0,
-        outcome: 'Pending Analysis',
+        outcome: transcript.metadata?.outcome || 'Pending Analysis',
         sentiment: transcript.sentiment === 'positive' ? 0.8 : 
                   transcript.sentiment === 'negative' ? 0.3 : 0.6,
-        nextSteps: 'Follow up required'
+        nextSteps: transcript.metadata?.next_steps || 'Follow up required'
       }));
       setCalls(formattedCalls);
     }
@@ -114,7 +119,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                     <TableCell>{formatDate(call.date)}</TableCell>
                     {(isAdmin || isManager) && <TableCell>{String(call.userName || 'Unknown')}</TableCell>}
                     <TableCell>{String(call.customerName || 'Unknown')}</TableCell>
-                    <TableCell>{String(call.duration || '0')} min</TableCell>
+                    <TableCell>{Math.floor((call.duration || 0) / 60)} min</TableCell>
                     <TableCell>
                       {typeof call.outcome === 'string' ? call.outcome : 
                        typeof call.outcome === 'object' && call.outcome !== null ? 'Complex Outcome' : 
