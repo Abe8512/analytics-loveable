@@ -73,7 +73,10 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
         query = query.eq('sentiment', options.sentiment);
       }
       
-      const { data, error, count } = await query.order('created_at', { ascending: false });
+      // Order by created_at
+      query = query.order('created_at', { ascending: false });
+      
+      const { data, error, count } = await query;
       
       if (error) {
         console.error('Error fetching transcripts from database:', error);
@@ -83,7 +86,14 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       
       if (data && data.length > 0) {
         console.log(`Fetched ${data.length} transcripts from database`);
-        const formattedData = data as CallTranscript[];
+        const formattedData = data.map(item => ({
+          ...item,
+          keywords: item.keywords || [],
+          sentiment: item.sentiment || 'neutral',
+          call_score: item.call_score || 50,
+          duration: item.duration || 0
+        })) as CallTranscript[];
+        
         setTranscripts(formattedData);
         setTotalCount(count || formattedData.length);
         setLastFetch(now);
@@ -110,11 +120,11 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
         text: t.text,
         created_at: t.date,
         duration: t.duration || 0,
-        sentiment: t.sentiment as "positive" | "neutral" | "negative",
+        sentiment: t.sentiment as "positive" | "neutral" | "negative" || "neutral",
         call_score: t.call_score || 50,
         keywords: t.keywords || [],
         filename: t.filename || "Unknown",
-        transcript_segments: t.transcript_segments,
+        transcript_segments: t.transcript_segments || [],
         user_id: t.speakerName || 'anonymous'
       })) as CallTranscript[];
       
@@ -129,7 +139,9 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       errorHandler.handleError(err, 'CallTranscriptService.fetchTranscripts');
       setError(err as Error);
       setLoading(false);
-      return [];
+      
+      // Return current transcripts as fallback
+      return transcripts.length > 0 ? transcripts : [];
     }
   }, [transcripts, lastFetch]);
   
@@ -151,6 +163,14 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
   
   useEventListener('transcripts-updated' as EventType, () => {
     console.log('Received transcriptions-updated event, refreshing data');
+    fetchTranscripts({
+      dateRange: filters.dateRange,
+      force: true
+    });
+  });
+  
+  useEventListener('bulk-upload-completed' as EventType, () => {
+    console.log('Received bulk-upload-completed event, refreshing data');
     fetchTranscripts({
       dateRange: filters.dateRange,
       force: true

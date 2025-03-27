@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useCallMetricsStore } from '@/store/useCallMetricsStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,8 +64,8 @@ const PastCallsList = () => {
     }
   };
   
-  // Calculate average sentiment score
-  const getAverageSentiment = (sentiment: { agent: number; customer: number }) => {
+  // Calculate average sentiment score with proper type checks
+  const getAverageSentiment = (sentiment: { agent: number; customer: number } | null | undefined) => {
     if (!sentiment || typeof sentiment.agent !== 'number' || typeof sentiment.customer !== 'number') {
       return 0.5; // Default middle value if sentiment data is invalid
     }
@@ -84,6 +84,28 @@ const PastCallsList = () => {
     return id && (id.startsWith('anonymous-') || id.startsWith('demo-') || id.startsWith('call-'));
   };
   
+  // Memoize the prepared call history to prevent unnecessary re-renders
+  const preparedCallHistory = useMemo(() => {
+    if (!callHistory || !Array.isArray(callHistory)) return [];
+    
+    return callHistory.map(call => {
+      // Ensure all required properties have valid values
+      const safeCall = {
+        ...call,
+        id: call.id || `call-${Date.now()}`,
+        date: call.date || new Date().toISOString(),
+        duration: call.duration || 0,
+        sentiment: call.sentiment || { agent: 0.5, customer: 0.5 },
+        talkRatio: call.talkRatio || { agent: 50, customer: 50 },
+        keyPhrases: Array.isArray(call.keyPhrases) ? call.keyPhrases : []
+      };
+      
+      return safeCall;
+    });
+  }, [callHistory]);
+  
+  const hasCallHistory = preparedCallHistory.length > 0;
+  
   return (
     <Card>
       <CardHeader>
@@ -101,7 +123,7 @@ const PastCallsList = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {!callHistory || callHistory.length === 0 ? (
+        {!hasCallHistory ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No past calls recorded yet.</p>
             <p className="text-sm mt-2">Start recording a call to see data here.</p>
@@ -109,7 +131,7 @@ const PastCallsList = () => {
         ) : (
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-4">
-              {callHistory.map((call) => (
+              {preparedCallHistory.map((call) => (
                 <Card key={call.id} className="bg-muted/40">
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
@@ -141,7 +163,7 @@ const PastCallsList = () => {
                         <div className="flex items-center">
                           <Mic className="h-4 w-4 mr-2 text-muted-foreground" />
                           <span className="text-sm">
-                            Talk ratio: {Math.round(call.talkRatio.agent)}% / {Math.round(call.talkRatio.customer)}%
+                            Talk ratio: {Math.round(call.talkRatio.agent || 0)}% / {Math.round(call.talkRatio.customer || 0)}%
                           </span>
                         </div>
                       )}
@@ -154,7 +176,7 @@ const PastCallsList = () => {
                           Key Phrases
                         </h5>
                         <div className="flex flex-wrap gap-1">
-                          {call.keyPhrases.slice(0, 5).map((phrase, i) => ( // Limiting to 5 phrases to avoid cluttering
+                          {call.keyPhrases.slice(0, 5).map((phrase, i) => (
                             <Badge key={i} variant="outline" className="text-xs">
                               {phrase}
                             </Badge>

@@ -21,22 +21,40 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
 
   useEffect(() => {
     const fetchTranscript = async () => {
+      if (!transcriptId) {
+        setError('No transcript ID provided');
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
       setError(null);
       
       try {
-        const { data, error } = await supabase
+        const { data, error: fetchError } = await supabase
           .from('call_transcripts')
           .select('*')
           .eq('id', transcriptId)
           .maybeSingle();
           
-        if (error) {
-          throw error;
+        if (fetchError) {
+          console.error('Error fetching transcript:', fetchError);
+          throw fetchError;
         }
         
         if (data) {
-          setTranscript(data as CallTranscript);
+          // Ensure all required fields exist
+          const formattedTranscript = {
+            ...data,
+            sentiment: data.sentiment || 'neutral',
+            keywords: data.keywords || [],
+            call_score: data.call_score || 50,
+            duration: data.duration || 0,
+            text: data.text || 'No transcript text available',
+            user_name: data.user_name || 'Unknown Rep'
+          } as CallTranscript;
+          
+          setTranscript(formattedTranscript);
         } else {
           setError('Transcript not found');
         }
@@ -48,9 +66,7 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
       }
     };
     
-    if (transcriptId) {
-      fetchTranscript();
-    }
+    fetchTranscript();
   }, [transcriptId]);
 
   if (loading) {
@@ -121,20 +137,34 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
       return;
     }
 
-    // Create a blob with the transcript text
-    const blob = new Blob([transcript.text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    
-    // Create a download link and trigger it
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transcript-${transcript.id.substring(0, 8)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    
-    // Clean up
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      // Create a blob with the transcript text
+      const blob = new Blob([transcript.text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create a download link and trigger it
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcript-${transcript.id.substring(0, 8)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "Transcript downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error downloading transcript:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download transcript",
+        variant: "destructive"
+      });
+    }
   };
 
   return (

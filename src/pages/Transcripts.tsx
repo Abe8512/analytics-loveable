@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import {
@@ -26,6 +26,7 @@ import { useCallTranscripts } from '@/services/CallTranscriptService';
 import { Skeleton } from '@/components/ui/skeleton';
 import TranscriptViewer from '@/components/Transcripts/TranscriptViewer';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 type SortField = 'date' | 'sentiment' | 'duration' | 'score';
 type SortOrder = 'asc' | 'desc';
@@ -40,45 +41,51 @@ export default function Transcripts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [isDeleting, setIsDeleting] = useState(false);
   
+  // Ensure initial load
   useEffect(() => {
-    // For demo purposes, you might want to force a refresh
     fetchTranscripts({ force: true });
   }, [fetchTranscripts]);
   
-  // Filter transcripts based on search term
-  const filteredTranscripts = Array.isArray(transcripts) ? transcripts.filter(
-    (t) =>
+  // Filter transcripts based on search term - memoized to prevent unnecessary rerenders
+  const filteredTranscripts = useMemo(() => {
+    if (!Array.isArray(transcripts)) return [];
+    
+    return transcripts.filter(t => 
       (t.text || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.filename || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.user_name && t.user_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (t.customer_name && t.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  ) : [];
+    );
+  }, [transcripts, searchTerm]);
   
-  // Sort transcripts based on sort field and order
-  const sortedTranscripts = [...filteredTranscripts].sort((a, b) => {
-    switch (sortField) {
-      case 'date':
-        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-      case 'sentiment':
-        const sentMap = { positive: 3, neutral: 2, negative: 1, undefined: 0 };
-        const sentA = sentMap[a.sentiment as keyof typeof sentMap] || 0;
-        const sentB = sentMap[b.sentiment as keyof typeof sentMap] || 0;
-        return sortOrder === 'asc' ? sentA - sentB : sentB - sentA;
-      case 'duration':
-        const durA = a.duration || 0;
-        const durB = b.duration || 0;
-        return sortOrder === 'asc' ? durA - durB : durB - durA;
-      case 'score':
-        const scoreA = a.call_score || 0;
-        const scoreB = b.call_score || 0;
-        return sortOrder === 'asc' ? scoreA - scoreB : scoreB - scoreA;
-      default:
-        return 0;
-    }
-  });
+  // Sort transcripts based on sort field and order - memoized to prevent unnecessary rerenders
+  const sortedTranscripts = useMemo(() => {
+    return [...filteredTranscripts].sort((a, b) => {
+      switch (sortField) {
+        case 'date':
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+        case 'sentiment':
+          const sentMap = { positive: 3, neutral: 2, negative: 1, undefined: 0 };
+          const sentA = sentMap[a.sentiment as keyof typeof sentMap] || 0;
+          const sentB = sentMap[b.sentiment as keyof typeof sentMap] || 0;
+          return sortOrder === 'asc' ? sentA - sentB : sentB - sentA;
+        case 'duration':
+          const durA = a.duration || 0;
+          const durB = b.duration || 0;
+          return sortOrder === 'asc' ? durA - durB : durB - durA;
+        case 'score':
+          const scoreA = a.call_score || 0;
+          const scoreB = b.call_score || 0;
+          return sortOrder === 'asc' ? scoreA - scoreB : scoreB - scoreA;
+        default:
+          return 0;
+      }
+    });
+  }, [filteredTranscripts, sortField, sortOrder]);
   
   const handleSort = (field: SortField) => {
     if (field === sortField) {
@@ -95,6 +102,84 @@ export default function Transcripts() {
   
   const handleCloseTranscript = () => {
     navigate('/transcripts');
+  };
+  
+  const handleDeleteTranscript = async (id: string) => {
+    setIsDeleting(true);
+    
+    try {
+      const { error } = await supabase
+        .from('call_transcripts')
+        .delete()
+        .eq('id', id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      toast({
+        title: "Transcript deleted",
+        description: "The transcript has been deleted successfully.",
+      });
+      
+      // If we're viewing the deleted transcript, close it
+      if (viewId === id) {
+        handleCloseTranscript();
+      }
+      
+      // Refresh the transcript list
+      fetchTranscripts({ force: true });
+      
+    } catch (error) {
+      console.error('Error deleting transcript:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete transcript. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+  
+  const handleDownloadTranscript = (transcript: any) => {
+    if (!transcript || !transcript.text) {
+      toast({
+        title: "Error",
+        description: "No transcript content available to download",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Create a blob with the transcript text
+      const blob = new Blob([transcript.text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create a download link and trigger it
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcript-${transcript.id.substring(0, 8)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "Transcript downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error downloading transcript:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download transcript",
+        variant: "destructive"
+      });
+    }
   };
   
   const formatDuration = (seconds?: number) => {
@@ -118,6 +203,9 @@ export default function Transcripts() {
     negative: 'bg-red-100 text-red-800',
     neutral: 'bg-blue-100 text-blue-800',
   };
+  
+  // Determine if transcripts are actually loading
+  const isLoading = loading && (!transcripts || transcripts.length === 0);
   
   return (
     <DashboardLayout>
@@ -260,7 +348,7 @@ export default function Transcripts() {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading ? (
+                    {isLoading ? (
                       Array(5)
                         .fill(0)
                         .map((_, i) => (
@@ -288,7 +376,9 @@ export default function Transcripts() {
                     ) : sortedTranscripts.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="p-8 text-center text-gray-500">
-                          No transcripts found. Upload audio files to see transcripts here.
+                          {searchTerm ? 
+                            'No transcripts match your search. Try different keywords.' : 
+                            'No transcripts found. Upload audio files to see transcripts here.'}
                         </td>
                       </tr>
                     ) : (
@@ -299,7 +389,9 @@ export default function Transcripts() {
                           </td>
                           <td className="p-4">
                             <div className="max-w-md truncate">
-                              {transcript.text ? transcript.text.substring(0, 100) + "..." : "No text available"}
+                              {transcript.text ? 
+                                transcript.text.substring(0, 100) + "..." : 
+                                "No text available"}
                             </div>
                           </td>
                           <td className="p-4 whitespace-nowrap">
@@ -308,8 +400,9 @@ export default function Transcripts() {
                           <td className="p-4">
                             <Badge
                               className={
-                                transcript.sentiment && sentimentColors[transcript.sentiment as keyof typeof sentimentColors] 
-                                || sentimentColors.neutral
+                                transcript.sentiment && 
+                                sentimentColors[transcript.sentiment as keyof typeof sentimentColors] || 
+                                sentimentColors.neutral
                               }
                             >
                               {transcript.sentiment || 'neutral'}
@@ -337,10 +430,19 @@ export default function Transcripts() {
                               >
                                 View
                               </Button>
-                              <Button variant="ghost" size="icon">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => handleDownloadTranscript(transcript)}
+                              >
                                 <Download className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => handleDeleteTranscript(transcript.id)}
+                                disabled={isDeleting}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>

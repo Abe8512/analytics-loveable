@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -40,12 +40,15 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
   
   // Refresh data to ensure we have the latest transcripts
   useEffect(() => {
-    fetchTranscripts({ force: true });
+    const loadData = async () => {
+      await fetchTranscripts({ force: true });
+    };
+    loadData();
   }, [fetchTranscripts]);
   
-  // Convert transcripts to call format
+  // Convert transcripts to call format - memoized to prevent unnecessary rerenders
   useEffect(() => {
-    if (transcripts) {
+    if (transcripts && Array.isArray(transcripts)) {
       const formattedCalls = transcripts.map(transcript => ({
         id: transcript.id,
         date: transcript.created_at || new Date().toISOString(),
@@ -61,10 +64,15 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
     }
   }, [transcripts]);
 
+  // Format date in a consistent way
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + 
-           ' at ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + 
+             ' at ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } catch (error) {
+      return dateString || "Unknown date";
+    }
   };
 
   const handleRowClick = (callId: string) => {
@@ -73,6 +81,9 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
     }
   };
 
+  // Check if we have any calls to display
+  const hasCalls = useMemo(() => calls && calls.length > 0, [calls]);
+
   return (
     <Card className={selectedCallId ? 'border-primary' : ''}>
       <CardHeader>
@@ -80,7 +91,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
         <CardDescription>
           {loading 
             ? 'Loading call data...'
-            : calls.length > 0 
+            : hasCalls 
               ? `Showing ${calls.length} recent calls`
               : 'No calls match the current filters'}
         </CardDescription>
@@ -109,7 +120,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : calls.length > 0 ? (
+              ) : hasCalls ? (
                 calls.map((call) => (
                   <TableRow 
                     key={call.id}
