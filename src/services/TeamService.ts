@@ -2,8 +2,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { EventsService } from "./events/EventsService";
-import { SharedDataService } from "./SharedDataService";
+import { EventsService, EventType } from "@/services/EventsService";
+import * as SharedDataService from "@/services/SharedDataService";
 import { errorHandler } from "./ErrorHandlingService";
 
 // TeamMember type definition
@@ -84,8 +84,8 @@ class TeamService {
       refreshTeamMembers();
       
       // Set up event listeners
-      const removeAddedListener = EventsService.listen("TEAM_MEMBER_ADDED", refreshTeamMembers);
-      const removeRemovedListener = EventsService.listen("TEAM_MEMBER_REMOVED", refreshTeamMembers);
+      const removeAddedListener = EventsService.addEventListener('TEAM_MEMBER_ADDED' as EventType, refreshTeamMembers);
+      const removeRemovedListener = EventsService.addEventListener('TEAM_MEMBER_REMOVED' as EventType, refreshTeamMembers);
       
       // Clean up listeners
       return () => {
@@ -154,10 +154,17 @@ class TeamService {
         avatar_url: member.avatar_url || ""
       };
       
-      // Try to add to Supabase
+      // Try to add to Supabase - fixing the type issue here
       const { data, error } = await supabase
         .from('team_members')
-        .insert(completeTeamMember)
+        .insert({
+          id: completeTeamMember.id,
+          name: completeTeamMember.name,
+          email: completeTeamMember.email || "",  // Ensure email is not undefined
+          role: completeTeamMember.role,
+          user_id: completeTeamMember.user_id,
+          avatar_url: completeTeamMember.avatar_url
+        })
         .select()
         .single();
       
@@ -171,7 +178,7 @@ class TeamService {
         this.storeTeamMembers(storedMembers);
         
         // Dispatch event
-        EventsService.dispatch("TEAM_MEMBER_ADDED", completeTeamMember);
+        EventsService.dispatchEvent("TEAM_MEMBER_ADDED" as EventType, completeTeamMember);
         
         return completeTeamMember;
       }
@@ -184,7 +191,7 @@ class TeamService {
       this.storeTeamMembers(storedMembers);
       
       // Dispatch event
-      EventsService.dispatch("TEAM_MEMBER_ADDED", data);
+      EventsService.dispatchEvent("TEAM_MEMBER_ADDED" as EventType, data);
       
       return data;
     } catch (err) {
@@ -219,7 +226,7 @@ class TeamService {
       this.storeTeamMembers(storedMembers);
       
       // Dispatch event
-      EventsService.dispatch("TEAM_MEMBER_REMOVED", { id });
+      EventsService.dispatchEvent("TEAM_MEMBER_REMOVED" as EventType, { id });
       
     } catch (err) {
       console.error("Error in removeTeamMember:", err);
