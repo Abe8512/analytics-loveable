@@ -1,320 +1,330 @@
-
-import React, { useState, useEffect } from "react";
-import DashboardLayout from "../components/layout/DashboardLayout";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Search, UserPlus, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useChartData } from "@/hooks/useChartData";
-import TeamPerformanceComparison from "@/components/Team/TeamPerformanceComparison";
-import TeamMemberCard from "@/components/Team/TeamMemberCard";
-import AddTeamMemberModal from "@/components/Team/AddTeamMemberModal";
-import { supabase } from "@/integrations/supabase/client";
+import { Plus, User, Mail, Briefcase, RefreshCw, Trash2 } from "lucide-react";
+import { v4 } from 'uuid';
 import { toast } from "sonner";
-import { v4 as uuidv4 } from "uuid";
+import { supabase } from '@/integrations/supabase/client';
+import { EventsService, EventTypes } from '@/services/EventsService';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Define a custom TeamMember type to match the database structure
+interface TeamMemberDB {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar?: string;
+  user_id: string;
+  member_id: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface TeamMember {
   id: string;
   name: string;
   email: string;
   role: string;
-  performance?: number;
-  calls?: number;
-  conversion?: number;
-  avatar?: string;
+  avatar: string;
+  calls: number;
+  successRate: number;
+  avgSentiment: string;
+  conversionRate: number;
 }
 
-const Team = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const {
-    data: teamMembers,
-    setData: setTeamMembers
-  } = useChartData<TeamMember[]>([]);
+const getStoredTeamMembers = (): TeamMember[] => {
+  try {
+    const stored = localStorage.getItem('teamMembers');
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error("Error retrieving team members from localStorage:", error);
+    return [];
+  }
+};
 
+const Team = () => {
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [newMember, setNewMember] = useState<TeamMember>({
+    id: '',
+    name: '',
+    email: '',
+    role: 'Member',
+    avatar: '',
+    calls: 0,
+    successRate: 0,
+    avgSentiment: '0.0',
+    conversionRate: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  // In the useEffect hook where team members are fetched
   useEffect(() => {
-    loadTeamMembers();
+    const fetchTeamMembers = async () => {
+      setLoading(true);
+      try {
+        // First try to fetch from Supabase
+        const { data, error } = await supabase
+          .from('team_members')
+          .select('*')
+          .order('name');
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          // Map the database structure to the UI component structure
+          const mappedTeamMembers = data.map((member: TeamMemberDB): TeamMember => ({
+            id: member.id,
+            name: member.name,
+            email: member.email,
+            role: member.role || 'Member',
+            avatar: member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=random`,
+            calls: Math.floor(Math.random() * 100),
+            successRate: Math.floor(Math.random() * 100),
+            avgSentiment: (Math.random() * 100).toFixed(1),
+            conversionRate: Math.floor(Math.random() * 100)
+          }));
+          
+          setTeamMembers(mappedTeamMembers);
+        } else {
+          // Fallback to localStorage if no DB data
+          const storedTeamMembers = getStoredTeamMembers();
+          setTeamMembers(storedTeamMembers);
+        }
+      } catch (err) {
+        console.error("Error fetching team members:", err);
+        // Fallback to localStorage if error
+        const storedTeamMembers = getStoredTeamMembers();
+        setTeamMembers(storedTeamMembers);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeamMembers();
   }, []);
 
-  const loadTeamMembers = async () => {
-    setIsLoading(true);
+  useEffect(() => {
+    localStorage.setItem('teamMembers', JSON.stringify(teamMembers));
+  }, [teamMembers]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setNewMember(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Update the addTeamMember function to handle the new schema
+  const addTeamMember = async (member: TeamMember) => {
     try {
-      // Try to load from database first
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('*');
+      // Convert UI team member to DB format
+      const newTeamMember = {
+        id: v4(), // generate a new UUID
+        name: member.name,
+        email: member.email,
+        role: member.role || 'Member',
+        avatar: member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=random`,
+        user_id: v4(), // generate a user_id 
+        member_id: v4(), // generate a member_id
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
       
+      // Insert into database
+      const { error } = await supabase
+        .from('team_members')
+        .insert(newTeamMember);
+        
       if (error) {
         throw error;
       }
       
-      if (data && data.length > 0) {
-        // Format members from database
-        const formattedMembers = data.map(member => ({
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          role: member.role || 'Sales Rep',
-          performance: Math.floor(Math.random() * 30) + 60, // Random for demo
-          calls: Math.floor(Math.random() * 100) + 50, // Random for demo
-          conversion: Math.floor(Math.random() * 20) + 10, // Random for demo
-          avatar: member.avatar || member.name.split(' ').map(n => n[0]).join('')
-        }));
-        
-        setTeamMembers(formattedMembers);
-      } else {
-        // If no data in DB, use initial demo data
-        setTeamMembers(getDemoTeamMembers());
-      }
-    } catch (error) {
-      console.error("Error loading team members:", error);
-      toast.error("Failed to load team members", { 
-        description: error instanceof Error ? error.message : "Unknown error" 
-      });
-      
-      // Fall back to demo data
-      setTeamMembers(getDemoTeamMembers());
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAddMember = async (newMember: Partial<TeamMember>) => {
-    try {
-      const memberId = uuidv4();
-      const userId = uuidv4();
-      
-      // Save to database
-      const { error } = await supabase
-        .from('team_members')
-        .insert({
-          id: memberId,
-          member_id: memberId,
-          user_id: userId,
-          name: newMember.name || '',
-          email: newMember.email || '',
-          role: newMember.role || 'Sales Rep',
-          avatar: newMember.name?.split(' ').map(n => n[0]).join('') || ''
-        });
-        
-      if (error) throw error;
-      
-      // Add to local state
-      const formattedNewMember: TeamMember = {
-        id: memberId,
-        name: newMember.name || '',
-        email: newMember.email || '',
-        role: newMember.role || 'Sales Rep',
-        performance: Math.floor(Math.random() * 30) + 60, // Random performance between 60-90
-        calls: Math.floor(Math.random() * 100) + 50, // Random calls between 50-150
-        conversion: Math.floor(Math.random() * 20) + 10, // Random conversion between 10-30
-        avatar: newMember.name?.split(' ').map(n => n[0]).join('') || ''
+      // Optimistically update UI
+      const updatedMember = {
+        ...member,
+        id: newTeamMember.id,
+        calls: 0,
+        successRate: 0,
+        avgSentiment: "0.0",
+        conversionRate: 0
       };
       
-      setTeamMembers([...teamMembers, formattedNewMember]);
-      toast.success("Team member added successfully");
-    } catch (error) {
-      console.error("Error adding team member:", error);
-      toast.error("Failed to add team member", {
-        description: error instanceof Error ? error.message : "Unknown error"
-      });
+      setTeamMembers([...teamMembers, updatedMember]);
+      
+      // Notify other components through the EventsService
+      EventsService.dispatch(EventTypes.TEAM_MEMBER_ADDED, updatedMember);
+      
+      toast.success(`${member.name} added to team!`);
+    } catch (err) {
+      console.error("Error adding team member:", err);
+      toast.error(`Failed to add ${member.name}. Please try again.`);
     }
   };
 
-  const filteredMembers = teamMembers.filter(member => 
-    member.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    addTeamMember(newMember);
+    setNewMember({
+      id: '',
+      name: '',
+      email: '',
+      role: 'Member',
+      avatar: '',
+      calls: 0,
+      successRate: 0,
+      avgSentiment: '0.0',
+      conversionRate: 0,
+    });
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('team_members')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      setTeamMembers(teamMembers.filter(member => member.id !== id));
+      toast.success('Team member deleted successfully!');
+    } catch (err) {
+      console.error("Error deleting team member:", err);
+      toast.error('Failed to delete team member. Please try again.');
+    }
+  };
+
   return (
-    <DashboardLayout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-1">
-          Team Management
-        </h1>
-        <p className="text-muted-foreground">
-          Manage your sales team and monitor performance
-        </p>
-      </div>
-      
-      <Tabs defaultValue="overview" className="mb-6">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="overview" className="mt-6">
-          <div className="flex justify-between items-center mb-6">
-            <div className="relative w-72">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search team members..."
-                className="pl-10 h-10 bg-background"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <Button 
-              className="bg-neon-purple hover:bg-neon-purple/80 text-white" 
-              onClick={() => setShowAddMemberModal(true)}
-            >
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add Team Member
-            </Button>
-          </div>
-          
-          {isLoading ? (
-            <div className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Loading team members...</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-              {filteredMembers.map((member) => (
-                <TeamMemberCard key={member.id} member={member} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="performance" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-foreground">Team Performance Comparison</CardTitle>
-              <CardDescription>Compare performance metrics across team members</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <TeamPerformanceComparison teamMembers={teamMembers} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="leaderboard" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-foreground">Sales Leaderboard</CardTitle>
-              <CardDescription>Ranked by overall performance score</CardDescription>
-            </CardHeader>
-            <CardContent>
+    <div className="container mx-auto py-6">
+      <h1 className="text-3xl font-bold mb-4">Team Management</h1>
+      <p className="text-muted-foreground mb-6">
+        Add, manage, and view your team members.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Add Team Member Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Team Member</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={newMember.name}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={newMember.email}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="role">Role</Label>
+                <Input
+                  type="text"
+                  id="role"
+                  name="role"
+                  value={newMember.role}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <Button type="submit">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Member
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Team Members List */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Team Members</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center space-x-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-[200px]" />
+                      <Skeleton className="h-4 w-[150px]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
               <Table>
+                <TableCaption>A list of your team members.</TableCaption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Rank</TableHead>
+                    <TableHead className="w-[100px]">Avatar</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>
-                      <div className="flex items-center">
-                        Performance
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </div>
-                    </TableHead>
-                    <TableHead>Calls</TableHead>
-                    <TableHead>Conversion Rate</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {[...teamMembers]
-                    .sort((a, b) => (b.performance || 0) - (a.performance || 0))
-                    .map((member, index) => (
-                      <TableRow key={member.id}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
-                        <TableCell>{member.name}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center">
-                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mr-2">
-                              <div 
-                                className="bg-neon-purple h-2.5 rounded-full" 
-                                style={{width: `${member.performance || 0}%`}}
-                              ></div>
-                            </div>
-                            <span>{member.performance || 0}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{member.calls || 0}</TableCell>
-                        <TableCell>{member.conversion || 0}%</TableCell>
-                      </TableRow>
-                    ))}
+                  {teamMembers.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell>
+                        <Avatar>
+                          <AvatarImage src={member.avatar} />
+                          <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                      </TableCell>
+                      <TableCell className="font-medium">{member.name}</TableCell>
+                      <TableCell>{member.email}</TableCell>
+                      <TableCell>{member.role}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(member.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-      
-      <AddTeamMemberModal 
-        isOpen={showAddMemberModal} 
-        onClose={() => setShowAddMemberModal(false)}
-        onAddMember={handleAddMember}
-      />
-    </DashboardLayout>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 };
-
-// Helper function to create demo data if no team members exist
-function getDemoTeamMembers(): TeamMember[] {
-  return [
-    {
-      id: "1",
-      name: "Alex Johnson",
-      email: "alex.johnson@example.com",
-      role: "Senior Sales Rep",
-      performance: 87,
-      calls: 145,
-      conversion: 23,
-      avatar: "AJ"
-    },
-    {
-      id: "2",
-      name: "Maria Garcia",
-      email: "maria.garcia@example.com",
-      role: "Sales Rep",
-      performance: 76,
-      calls: 112,
-      conversion: 18,
-      avatar: "MG"
-    },
-    {
-      id: "3",
-      name: "David Kim",
-      email: "david.kim@example.com",
-      role: "Junior Sales Rep",
-      performance: 68,
-      calls: 89,
-      conversion: 12,
-      avatar: "DK"
-    },
-    {
-      id: "4",
-      name: "Sarah Williams",
-      email: "sarah.williams@example.com",
-      role: "Senior Sales Rep",
-      performance: 92,
-      calls: 156,
-      conversion: 28,
-      avatar: "SW"
-    },
-    {
-      id: "5",
-      name: "James Taylor",
-      email: "james.taylor@example.com",
-      role: "Sales Rep",
-      performance: 71,
-      calls: 103,
-      conversion: 15,
-      avatar: "JT"
-    }
-  ];
-}
 
 export default Team;

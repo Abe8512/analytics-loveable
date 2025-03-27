@@ -32,6 +32,13 @@ serve(async (req) => {
       )
     }
 
+    console.log('Processing call transcript data:', {
+      id: data.id || 'auto-generated',
+      user_id: data.user_id || 'anonymous',
+      filename: data.filename || 'unnamed_recording.mp3',
+      text_length: data.text ? data.text.length : 0
+    })
+
     // Direct insert to the call_transcripts table
     const { data: insertData, error } = await supabase
       .from('call_transcripts')
@@ -43,8 +50,11 @@ serve(async (req) => {
         duration: data.duration || 0,
         sentiment: data.sentiment || 'neutral',
         keywords: data.keywords || [],
+        key_phrases: data.key_phrases || [],
         call_score: data.call_score || 50,
-        metadata: data.metadata || {}
+        metadata: data.metadata || {},
+        user_name: data.user_name || null,
+        customer_name: data.customer_name || null
       })
       .select()
     
@@ -58,6 +68,9 @@ serve(async (req) => {
         }
       )
     }
+    
+    console.log('Call transcript saved successfully, ID:', 
+      insertData && insertData.length > 0 ? insertData[0].id : data.id)
     
     // The trigger function will automatically create a corresponding call record
     

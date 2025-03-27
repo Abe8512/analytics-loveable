@@ -60,11 +60,21 @@ serve(async (req) => {
       )
     }
 
-    // Use the new database function to save the call without returning data
-    // This avoids the DISTINCT ORDER BY error entirely
-    const { data, error } = await supabase.rpc('save_call', {
-      p_data: callData
-    })
+    // Direct insert to calls table - optimized to not use DISTINCT
+    const { error } = await supabase
+      .from('calls')
+      .insert({
+        id: callData.id,
+        user_id: callData.user_id || 'anonymous',
+        filename: callData.filename || null,
+        duration: callData.duration || 0,
+        sentiment_agent: callData.sentiment_agent || 0.5,
+        sentiment_customer: callData.sentiment_customer || 0.5,
+        talk_ratio_agent: callData.talk_ratio_agent || 50,
+        talk_ratio_customer: callData.talk_ratio_customer || 50,
+        key_phrases: callData.key_phrases || [],
+        created_at: callData.created_at || new Date().toISOString()
+      })
 
     // Log any errors but still return success to the client
     if (error) {

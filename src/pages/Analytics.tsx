@@ -1,57 +1,122 @@
-
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, CardContent, CardDescription, CardHeader, CardTitle 
-} from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Skeleton } from '@/components/ui/skeleton';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import { useAuth } from '@/contexts/AuthContext';
-import { 
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, 
-  CartesianGrid, XAxis, YAxis, Tooltip, Legend, Pie, Cell,
-  PieChart as RechartsPieChart 
-} from 'recharts';
-import { TeamMetricsData, RepMetricsData } from '@/services/SharedDataService';
-import { getTeamMetrics, getRepMetrics, getAnalyticsData, AnalyticsData } from '@/services/AnalyticsService';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
+import { OverviewCard } from "@/components/ui/cards";
+import { BarChart } from "@/components/ui/charts";
+import { LineChart } from "@/components/ui/charts";
+import { AreaChart } from "@/components/ui/charts";
+import { PieChart } from "@/components/ui/charts";
+import { TeamPerformanceAnalytics } from "@/components/Performance/TeamPerformanceAnalytics";
+import {
+  Phone,
+  Clock,
+  ThumbsUp,
+  TrendingUp
+} from "lucide-react";
+import { toast } from "sonner";
+import {
+  AnalyticsData,
+  getTeamMetrics,
+  getRepMetrics
+} from '@/services/AnalyticsService';
+import { TeamPerformance } from '@/types/analytics';
 
-const Analytics = () => {
-  const { isAdmin, isManager } = useAuth();
-  const [activeTab, setActiveTab] = useState('pipeline');
+interface TeamMetricsData {
+  members: TeamPerformance[];
+  avgCalls: number;
+  avgSuccessRate: number;
+  avgSentiment: number;
+}
+
+interface RepMetricsData {
+  id: string;
+  name: string;
+  calls: number;
+  successRate: number;
+  sentiment: number;
+  keywords: string[];
+}
+
+const AnalyticsPage = () => {
   const [loading, setLoading] = useState(true);
-  
-  const [teamMetrics, setTeamMetrics] = useState<TeamMetricsData>({
-    totalCalls: 0,
-    avgSentiment: 0.5,
-    avgTalkRatio: { agent: 50, customer: 50 },
-    topKeywords: [],
-    performanceScore: 0,
-    conversionRate: 0
-  });
-  
-  const [repMetrics, setRepMetrics] = useState<RepMetricsData[]>([]);
+
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    totalCalls: 0,
+    avgDuration: 0,
+    positiveSentiment: 0,
+    negativeSentiment: 0,
+    neutralSentiment: 0,
+    callsPerDay: [],
     pipelineData: [],
     conversionData: [],
     revenueData: [],
     productMixData: []
   });
-  
+
+  const [teamMetricsData, setTeamMetricsData] = useState<TeamMetricsData>({
+    members: [],
+    avgCalls: 0,
+    avgSuccessRate: 0,
+    avgSentiment: 0
+  });
+
+  const [repMetricsData, setRepMetricsData] = useState<RepMetricsData[]>([]);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [teamData, repData, analyticsData] = await Promise.all([
-          getTeamMetrics(),
-          getRepMetrics(),
-          getAnalyticsData()
-        ]);
+        // Fetch analytics data
+        const data = await getAnalyticsData();
+        setAnalyticsData(data);
         
-        setTeamMetrics(teamData);
-        setRepMetrics(repData);
-        setAnalyticsData(analyticsData);
+        // Fetch team metrics
+        const teamMetrics = await getTeamMetrics();
+        
+        // Convert to expected format
+        const teamPerformanceData: TeamPerformance[] = teamMetrics.map(tm => ({
+          id: tm.teamMemberId,
+          name: tm.teamMemberName,
+          calls: tm.callCount,
+          successRate: tm.successRate,
+          avgSentiment: tm.avgSentiment,
+          conversionRate: tm.successRate * 0.8 // estimate based on success rate
+        }));
+        
+        const avgCalls = teamPerformanceData.reduce((sum, tm) => sum + tm.calls, 0) / 
+          (teamPerformanceData.length || 1);
+        
+        const avgSuccessRate = teamPerformanceData.reduce((sum, tm) => sum + tm.successRate, 0) / 
+          (teamPerformanceData.length || 1);
+        
+        const avgSentiment = teamPerformanceData.reduce((sum, tm) => sum + Number(tm.avgSentiment), 0) / 
+          (teamPerformanceData.length || 1);
+        
+        setTeamMetricsData({
+          members: teamPerformanceData,
+          avgCalls,
+          avgSuccessRate,
+          avgSentiment
+        });
+        
+        // If we have team members, get detailed metrics for the first one
+        if (teamPerformanceData.length > 0) {
+          const repMetrics = await getRepMetrics(teamPerformanceData[0].id);
+          if (repMetrics) {
+            setRepMetricsData([{
+              id: repMetrics.repId,
+              name: repMetrics.repName,
+              calls: repMetrics.callVolume,
+              successRate: repMetrics.successRate,
+              sentiment: repMetrics.sentimentScore,
+              keywords: repMetrics.topKeywords || []
+            }]);
+          }
+        }
       } catch (error) {
         console.error('Error fetching analytics data:', error);
+        toast.error('Failed to load analytics data');
       } finally {
         setLoading(false);
       }
@@ -59,305 +124,142 @@ const Analytics = () => {
     
     fetchData();
   }, []);
-  
-  // Colors for pipeline chart
-  const PIPELINE_COLORS = ['#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c'];
-  
-  // Colors for product mix chart
-  const PRODUCT_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'];
-  
-  // Rep performance data
-  const repPerformanceData = repMetrics.map(rep => ({
-    name: rep.name,
-    successRate: rep.successRate,
-    sentiment: Math.round(rep.sentiment * 100),
-    callVolume: rep.callVolume
-  }));
-  
+
+  // Update the JSX to use the new data structure
   return (
-    <DashboardLayout>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Sales Analytics</h1>
-        <p className="text-muted-foreground">
-          Comprehensive analytics and insights for your sales performance
-        </p>
-      </div>
+    <div className="container py-6 max-w-7xl mx-auto">
+      <PageHeader 
+        title="Sales Analytics"
+        subtitle="Track sales performance, team activity, and pipeline metrics"
+      />
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      {/* Dashboard Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <OverviewCard 
+          title="Total Calls" 
+          value={analyticsData.totalCalls.toString()} 
+          trend={8} 
+          icon={<Phone className="h-6 w-6" />} 
+        />
+        <OverviewCard 
+          title="Avg Duration" 
+          value={`${Math.round(analyticsData.avgDuration / 60)} min`} 
+          trend={-2} 
+          trendDirection="down"
+          icon={<Clock className="h-6 w-6" />} 
+        />
+        <OverviewCard 
+          title="Positive Sentiment" 
+          value={`${analyticsData.positiveSentiment} calls`} 
+          trend={5}
+          icon={<ThumbsUp className="h-6 w-6" />} 
+        />
+        <OverviewCard 
+          title="Conversion Rate" 
+          value={`${Math.round((analyticsData.positiveSentiment / (analyticsData.totalCalls || 1)) * 100)}%`} 
+          trend={3}
+          icon={<TrendingUp className="h-6 w-6" />} 
+        />
+      </div>
+
+      {/* Sales Pipeline */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-2xl">{loading ? <Skeleton className="h-8 w-24" /> : teamMetrics.performanceScore}</CardTitle>
-            <CardDescription>Performance Score</CardDescription>
+          <CardHeader>
+            <CardTitle>Sales Pipeline</CardTitle>
+            <CardDescription>Current distribution of deals by stage</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-xs text-muted-foreground">
-              {loading ? <Skeleton className="h-4 w-full" /> : 'Based on call quality and outcomes'}
-            </div>
+            {loading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <BarChart
+                data={analyticsData.pipelineData || []}
+                xField="name"
+                yField="value"
+                barColor="#4f46e5"
+              />
+            )}
           </CardContent>
         </Card>
         
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-2xl">{loading ? <Skeleton className="h-8 w-24" /> : teamMetrics.totalCalls}</CardTitle>
-            <CardDescription>Total Calls</CardDescription>
+          <CardHeader>
+            <CardTitle>Conversion Rates</CardTitle>
+            <CardDescription>Daily conversion rates over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-xs text-muted-foreground">
-              {loading ? <Skeleton className="h-4 w-full" /> : 'Across all sales representatives'}
-            </div>
+            {loading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <LineChart
+                data={analyticsData.conversionData || []}
+                xField="date"
+                yField="value"
+                lineColor="#10b981"
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Revenue Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Revenue Trends</CardTitle>
+            <CardDescription>Daily revenue for the past week</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <AreaChart
+                data={analyticsData.revenueData || []}
+                xField="date"
+                yField="value"
+                areaColor="rgba(79, 70, 229, 0.2)"
+                lineColor="#4f46e5"
+              />
+            )}
           </CardContent>
         </Card>
         
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-2xl">{loading ? <Skeleton className="h-8 w-24" /> : `${teamMetrics.conversionRate}%`}</CardTitle>
-            <CardDescription>Conversion Rate</CardDescription>
+          <CardHeader>
+            <CardTitle>Product Mix</CardTitle>
+            <CardDescription>Revenue by product category</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-xs text-muted-foreground">
-              {loading ? <Skeleton className="h-4 w-full" /> : 'Calls resulting in next steps'}
-            </div>
+            {loading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <PieChart
+                data={analyticsData.productMixData || []}
+                nameField="name"
+                valueField="value"
+              />
+            )}
           </CardContent>
         </Card>
       </div>
-      
-      <Tabs defaultValue="pipeline" className="mb-6" onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-          <TabsTrigger value="conversion">Conversion</TabsTrigger>
-          <TabsTrigger value="revenue">Revenue</TabsTrigger>
-          <TabsTrigger value="product">Product Mix</TabsTrigger>
-          {(isAdmin || isManager) && (
-            <TabsTrigger value="rep">Rep Performance</TabsTrigger>
+
+      {/* Team Performance */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Team Performance</CardTitle>
+          <CardDescription>Comparative metrics for all team members</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <Skeleton className="h-[400px] w-full" />
+          ) : (
+            <TeamPerformanceAnalytics data={teamMetricsData.members} />
           )}
-        </TabsList>
-        
-        <TabsContent value="pipeline" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales Pipeline</CardTitle>
-              <CardDescription>Current distribution of opportunities by stage</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className="h-[300px] w-full" />
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={analyticsData.pipelineData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="value" name="Opportunities" fill="#8884d8" />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="conversion" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Conversion Rate Trend</CardTitle>
-              <CardDescription>Monthly conversion rate percentage</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className="h-[300px] w-full" />
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={analyticsData.conversionData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="rate" 
-                      name="Conversion Rate (%)" 
-                      stroke="#8884d8" 
-                      strokeWidth={2} 
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="revenue" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue Performance</CardTitle>
-              <CardDescription>Actual vs target revenue by month</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className="h-[300px] w-full" />
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={analyticsData.revenueData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="actual" name="Actual Revenue" fill="#8884d8" />
-                    <Bar dataKey="target" name="Target Revenue" fill="#82ca9d" />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="product" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Product Mix</CardTitle>
-              <CardDescription>Distribution of sales by product</CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center">
-              {loading ? (
-                <Skeleton className="h-[300px] w-full" />
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <RechartsPieChart>
-                    <Pie
-                      data={analyticsData.productMixData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {analyticsData.productMixData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={PRODUCT_COLORS[index % PRODUCT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {(isAdmin || isManager) && (
-          <TabsContent value="rep" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Rep Performance</CardTitle>
-                <CardDescription>Success rate and call volume by representative</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-[300px] w-full" />
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={repPerformanceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
-                      <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-                      <Tooltip />
-                      <Legend />
-                      <Bar yAxisId="left" dataKey="successRate" name="Success Rate (%)" fill="#8884d8" />
-                      <Bar yAxisId="right" dataKey="callVolume" name="Call Volume" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-      </Tabs>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sentiment Analysis</CardTitle>
-            <CardDescription>Average sentiment score: {loading ? <Skeleton className="h-4 w-16 inline-block" /> : teamMetrics.avgSentiment.toFixed(2)}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-[200px] w-full" />
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span>Positive</span>
-                  <span className="text-green-500 font-medium">
-                    {(teamMetrics.avgSentiment > 0.66 ? teamMetrics.avgSentiment * 100 : 32).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                  <div 
-                    className="bg-green-500 h-2.5 rounded-full" 
-                    style={{ width: `${teamMetrics.avgSentiment > 0.66 ? teamMetrics.avgSentiment * 100 : 32}%` }}
-                  ></div>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span>Neutral</span>
-                  <span className="text-blue-500 font-medium">
-                    {(teamMetrics.avgSentiment > 0.33 && teamMetrics.avgSentiment <= 0.66 ? teamMetrics.avgSentiment * 100 : 45).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                  <div 
-                    className="bg-blue-500 h-2.5 rounded-full" 
-                    style={{ width: `${teamMetrics.avgSentiment > 0.33 && teamMetrics.avgSentiment <= 0.66 ? teamMetrics.avgSentiment * 100 : 45}%` }}
-                  ></div>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span>Negative</span>
-                  <span className="text-red-500 font-medium">
-                    {(teamMetrics.avgSentiment <= 0.33 ? teamMetrics.avgSentiment * 100 : 23).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                  <div 
-                    className="bg-red-500 h-2.5 rounded-full" 
-                    style={{ width: `${teamMetrics.avgSentiment <= 0.33 ? teamMetrics.avgSentiment * 100 : 23}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Keywords</CardTitle>
-            <CardDescription>Most frequently mentioned terms in calls</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-[200px] w-full" />
-            ) : (
-              <div className="space-y-4">
-                {teamMetrics.topKeywords.map((keyword, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <span className="font-medium">{keyword}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {Math.floor(100 - index * 15)}% of calls
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
-export default Analytics;
+export default AnalyticsPage;

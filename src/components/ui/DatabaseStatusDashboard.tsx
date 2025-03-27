@@ -62,9 +62,9 @@ const DatabaseStatusDashboard = () => {
       
       for (const tableName of requiredTables) {
         try {
-          // Use rpc to check if table exists
+          // Use dynamic query to check if table exists
           const { count, error: countError } = await supabase
-            .from(tableName)
+            .from(tableName as any) // Type assertion to handle strict type checking
             .select('*', { count: 'exact', head: true });
           
           tableStatuses.push({
@@ -84,20 +84,20 @@ const DatabaseStatusDashboard = () => {
       
       setTables(tableStatuses);
       
-      // Check indexes (can't query Postgres directly through supabase-js, use our function)
-      const indexSQL = `
-        SELECT i.relname AS index_name, 
-               t.relname AS table_name,
-               am.amname AS index_type
-        FROM pg_index idx
-        JOIN pg_class i ON i.oid = idx.indexrelid
-        JOIN pg_class t ON t.oid = idx.indrelid
-        JOIN pg_am am ON am.oid = i.relam
-        WHERE t.relname IN ('call_transcripts', 'calls', 'keyword_trends', 'sentiment_trends')
-        ORDER BY t.relname, i.relname;
-      `;
-      
+      // Check indexes using SQL function rather than direct query
       try {
+        const indexSQL = `
+          SELECT i.relname AS index_name, 
+                 t.relname AS table_name,
+                 am.amname AS index_type
+          FROM pg_index idx
+          JOIN pg_class i ON i.oid = idx.indexrelid
+          JOIN pg_class t ON t.oid = idx.indrelid
+          JOIN pg_am am ON am.oid = i.relam
+          WHERE t.relname IN ('call_transcripts', 'calls', 'keyword_trends', 'sentiment_trends')
+          ORDER BY t.relname, i.relname;
+        `;
+        
         const { data: indexData, error: indexError } = await supabase.rpc(
           'execute_sql_with_results',
           { query_text: indexSQL }
