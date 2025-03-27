@@ -50,10 +50,10 @@ export interface EventsStore extends EventsState {
   clearEventHistory: () => void;
 }
 
-// Add the EVENT_TYPES constant for backward compatibility
+// Export EVENT_TYPES constant for backward compatibility
 export const EVENT_TYPES = {
-  TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED',
-  TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED',
-  MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED',
-  CALL_UPDATED: 'CALL_UPDATED'
+  TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED' as EventType,
+  TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED' as EventType,
+  MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED' as EventType,
+  CALL_UPDATED: 'CALL_UPDATED' as EventType
 };

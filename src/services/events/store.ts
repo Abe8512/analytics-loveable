@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { EventType, EventListener, EventPayload, EventsState, EventsStore, EventMap } from './types';
+import { EventType, EventPayload, EventListener, EventsState, EventsStore, EventMap, EVENT_TYPES } from './types';
 
 // Create events store
 export const useEventsStore = create<EventsStore>((set, get) => ({
@@ -126,3 +126,6 @@ export const removeEventListener = useEventsStore.getState().removeEventListener
 export const dispatchEvent = useEventsStore.getState().dispatchEvent;
 export const addListener = useEventsStore.getState().addListener;
 export const removeListener = useEventsStore.getState().removeListener;
+
+// Re-export the EVENT_TYPES constant
+export { EVENT_TYPES };
