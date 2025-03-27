@@ -1,12 +1,31 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { SentimentAnalysisService } from '@/services/SentimentAnalysisService';
-import { AdvancedMetricsService } from '@/services/AdvancedMetricsService';
+import { handleError, trySafeWithFallback } from './errorHandlingUtils';
 
-// This utility will update calls with neutral sentiment to more realistic values
-export const fixCallSentiments = async () => {
+interface FixResult {
+  success: boolean;
+  updated: number;
+  total: number;
+  failed: number;
+  error?: string;
+}
+
+/**
+ * Utility to update calls with neutral sentiment to more realistic values
+ * Uses standardized error handling for consistency
+ */
+export const fixCallSentiments = async (): Promise<FixResult> => {
+  const defaultResult: FixResult = {
+    success: false,
+    updated: 0,
+    total: 0,
+    failed: 0
+  };
+  
   try {
     console.log('Fixing call sentiments...');
+    
     // Get calls with neutral sentiment
     const { data: neutralCalls, error } = await supabase
       .from('call_transcripts')
@@ -15,12 +34,14 @@ export const fixCallSentiments = async () => {
       .is('call_score', null);
       
     if (error) {
-      console.error('Error fetching neutral calls:', error);
+      handleError(error, 'fixCallSentiments', {
+        severity: 'high',
+        userMessage: 'Failed to fetch calls with neutral sentiment',
+        context: { operation: 'fetch_neutral_calls' }
+      });
+      
       return {
-        success: false,
-        updated: 0,
-        total: 0,
-        failed: 0,
+        ...defaultResult,
         error: error.message
       };
     }
@@ -29,10 +50,8 @@ export const fixCallSentiments = async () => {
     
     if (!neutralCalls || neutralCalls.length === 0) {
       return {
-        success: true,
-        updated: 0,
-        total: 0,
-        failed: 0
+        ...defaultResult,
+        success: true
       };
     }
     
@@ -62,93 +81,135 @@ export const fixCallSentiments = async () => {
         }
         
         // Generate more realistic talk ratios
-        const agentRatio = Math.floor(35 + Math.random() * 30); // 35-65%
-        const customerRatio = 100 - agentRatio;
+        const agentRatio = Math.floor(35 + Math.random() * 30) / 100; // 35-65%
+        const customerRatio = 1 - agentRatio;
         
         // Update the call with new sentiment and score
-        const { error: updateError } = await supabase
-          .from('call_transcripts')
-          .update({
-            sentiment: sentimentLabel,
-            call_score: score,
-            metadata: {
-              analyzed_at: new Date().toISOString(),
-              speakerRatio: {
-                agent: agentRatio / 100,
-                customer: customerRatio / 100
-              }
-            }
-          })
-          .eq('id', call.id);
-          
-        if (updateError) {
-          console.error(`Error updating call ${call.id}:`, updateError);
+        const updateResult = await trySafeWithFallback(
+          async () => {
+            const { error: updateError } = await supabase
+              .from('call_transcripts')
+              .update({
+                sentiment: sentimentLabel,
+                call_score: score,
+                metadata: {
+                  analyzed_at: new Date().toISOString(),
+                  speakerRatio: {
+                    agent: agentRatio,
+                    customer: customerRatio
+                  }
+                }
+              })
+              .eq('id', call.id);
+              
+            if (updateError) throw updateError;
+            return true;
+          },
+          false,
+          'fixCallSentiments',
+          {
+            severity: 'medium',
+            userMessage: 'Failed to update call sentiment',
+            context: { call_id: call.id, sentiment: sentimentLabel, score }
+          }
+        );
+        
+        if (!updateResult) {
           failed++;
-        } else {
-          updated++;
-          
-          // Also update the calls table for consistency
-          await supabase
-            .from('calls')
-            .update({
-              sentiment_agent: score / 100,
-              sentiment_customer: (score / 100) * 0.8 + Math.random() * 0.2, // Slightly different for variation
-              talk_ratio_agent: agentRatio,
-              talk_ratio_customer: customerRatio
-            })
-            .eq('id', call.id)
-            .then(res => {
-              if (res.error) {
-                console.error(`Error updating calls table for ${call.id}:`, res.error);
-              }
-            });
-            
-          // After updating each call, also try to update the metrics summary
-          try {
+          continue;
+        }
+        
+        // Also update the calls table for consistency
+        await trySafeWithFallback(
+          async () => {
+            const { error: callsError } = await supabase
+              .from('calls')
+              .update({
+                sentiment_agent: score / 100,
+                sentiment_customer: (score / 100) * 0.8 + Math.random() * 0.2, // Slightly different for variation
+                talk_ratio_agent: agentRatio * 100,
+                talk_ratio_customer: customerRatio * 100
+              })
+              .eq('id', call.id);
+              
+            if (callsError) throw callsError;
+            return true;
+          },
+          false,
+          'fixCallSentiments',
+          {
+            severity: 'low',
+            userMessage: 'Failed to update related call record',
+            showToast: false,
+            context: { call_id: call.id }
+          }
+        );
+        
+        updated++;
+        
+        // Update metrics summary after updating each call
+        await trySafeWithFallback(
+          async () => {
             const { data: summary, error: summaryError } = await supabase
               .from('call_metrics_summary')
               .select('*')
               .order('report_date', { ascending: false })
               .limit(1);
               
-            if (!summaryError && summary && summary.length > 0) {
-              // Adjust the summary counts based on the new sentiment
-              let positiveCount = summary[0].positive_sentiment_count || 0;
-              let negativeCount = summary[0].negative_sentiment_count || 0;
-              let neutralCount = summary[0].neutral_sentiment_count || 0;
+            if (summaryError) throw summaryError;
+            if (!summary || summary.length === 0) return false;
+            
+            // Adjust sentiment counts and recalculate average
+            let positiveCount = summary[0].positive_sentiment_count || 0;
+            let negativeCount = summary[0].negative_sentiment_count || 0;
+            let neutralCount = summary[0].neutral_sentiment_count || 0;
+            
+            // Decrement neutral count
+            if (neutralCount > 0) neutralCount--;
+            
+            // Increment the appropriate count
+            if (sentimentLabel === 'positive') positiveCount++;
+            else if (sentimentLabel === 'negative') negativeCount++;
+            else neutralCount++;
+            
+            // Calculate new average sentiment
+            const totalCalls = positiveCount + negativeCount + neutralCount;
+            const avgSentiment = totalCalls > 0 ? 
+              ((positiveCount * 0.75) + (neutralCount * 0.5) + (negativeCount * 0.25)) / totalCalls : 
+              0.5;
+            
+            // Update the summary
+            const { error: updateError } = await supabase
+              .from('call_metrics_summary')
+              .update({
+                positive_sentiment_count: positiveCount,
+                negative_sentiment_count: negativeCount,
+                neutral_sentiment_count: neutralCount,
+                avg_sentiment: avgSentiment,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', summary[0].id);
               
-              // Decrement neutral count
-              if (neutralCount > 0) neutralCount--;
-              
-              // Increment the appropriate count
-              if (sentimentLabel === 'positive') positiveCount++;
-              else if (sentimentLabel === 'negative') negativeCount++;
-              else neutralCount++;
-              
-              // Calculate new average sentiment
-              const totalCalls = positiveCount + negativeCount + neutralCount;
-              const avgSentiment = totalCalls > 0 ? 
-                ((positiveCount * 0.75) + (neutralCount * 0.5) + (negativeCount * 0.25)) / totalCalls : 
-                0.5;
-              
-              // Update the summary
-              await supabase
-                .from('call_metrics_summary')
-                .update({
-                  positive_sentiment_count: positiveCount,
-                  negative_sentiment_count: negativeCount,
-                  neutral_sentiment_count: neutralCount,
-                  avg_sentiment: avgSentiment,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', summary[0].id);
-            }
-          } catch (summaryErr) {
-            console.error('Error updating metrics summary:', summaryErr);
+            if (updateError) throw updateError;
+            return true;
+          },
+          false,
+          'fixCallSentiments',
+          {
+            severity: 'low',
+            userMessage: 'Failed to update metrics summary',
+            showToast: false,
+            context: { operation: 'update_metrics_summary' }
           }
-        }
+        );
+        
       } catch (callError) {
-        console.error(`Error processing call:`, callError);
+        handleError(callError, 'fixCallSentiments', {
+          severity: 'medium',
+          userMessage: 'Error processing call',
+          showToast: false,
+          context: { call_id: call.id }
+        });
         failed++;
       }
     }
@@ -160,12 +221,14 @@ export const fixCallSentiments = async () => {
       failed
     };
   } catch (err) {
-    console.error('Error in fixCallSentiments:', err);
+    handleError(err, 'fixCallSentiments', {
+      severity: 'high',
+      userMessage: 'An error occurred while fixing call sentiments',
+      context: { operation: 'fix_call_sentiments' }
+    });
+    
     return {
-      success: false,
-      updated: 0,
-      total: 0,
-      failed: 0,
+      ...defaultResult,
       error: err instanceof Error ? err.message : 'Unknown error'
     };
   }
