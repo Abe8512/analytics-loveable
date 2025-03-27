@@ -70,15 +70,14 @@ const SpeechToTextRecorder = ({
           setTranscriptionProgress(10); // Start progress at 10%
           
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const audioFile = new File([audioBlob], "recording.webm", { 
+            type: 'audio/webm',
+            lastModified: Date.now()
+          });
           
           try {
             const result = await transcribeAudio(audioFile, (progress) => {
               setTranscriptionProgress(progress);
-            });
-            
-            const audioFile = new File([audioBlob], "recording.webm", { 
-              type: 'audio/webm',
-              lastModified: Date.now()
             });
             
             if (result) {

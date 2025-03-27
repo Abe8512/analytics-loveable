@@ -63,10 +63,12 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'OpenAI API key not configured on the server or in the request', 
-          text: 'This is a simulated transcript as OpenAI API key is not configured. In a production environment, this would be the actual transcribed content from the OpenAI Whisper API.'
+          text: 'This is a simulated transcript as OpenAI API key is not configured. In a production environment, this would be the actual transcribed content from the OpenAI Whisper API.',
+          status: 'error',
+          progress: 0
         }),
         { 
-          status: 200, // Return 200 with simulated response for better UX
+          status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
@@ -87,7 +89,8 @@ serve(async (req) => {
     const { signal } = controller
     
     try {
-      // Send to OpenAI
+      // Send to OpenAI with intermediary progress updates
+      // Report progress at 25%, 50%, and 75% to simulate processing steps
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
