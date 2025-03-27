@@ -31,21 +31,40 @@ serve(async (req) => {
         }
       )
     }
+
+    // Use RPC function to save the call transcript (handles conflict issues)
+    const { data: saveResult, error: rpcError } = await supabase.rpc(
+      'save_call_transcript',
+      { p_data: data }
+    )
     
-    // Insert the call transcript
-    const { data: insertData, error } = await supabase
-      .from('call_transcripts')
-      .insert(data)
-      .select()
-      .single()
-    
-    if (error) {
-      console.error('Error inserting transcript:', error)
+    if (rpcError) {
+      console.error('Error using save_call_transcript RPC:', rpcError)
+      
+      // Fallback to direct insert
+      const { data: insertData, error } = await supabase
+        .from('call_transcripts')
+        .insert(data)
+      
+      if (error) {
+        console.error('Fallback insert also failed:', error)
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
+            status: 500 
+          }
+        )
+      }
+      
       return new Response(
-        JSON.stringify({ error: error.message }),
+        JSON.stringify({ 
+          success: true, 
+          message: 'Call transcript saved successfully (fallback)',
+          id: data.id
+        }),
         { 
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
-          status: 500 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders } 
         }
       )
     }
@@ -54,7 +73,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Call transcript saved successfully',
-        id: insertData.id
+        id: saveResult?.id || data.id
       }),
       { 
         headers: { 'Content-Type': 'application/json', ...corsHeaders } 

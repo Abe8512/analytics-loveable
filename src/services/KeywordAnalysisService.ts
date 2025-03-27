@@ -15,7 +15,7 @@ export interface KeywordTrend {
   id: string;
   keyword: string;
   count: number;
-  category: "positive" | "neutral" | "negative";
+  category: "positive" | "neutral" | "negative" | "general";
   last_used: string;
   created_at: string;
   updated_at: string;
@@ -27,9 +27,9 @@ export class KeywordAnalysisService {
   public async getKeywordAnalysis(): Promise<KeywordAnalysis[]> {
     try {
       const { data, error } = await supabase
-        .from('keyword_analysis_view')
-        .select('*')
-        .order('occurrence_count', { ascending: false })
+        .from('keyword_trends')
+        .select('keyword, category, count, last_used')
+        .order('count', { ascending: false })
         .limit(50);
       
       if (error) {
@@ -37,7 +37,52 @@ export class KeywordAnalysisService {
         return [];
       }
       
-      return data as KeywordAnalysis[];
+      // Process raw data into the expected format
+      const keywordMap = new Map<string, KeywordAnalysis>();
+      
+      for (const item of data) {
+        const existing = keywordMap.get(item.keyword);
+        const sentimentValue = 
+          item.category === 'positive' ? 0.8 : 
+          item.category === 'negative' ? 0.2 : 0.5;
+          
+        if (existing) {
+          // Update existing entry
+          const newTotal = existing.occurrence_count + item.count;
+          const newSentiment = ((existing.avg_sentiment * existing.occurrence_count) + 
+                               (sentimentValue * item.count)) / newTotal;
+          
+          // Update first/last occurrence
+          const lastDate = new Date(item.last_used);
+          const existingLastDate = new Date(existing.last_occurrence || "");
+          const existingFirstDate = new Date(existing.first_occurrence || "");
+          
+          existing.occurrence_count = newTotal;
+          existing.avg_sentiment = newSentiment;
+          
+          if (!existing.first_occurrence || lastDate < existingFirstDate) {
+            existing.first_occurrence = item.last_used;
+          }
+          
+          if (!existing.last_occurrence || lastDate > existingLastDate) {
+            existing.last_occurrence = item.last_used;
+          }
+        } else {
+          // Create new entry
+          keywordMap.set(item.keyword, {
+            keyword: item.keyword,
+            occurrence_count: item.count,
+            avg_sentiment: sentimentValue,
+            first_occurrence: item.last_used,
+            last_occurrence: item.last_used
+          });
+        }
+      }
+      
+      // Convert Map to array and sort by occurrence count
+      return Array.from(keywordMap.values())
+        .sort((a, b) => b.occurrence_count - a.occurrence_count);
+      
     } catch (error) {
       console.error('Exception in getKeywordAnalysis:', error);
       return [];
@@ -60,7 +105,7 @@ export class KeywordAnalysisService {
       // Convert the category string to the expected enum type
       const typedData = data.map(item => ({
         ...item,
-        category: (item.category as "positive" | "neutral" | "negative") || "neutral"
+        category: (item.category as "positive" | "neutral" | "negative" | "general") || "neutral"
       }));
       
       return typedData;
@@ -129,23 +174,25 @@ export const useKeywordAnalysis = () => {
 export const useKeywordTrends = () => {
   const [keywordTrends, setKeywordTrends] = useState<KeywordTrend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { filters } = useSharedFilters();
   
+  const fetchKeywordTrends = async () => {
+    setLoading(true);
+    try {
+      const data = await keywordAnalysisService.getKeywordTrends();
+      setKeywordTrends(data);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error in fetchKeywordTrends:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   useEffect(() => {
-    const fetchKeywordTrends = async () => {
-      setLoading(true);
-      try {
-        const data = await keywordAnalysisService.getKeywordTrends();
-        setKeywordTrends(data as KeywordTrend[]);
-      } catch (error) {
-        console.error('Error in useKeywordTrends:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchKeywordTrends();
   }, [filters.dateRange]);
   
-  return { keywordTrends, loading };
+  return { keywordTrends, loading, lastUpdated, fetchKeywordTrends };
 };

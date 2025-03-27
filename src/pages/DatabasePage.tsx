@@ -1,7 +1,7 @@
 
 import React from 'react';
 import DatabaseDiagnostic from '@/components/DatabaseDiagnostic';
-import { DatabaseStatusDashboard } from '@/components/ui/DatabaseStatusDashboard';
+import DatabaseStatusDashboard from '@/components/ui/DatabaseStatusDashboard';
 import { realtimeService } from '@/services/RealtimeService';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';

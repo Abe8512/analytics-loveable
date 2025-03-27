@@ -3,14 +3,7 @@ import { supabase, generateAnonymousUserId } from "@/integrations/supabase/clien
 import { transcriptAnalysisService } from './TranscriptAnalysisService';
 import { WhisperTranscriptionResponse } from "@/services/WhisperService";
 import { v4 as uuidv4 } from 'uuid';
-import type { Database } from '@/integrations/supabase/types';
 import { errorHandler } from './ErrorHandlingService';
-
-// Define custom RPC function types to extend the built-in ones
-type CustomRPCFunctions = 
-  | "save_call_transcript" 
-  | "save_call" 
-  | "save_keyword_trend";
 
 export class DatabaseService {
   // Save transcript to call_transcripts table
@@ -79,7 +72,7 @@ export class DatabaseService {
         call_score: callScore,
         sentiment,
         keywords: keywords,  // Store in keywords field
-        key_phrases: keywords, // Also store in key_phrases field (the updated schema)
+        key_phrases: keywords, // Also store in key_phrases field
         transcript_segments: segmentsForStorage,
         created_at: timestamp
       };
@@ -91,55 +84,60 @@ export class DatabaseService {
         segmentsLength: segmentsForStorage ? JSON.parse(segmentsForStorage).length : 0
       });
       
-      // Use our new custom RPC function to avoid DISTINCT ORDER BY error
-      const { data: saveResult, error: saveError } = await (supabase.rpc as any)(
-        'save_call_transcript' as CustomRPCFunctions,
-        { p_data: transcriptData }
-      );
-      
-      if (saveError) {
-        console.error('Error using save_call_transcript RPC:', saveError);
-        errorHandler.handleError(saveError, 'DatabaseService.saveTranscriptToDatabase.saveRPC');
+      // Try using the edge function first
+      try {
+        const response = await supabase.functions.invoke('save-call-transcript', {
+          body: { data: transcriptData }
+        });
         
-        // Fallback to traditional insert without returning
+        if (response.error) {
+          throw new Error(response.error.message || 'Edge function error');
+        }
+        
+        console.log('Successfully saved transcript using edge function:', response.data);
+        return { id: transcriptId, error: null };
+      } catch (edgeFunctionError) {
+        console.error('Edge function error:', edgeFunctionError);
+        errorHandler.handleError(edgeFunctionError, 'DatabaseService.saveTranscriptToDatabase.edgeFunction');
+        
+        // Fallback to RPC function
         try {
-          const { error: fallbackError } = await supabase
-            .from('call_transcripts')
-            .insert(transcriptData);
-            
-          if (fallbackError) {
-            console.error('Fallback insert also failed:', fallbackError);
-            return { id: transcriptId, error: fallbackError };
+          console.log('Falling back to RPC function...');
+          const { data: rpcResult, error: rpcError } = await supabase.rpc(
+            'save_call_transcript',
+            { p_data: transcriptData }
+          );
+          
+          if (rpcError) {
+            console.error('RPC function error:', rpcError);
+            throw rpcError;
           }
-        } catch (fallbackError) {
-          console.error('Exception in fallback insert:', fallbackError);
-          return { id: transcriptId, error: fallbackError };
+          
+          console.log('Successfully saved transcript using RPC function:', rpcResult);
+          return { id: transcriptId, error: null };
+        } catch (rpcError) {
+          console.error('RPC fallback error:', rpcError);
+          errorHandler.handleError(rpcError, 'DatabaseService.saveTranscriptToDatabase.rpcFallback');
+          
+          // Final fallback to direct insert
+          try {
+            const { error: insertError } = await supabase
+              .from('call_transcripts')
+              .insert(transcriptData);
+              
+            if (insertError) {
+              console.error('Direct insert error:', insertError);
+              return { id: transcriptId, error: insertError };
+            }
+            
+            console.log('Successfully saved transcript using direct insert');
+            return { id: transcriptId, error: null };
+          } catch (insertError) {
+            console.error('Direct insert exception:', insertError);
+            return { id: transcriptId, error: insertError };
+          }
         }
       }
-      
-      console.log('Successfully inserted transcript with ID:', transcriptId);
-      
-      // Also update the calls table with similar data for real-time metrics
-      try {
-        await this.updateCallsTable({
-          id: transcriptId, // Use the same ID for calls as transcripts to link them
-          user_id: finalUserId,
-          duration: duration || 0,
-          sentiment_agent: sentiment === 'positive' ? 0.8 : sentiment === 'negative' ? 0.3 : 0.5,
-          sentiment_customer: sentiment === 'positive' ? 0.7 : sentiment === 'negative' ? 0.2 : 0.5,
-          talk_ratio_agent: 50 + (Math.random() * 20 - 10), // Random value between 40-60
-          talk_ratio_customer: 50 - (Math.random() * 20 - 10), // Random value between 40-60
-          key_phrases: keywords || [],
-          filename: file.name, // Add filename to calls table
-          created_at: timestamp // Use the same timestamp for consistency
-        });
-      } catch (callsError) {
-        // Non-critical error, just log it
-        console.error('Error updating calls table, but transcript was saved:', callsError);
-        errorHandler.handleError(callsError, 'DatabaseService.saveTranscriptToDatabase.updateCallsTable');
-      }
-      
-      return { id: transcriptId, error: null };
     } catch (error) {
       console.error('Error saving transcript:', error);
       errorHandler.handleError(error, 'DatabaseService.saveTranscriptToDatabase');
@@ -147,31 +145,8 @@ export class DatabaseService {
     }
   }
   
-  // Check if a column exists in a table
-  private async checkColumnExists(table: string, column: string): Promise<boolean> {
-    try {
-      const { data, error } = await supabase.rpc(
-        'check_column_exists',
-        {
-          p_table_name: table,
-          p_column_name: column
-        }
-      );
-      
-      if (error) {
-        console.error(`Error checking if column ${column} exists in ${table}:`, error);
-        return false;
-      }
-      
-      return !!data;
-    } catch (error) {
-      console.error(`Exception checking if column ${column} exists in ${table}:`, error);
-      return false;
-    }
-  }
-  
   // Update calls table for real-time metrics
-  private async updateCallsTable(callData: any): Promise<void> {
+  public async updateCallsTable(callData: any): Promise<void> {
     try {
       console.log('Updating calls table with data:', callData);
       
@@ -182,44 +157,39 @@ export class DatabaseService {
         key_phrases: Array.isArray(callData.key_phrases) ? callData.key_phrases : []
       };
       
-      // Use our new RPC function to save the call without returning data
-      const { data: saveResult, error: saveError } = await (supabase.rpc as any)(
-        'save_call' as CustomRPCFunctions,
-        { p_data: fixedCallData }
-      );
-      
-      if (saveError) {
-        console.error('Error using save_call RPC:', saveError);
-        errorHandler.handleError(saveError, 'DatabaseService.updateCallsTable.saveRPC');
+      // Try using RPC function first
+      try {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc(
+          'save_call',
+          { p_data: fixedCallData }
+        );
         
-        // Try a fallback approach using the edge function directly
-        try {
-          console.log('Using direct fetch for insert_call_no_return');
-          
-          // Direct fetch to the Edge Function with proper error handling and retry logic
-          const response = await fetch(
-            'https://yfufpcxkerovnijhodrr.supabase.co/functions/v1/insert_call_no_return',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''}`
-              },
-              body: JSON.stringify(fixedCallData)
-            }
-          );
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Error on edge function call:', errorText);
-          } else {
-            console.log('Successfully inserted into calls table using edge function');
-          }
-        } catch (fetchError) {
-          console.error('Error calling insert_call_no_return edge function:', fetchError);
+        if (rpcError) {
+          console.error('Error using save_call RPC:', rpcError);
+          throw rpcError;
         }
-      } else {
-        console.log('Successfully updated calls table using RPC function');
+        
+        console.log('Successfully updated calls table using RPC');
+      } catch (rpcError) {
+        console.error('RPC save_call error:', rpcError);
+        errorHandler.handleError(rpcError, 'DatabaseService.updateCallsTable.saveRPC');
+        
+        // Direct insert fallback
+        try {
+          const { error: insertError } = await supabase
+            .from('calls')
+            .insert(fixedCallData);
+            
+          if (insertError) {
+            console.error('Direct insert error:', insertError);
+            throw insertError;
+          }
+          
+          console.log('Successfully updated calls table using direct insert');
+        } catch (insertError) {
+          console.error('Direct insert error:', insertError);
+          errorHandler.handleError(insertError, 'DatabaseService.updateCallsTable.directInsert');
+        }
       }
     } catch (error) {
       console.error('Exception updating calls table:', error);
@@ -241,9 +211,9 @@ export class DatabaseService {
     // Add top keywords to trends
     for (const keyword of keywords.slice(0, 5)) {
       try {
-        // Use our new RPC function to save keyword trends properly
-        const { data, error } = await (supabase.rpc as any)(
-          'save_keyword_trend' as CustomRPCFunctions, 
+        // Use optimized RPC function
+        const { data, error } = await supabase.rpc(
+          'save_keyword_trend', 
           { 
             p_keyword: keyword as string,
             p_category: category,
@@ -255,54 +225,24 @@ export class DatabaseService {
           console.error(`Error saving keyword trend for ${keyword}:`, error);
           errorHandler.handleError(error, 'DatabaseService.updateKeywordTrends.saveRPC');
           
-          // Fallback to traditional approach
-          try {
-            // First check if exists
-            const { data: existingData, error: checkError } = await supabase
-              .from('keyword_trends')
-              .select('id')
-              .eq('keyword', keyword as string)
-              .eq('category', category)
-              .maybeSingle();
+          // Fallback to direct insert/update
+          const { error: fallbackError } = await supabase
+            .from('keyword_trends')
+            .insert({
+              keyword: keyword as string,
+              category,
+              count: 1,
+              last_used: new Date().toISOString()
+            })
+            .onConflict(['keyword', 'category'])
+            .merge({ 
+              count: supabase.rpc('increment', { count: 1 }),
+              last_used: new Date().toISOString()
+            });
             
-            if (checkError) {
-              console.error(`Error checking keyword trend for ${keyword}:`, checkError);
-              continue;
-            }
-            
-            if (existingData) {
-              // Use update without returning
-              const { error: updateError } = await supabase
-                .from('keyword_trends')
-                .update({ 
-                  count: (existingData as any).count + 1,
-                  last_used: new Date().toISOString()
-                })
-                .eq('id', existingData.id);
-                
-              if (updateError) {
-                console.error(`Error updating keyword trend for ${keyword}:`, updateError);
-              }
-            } else {
-              // Use insert without returning
-              const { error: insertError } = await supabase
-                .from('keyword_trends')
-                .insert({
-                  keyword: keyword as string,
-                  category,
-                  count: 1,
-                  last_used: new Date().toISOString()
-                });
-                
-              if (insertError) {
-                console.error(`Error inserting keyword trend for ${keyword}:`, insertError);
-              }
-            }
-          } catch (fallbackError) {
-            console.error(`Fallback approach also failed for ${keyword}:`, fallbackError);
+          if (fallbackError) {
+            console.error(`Error inserting keyword trend for ${keyword}:`, fallbackError);
           }
-        } else {
-          console.log(`Successfully updated keyword trend for ${keyword}`);
         }
       } catch (error) {
         console.error(`Error updating keyword trend for ${keyword}:`, error);
@@ -326,7 +266,7 @@ export class DatabaseService {
         recorded_at: new Date().toISOString()
       };
       
-      // Use insert without returning to avoid DISTINCT ORDER BY error
+      // Insert directly (no need for conflict handling here)
       const { error } = await supabase
         .from('sentiment_trends')
         .insert(trendData);

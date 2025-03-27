@@ -1,6 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 
 // Type definition for table info
@@ -9,6 +8,7 @@ interface TableInfo {
   columnCount: number;
   rowCount: number;
   hasRLS: boolean;
+  hasGinIndex: boolean;
   rlsPolicies: string[];
 }
 
@@ -37,28 +37,6 @@ interface DiagnosticResults {
  * Service for diagnosing database functionality and issues
  */
 export class DatabaseDiagnosticService {
-  // List of known tables
-  private knownTables = [
-    'call_transcripts',
-    'calls',
-    'keyword_trends',
-    'sentiment_trends',
-    'team_members',
-    'call_metrics_summary',
-    'rep_metrics_summary',
-    'schema_migrations'
-  ];
-  
-  // List of known functions
-  private knownFunctions = [
-    'trigger_set_timestamp',
-    'update_metrics_after_transcript_insert',
-    'update_keyword_trends',
-    'update_sentiment_trends',
-    'update_call_metrics_summary',
-    'update_rep_metrics_on_change'
-  ];
-
   /**
    * Run a comprehensive database diagnostic
    */
@@ -80,13 +58,13 @@ export class DatabaseDiagnosticService {
       await this.checkTables(results);
       
       // Check functions
-      await this.checkRpcFunctions(results);
+      await this.checkFunctions(results);
       
       // Check storage
       await this.checkStorage(results);
       
-      // Check triggers - temporarily skipped as we can't directly query triggers table
-      // Instead we'll use the function count as a proxy for database health
+      // Check triggers
+      await this.checkTriggers(results);
       
       // Verify upload path
       await this.testUploadPath(results);
@@ -105,46 +83,102 @@ export class DatabaseDiagnosticService {
    */
   private async checkTables(results: DiagnosticResults): Promise<void> {
     try {
-      // Check each table that we know should exist
-      for (const tableName of this.knownTables) {
-        try {
-          // Get row count with a direct query
-          const { count, error: countError } = await supabase
-            .from(tableName)
-            .select('*', { count: 'exact', head: true });
-          
-          if (countError) {
-            results.errors.push(`Error counting rows for ${tableName}: ${countError.message}`);
-            continue;
-          }
-          
-          // Estimate the column count by fetching a row and counting its attributes
-          const { data: sampleRow, error: sampleError } = await supabase
-            .from(tableName)
-            .select('*')
-            .limit(1)
-            .maybeSingle();
-          
-          if (sampleError && !sampleError.message.includes('No rows found')) {
-            results.errors.push(`Error fetching sample from ${tableName}: ${sampleError.message}`);
-            continue;
-          }
-          
-          const columnCount = sampleRow ? Object.keys(sampleRow).length : 0;
-          
-          // We can't easily check RLS status via API, so we assume RLS is enabled
-          // since we enabled it in our migration
-          results.tables.push({
-            tableName,
-            columnCount,
-            rowCount: count || 0,
-            hasRLS: true, 
-            rlsPolicies: ['Allow public access policy'] // We can't fetch policy names easily
-          });
-        } catch (tableError) {
-          console.error(`Error checking table ${tableName}:`, tableError);
-          results.errors.push(`Error checking table ${tableName}: ${tableError instanceof Error ? tableError.message : String(tableError)}`);
+      // Get list of all tables
+      const { data: tablesInfo, error: tablesError } = await supabase.rpc(
+        'execute_sql_with_results',
+        { 
+          query_text: `
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+          `
         }
+      );
+      
+      if (tablesError) {
+        results.errors.push(`Error fetching tables: ${tablesError.message}`);
+        return;
+      }
+      
+      // Check each table 
+      for (const tableObj of tablesInfo || []) {
+        const tableName = tableObj.table_name;
+        
+        // Get column count
+        const { data: columnsInfo, error: columnsError } = await supabase.rpc(
+          'execute_sql_with_results',
+          { 
+            query_text: `
+              SELECT column_name
+              FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = '${tableName}'
+            `
+          }
+        );
+          
+        if (columnsError) {
+          results.errors.push(`Error fetching columns for ${tableName}: ${columnsError.message}`);
+          continue;
+        }
+        
+        // Get row count
+        const { data: countInfo, error: countError } = await supabase.rpc(
+          'execute_sql_with_results',
+          { 
+            query_text: `SELECT COUNT(*) AS count FROM ${tableName}`
+          }
+        );
+          
+        if (countError) {
+          results.errors.push(`Error counting rows for ${tableName}: ${countError.message}`);
+        }
+        
+        // Check RLS policies
+        const { data: policiesInfo, error: policiesError } = await supabase.rpc(
+          'execute_sql_with_results',
+          { 
+            query_text: `
+              SELECT policyname
+              FROM pg_policies
+              WHERE schemaname = 'public' AND tablename = '${tableName}'
+            `
+          }
+        );
+          
+        if (policiesError) {
+          results.errors.push(`Error fetching policies for ${tableName}: ${policiesError.message}`);
+        }
+        
+        // Check for GIN indexes
+        const { data: indexInfo, error: indexError } = await supabase.rpc(
+          'execute_sql_with_results',
+          { 
+            query_text: `
+              SELECT indexname, indexdef
+              FROM pg_indexes
+              WHERE schemaname = 'public' AND tablename = '${tableName}'
+            `
+          }
+        );
+          
+        if (indexError) {
+          results.errors.push(`Error fetching indexes for ${tableName}: ${indexError.message}`);
+        }
+        
+        // Check if any of the indexes are GIN indexes
+        const hasGinIndex = indexInfo ? indexInfo.some((idx: any) => 
+          idx.indexdef && idx.indexdef.includes('USING gin')
+        ) : false;
+        
+        // Add table info
+        results.tables.push({
+          tableName,
+          columnCount: (columnsInfo?.length || 0),
+          rowCount: countInfo?.[0]?.count || 0,
+          hasRLS: (policiesInfo?.length || 0) > 0,
+          hasGinIndex,
+          rlsPolicies: policiesInfo?.map((p: any) => p.policyname) || []
+        });
       }
     } catch (error) {
       console.error('Error checking tables:', error);
@@ -153,64 +187,63 @@ export class DatabaseDiagnosticService {
   }
   
   /**
-   * Check RPC functions
+   * Check database functions, especially RPC functions
    */
-  private async checkRpcFunctions(results: DiagnosticResults): Promise<void> {
+  private async checkFunctions(results: DiagnosticResults): Promise<void> {
     try {
-      // Since we can't directly query information_schema.routines, we'll check for known functions
-      // by trying to call them or checking for their existence
-      
-      // First, check if we can call check_column_exists RPC
-      let columnExistsWorks = false;
-      try {
-        const { data: columnExists, error: columnError } = await supabase.rpc(
-          'check_column_exists',
-          { p_table_name: 'calls', p_column_name: 'id' }
-        );
+      // Query for all functions in the public schema
+      const { data: functionsInfo, error: functionsError } = await supabase.rpc(
+        'execute_sql_with_results',
+        { 
+          query_text: `
+            SELECT routine_name, data_type, routine_definition
+            FROM information_schema.routines
+            WHERE routine_schema = 'public' AND routine_type = 'FUNCTION'
+          `
+        }
+      );
         
-        columnExistsWorks = !columnError;
-      } catch (checkError) {
-        console.log('check_column_exists is not available:', checkError);
+      if (functionsError) {
+        results.errors.push(`Error fetching functions: ${functionsError.message}`);
+        return;
       }
       
-      // Add the functions we know about
-      for (const funcName of this.knownFunctions) {
-        let isWorking = true; // Assume trigger functions are working
+      // Check key functions
+      for (const funcObj of functionsInfo || []) {
+        let isWorking = false;
+        
+        // Test some core functions
+        if (funcObj.routine_name === 'check_column_exists') {
+          const { data, error } = await supabase.rpc(
+            'check_column_exists',
+            { 
+              p_table_name: 'calls', 
+              p_column_name: 'id' 
+            }
+          );
+          isWorking = !error && data === true;
+        } 
+        else if (funcObj.routine_name === 'check_table_in_publication') {
+          const { data, error } = await supabase.rpc(
+            'check_table_in_publication',
+            { 
+              table_name: 'calls',
+              publication_name: 'supabase_realtime'
+            }
+          );
+          isWorking = !error;
+        }
+        else if (funcObj.routine_name === 'check_connection') {
+          const { data, error } = await supabase.rpc('check_connection');
+          isWorking = !error && data?.connected === true;
+        }
         
         results.functions.push({
-          functionName: funcName,
-          functionArgs: '',
-          description: 'Database function for data processing',
+          functionName: funcObj.routine_name,
+          functionArgs: funcObj.data_type || '',
+          description: funcObj.routine_definition?.substring(0, 100) || 'No description available',
           isWorking
         });
-      }
-      
-      // Add the check_column_exists function if it's available
-      if (columnExistsWorks) {
-        results.functions.push({
-          functionName: 'check_column_exists',
-          functionArgs: 'table_name text, column_name text',
-          description: 'Utility function to check if a column exists',
-          isWorking: true
-        });
-      }
-      
-      // If we have a diagnose_database function, add it
-      try {
-        const { data: diagResult, error: diagError } = await supabase.rpc(
-          'diagnose_database'
-        );
-        
-        if (!diagError) {
-          results.functions.push({
-            functionName: 'diagnose_database',
-            functionArgs: '',
-            description: 'Comprehensive database diagnostic function',
-            isWorking: true
-          });
-        }
-      } catch (diagError) {
-        console.log('diagnose_database is not available');
       }
     } catch (error) {
       console.error('Error checking functions:', error);
@@ -257,6 +290,35 @@ export class DatabaseDiagnosticService {
   }
   
   /**
+   * Check database triggers
+   */
+  private async checkTriggers(results: DiagnosticResults): Promise<void> {
+    try {
+      // Query for triggers
+      const { data: triggersInfo, error: triggersError } = await supabase.rpc(
+        'execute_sql_with_results',
+        { 
+          query_text: `
+            SELECT trigger_name, event_manipulation, event_object_table, action_statement
+            FROM information_schema.triggers
+            WHERE trigger_schema = 'public'
+          `
+        }
+      );
+        
+      if (triggersError) {
+        results.errors.push(`Error fetching triggers: ${triggersError.message}`);
+        return;
+      }
+      
+      results.triggerInfo = triggersInfo || [];
+    } catch (error) {
+      console.error('Error checking triggers:', error);
+      results.errors.push(`Error checking triggers: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  /**
    * Test the complete upload path with a small test
    */
   private async testUploadPath(results: DiagnosticResults): Promise<void> {
@@ -272,70 +334,46 @@ export class DatabaseDiagnosticService {
         created_at: new Date().toISOString()
       };
       
-      // Try to save a call transcript directly
-      const { error: insertError } = await supabase
-        .from('call_transcripts')
-        .insert(dummyData);
+      // Try to save call transcript
+      const { data: saveResult, error: saveError } = await supabase.functions.invoke('save-call-transcript', {
+        body: { data: dummyData }
+      });
+      
+      if (saveError) {
+        results.errors.push(`Error testing save_call_transcript edge function: ${saveError.message}`);
         
-      if (insertError) {
-        results.errors.push(`Error inserting test transcript: ${insertError.message}`);
-        
-        // Try RPC call if direct insert fails
+        // Try direct insert as fallback
         try {
-          const { data: rpcResult, error: rpcError } = await supabase.rpc(
-            'save_call_transcript', 
-            { p_data: dummyData }
-          );
+          const { data: insertResult, error: insertError } = await supabase
+            .from('call_transcripts')
+            .insert(dummyData)
+            .select();
           
-          if (rpcError) {
-            results.errors.push(`Error with RPC fallback: ${rpcError.message}`);
-            results.uploadPathWorkingCorrectly = false;
+          if (insertError) {
+            results.errors.push(`Error with direct insert fallback: ${insertError.message}`);
           } else {
             results.uploadPathWorkingCorrectly = true;
-            console.log('RPC fallback was successful:', rpcResult);
+            console.log('Direct insert fallback was successful:', insertResult);
           }
-        } catch (rpcCatchError) {
-          results.errors.push(`RPC fallback exception: ${rpcCatchError instanceof Error ? rpcCatchError.message : String(rpcCatchError)}`);
-          results.uploadPathWorkingCorrectly = false;
+        } catch (insertCatchError) {
+          results.errors.push(`Direct insert fallback exception: ${insertCatchError instanceof Error ? insertCatchError.message : String(insertCatchError)}`);
         }
         
         return;
       }
       
-      // If we got here, direct insert worked - check if we generated a call record too
-      const { data: callData, error: callCheckError } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('id', testId)
-        .maybeSingle();
-        
-      if (callCheckError) {
-        results.errors.push(`Error checking for generated call: ${callCheckError.message}`);
-        results.uploadPathWorkingCorrectly = false;
-      } else if (callData) {
-        // Great! The trigger worked and created a call record
+      // Check if we got a success response
+      if (saveResult && saveResult.success) {
         results.uploadPathWorkingCorrectly = true;
-      } else {
-        results.errors.push('Transcript was inserted but trigger did not generate a call record');
-        results.uploadPathWorkingCorrectly = false;
-      }
-      
-      // Clean up the test record
-      try {
+        
+        // Try to clean up the test record
         await supabase
           .from('call_transcripts')
           .delete()
           .eq('id', testId);
-          
-        await supabase
-          .from('calls')
-          .delete()
-          .eq('id', testId);
-      } catch (cleanupError) {
-        // Non-critical error, just log it
-        console.error('Error cleaning up test records:', cleanupError);
+      } else {
+        results.errors.push('save_call_transcript did not return a success result');
       }
-      
     } catch (error) {
       console.error('Error testing upload path:', error);
       results.errors.push(`Error testing upload path: ${error instanceof Error ? error.message : String(error)}`);
@@ -353,6 +391,7 @@ export class DatabaseDiagnosticService {
     report += `- Functions: ${results.functions.length}\n`;
     report += `- Storage Buckets: ${results.storage.buckets.length}\n`;
     report += `- Files in Storage: ${results.storage.fileCount}\n`;
+    report += `- Triggers: ${results.triggerInfo.length}\n`;
     report += `- Upload Path Working: ${results.uploadPathWorkingCorrectly ? '✅' : '❌'}\n`;
     report += `- Errors Found: ${results.errors.length}\n\n`;
     
@@ -368,22 +407,25 @@ export class DatabaseDiagnosticService {
     results.tables.forEach(table => {
       report += `- ${table.tableName}: ${table.columnCount} columns, ${table.rowCount} rows`;
       if (table.hasRLS) {
-        report += `, RLS Enabled`;
+        report += `, RLS Enabled (${table.rlsPolicies.length} policies)`;
       } else {
         report += `, No RLS`;
+      }
+      if (table.hasGinIndex) {
+        report += `, GIN Index Enabled`;
       }
       report += `\n`;
     });
     report += `\n`;
     
     report += `## Upload Functions Status\n`;
-    const uploadFunctions = ['save_call_transcript', 'update_metrics_after_transcript_insert', 'update_keyword_trends'];
+    const uploadFunctions = ['save_call_transcript', 'save_call', 'save_keyword_trend'];
     uploadFunctions.forEach(funcName => {
       const func = results.functions.find(f => f.functionName === funcName);
       if (func) {
         report += `- ${funcName}: ${func.isWorking ? '✅ Working' : '❌ Not Working'}\n`;
       } else {
-        report += `- ${funcName}: ❓ Not Found\n`;
+        report += `- ${funcName}: ❌ Not Found\n`;
       }
     });
     

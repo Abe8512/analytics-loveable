@@ -1,51 +1,57 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
+interface RealtimeEnableResult {
+  table: string;
+  success: boolean;
+  error?: any;
+}
+
 /**
- * Service for enabling realtime functionality in Supabase tables
+ * Service for managing realtime functionality in Supabase tables
  */
 export const realtimeService = {
   /**
    * Enable realtime functionality for a table
    */
-  enableRealtimeForTable: async (tableName: string) => {
+  enableRealtimeForTable: async (tableName: string): Promise<RealtimeEnableResult> => {
     try {
       console.log(`Enabling realtime for table: ${tableName}`);
       
-      // Set the table to REPLICA IDENTITY FULL directly
-      const { data, error } = await supabase.rpc(
+      // Set the table to REPLICA IDENTITY FULL to ensure complete row data is captured
+      const { data: replicaData, error: replicaError } = await supabase.rpc(
         'execute_sql',
         { query_text: `ALTER TABLE ${tableName} REPLICA IDENTITY FULL` }
       );
       
-      if (error) {
-        console.error(`Error setting replica identity for ${tableName}:`, error);
-        return { table: tableName, success: false, error };
+      if (replicaError) {
+        console.error(`Error setting replica identity for ${tableName}:`, replicaError);
+        return { table: tableName, success: false, error: replicaError };
       }
       
-      // Add the table to the realtime publication
-      const { data: pubData, error: pubError } = await supabase.rpc(
-        'execute_sql',
+      // Add the table to the realtime publication if it's not already there
+      const { data: checkResult, error: checkError } = await supabase.rpc(
+        'check_table_in_publication', 
         { 
-          query_text: `
-            DO $$
-            BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-                CREATE PUBLICATION supabase_realtime;
-              END IF;
-              
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_publication_tables 
-                WHERE pubname = 'supabase_realtime' 
-                AND schemaname = 'public' 
-                AND tablename = '${tableName}'
-              ) THEN
-                ALTER PUBLICATION supabase_realtime ADD TABLE ${tableName};
-              END IF;
-            END
-            $$;
-          `
+          table_name: tableName,
+          publication_name: 'supabase_realtime'
         }
+      );
+      
+      if (checkError) {
+        console.error(`Error checking publication status for ${tableName}:`, checkError);
+        return { table: tableName, success: false, error: checkError };
+      }
+      
+      // If the table is already in the publication, we're done
+      if (checkResult === true) {
+        console.log(`Table ${tableName} is already in the realtime publication`);
+        return { table: tableName, success: true };
+      }
+      
+      // Otherwise, add it to the publication
+      const { data: pubData, error: pubError } = await supabase.rpc(
+        'add_table_to_realtime_publication',
+        { table_name: tableName }
       );
       
       if (pubError) {
@@ -64,51 +70,48 @@ export const realtimeService = {
   /**
    * Check if a table has realtime enabled
    */
-  checkRealtimeEnabled: async (tableName: string) => {
+  checkTableRealtimeStatus: async (tableName: string): Promise<boolean> => {
     try {
-      // Query to check if the table is in the realtime publication
+      // Check if the table is in the realtime publication
       const { data, error } = await supabase.rpc(
-        'execute_sql_with_results',
+        'check_table_in_publication', 
         { 
-          query_text: `
-            SELECT EXISTS (
-              SELECT 1 FROM pg_publication_tables
-              WHERE pubname = 'supabase_realtime'
-              AND schemaname = 'public'
-              AND tablename = '${tableName}'
-            ) as in_publication
-          `
+          table_name: tableName,
+          publication_name: 'supabase_realtime'
         }
       );
       
       if (error) {
         console.error(`Error checking realtime status for ${tableName}:`, error);
-        return { enabled: false, error };
+        return false;
       }
       
-      const result = data && data[0] ? data[0].in_publication : false;
-      return { enabled: !!result };
+      return !!data;
     } catch (error) {
       console.error(`Failed to check realtime status for ${tableName}:`, error);
-      return { enabled: false, error };
+      return false;
     }
   },
   
   /**
    * Enable realtime for all important tables
    */
-  enableRealtimeForAllTables: async () => {
+  enableRealtimeForAllTables: async (): Promise<RealtimeEnableResult[]> => {
     const tables = [
       'call_transcripts',
       'calls',
       'keyword_trends', 
-      'sentiment_trends'
+      'sentiment_trends',
+      'team_members',
+      'call_metrics_summary',
+      'rep_metrics_summary'
     ];
     
-    const results = [];
+    const results: RealtimeEnableResult[] = [];
+    
     for (const table of tables) {
       const result = await realtimeService.enableRealtimeForTable(table);
-      results.push({ table, ...result });
+      results.push(result);
     }
     
     return results;
