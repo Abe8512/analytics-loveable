@@ -84,40 +84,8 @@ const DatabaseStatusDashboard = () => {
       
       setTables(tableStatuses);
       
-      // Check indexes using SQL function rather than direct query
-      try {
-        const indexSQL = `
-          SELECT i.relname AS index_name, 
-                 t.relname AS table_name,
-                 am.amname AS index_type
-          FROM pg_index idx
-          JOIN pg_class i ON i.oid = idx.indexrelid
-          JOIN pg_class t ON t.oid = idx.indrelid
-          JOIN pg_am am ON am.oid = i.relam
-          WHERE t.relname IN ('call_transcripts', 'calls', 'keyword_trends', 'sentiment_trends')
-          ORDER BY t.relname, i.relname;
-        `;
-        
-        const { data: indexData, error: indexError } = await supabase.rpc(
-          'execute_sql_with_results',
-          { query_text: indexSQL }
-        );
-        
-        if (indexError) {
-          console.error('Error fetching indexes:', indexError);
-        } else if (Array.isArray(indexData)) {
-          const formattedIndexes: IndexStatus[] = indexData.map((idx: any) => ({
-            name: idx.index_name,
-            table: idx.table_name,
-            exists: true,
-            type: idx.index_type
-          }));
-          
-          setIndexes(formattedIndexes);
-        }
-      } catch (indexError) {
-        console.error('Error checking indexes:', indexError);
-      }
+      // For now, skip the indexes check since it depends on a stored procedure that may not exist
+      setIndexes([]);
     } catch (error) {
       console.error('Database check error:', error);
     } finally {
@@ -179,24 +147,6 @@ const DatabaseStatusDashboard = () => {
                   )}
                 </div>
               ))}
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">GIN Indexes:</h4>
-            <div className="max-h-40 overflow-y-auto space-y-1">
-              {indexes.filter(idx => idx.type === 'gin').map(index => (
-                <div key={index.name} className="flex items-center justify-between text-xs p-1.5 bg-muted/30 rounded">
-                  <span className="font-mono">{index.name}</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-muted-foreground">{index.table}</span>
-                    <Badge variant="outline" className="text-xs">{index.type}</Badge>
-                  </div>
-                </div>
-              ))}
-              {indexes.filter(idx => idx.type === 'gin').length === 0 && (
-                <p className="text-xs text-muted-foreground">No GIN indexes found</p>
-              )}
             </div>
           </div>
           

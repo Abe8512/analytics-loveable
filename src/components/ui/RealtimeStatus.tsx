@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { realtimeService } from '@/services/RealtimeService';
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface RealtimeTableStatus {
   name: string;
@@ -26,14 +26,29 @@ const RealtimeStatus = () => {
     setIsChecking(true);
     
     try {
+      // Direct approach to check realtime status
       const statuses: RealtimeTableStatus[] = [];
       
       for (const table of coreTables) {
-        const { enabled } = await realtimeService.checkRealtimeEnabled(table);
-        statuses.push({
-          name: table,
-          enabled
-        });
+        try {
+          const { data, error } = await supabase
+            .from('pg_publication_tables')
+            .select('*')
+            .eq('tablename', table)
+            .eq('pubname', 'supabase_realtime')
+            .maybeSingle();
+          
+          statuses.push({
+            name: table,
+            enabled: !error && !!data
+          });
+        } catch (err) {
+          // Fallback to assume it's not enabled if we can't check
+          statuses.push({
+            name: table,
+            enabled: false
+          });
+        }
       }
       
       setTableStatus(statuses);
@@ -44,12 +59,43 @@ const RealtimeStatus = () => {
     }
   };
   
+  const enableRealtime = async (tableName: string) => {
+    try {
+      // Try to enable realtime with a direct SQL approach
+      const { error } = await supabase.rpc('add_table_to_realtime_publication', {
+        table_name: tableName
+      });
+      
+      if (error) {
+        console.error(`Error enabling realtime for ${tableName}:`, error);
+        toast.error(`Failed to enable realtime for ${tableName}`);
+        return false;
+      }
+      
+      toast.success(`Enabled realtime for ${tableName}`);
+      return true;
+    } catch (error) {
+      console.error(`Error enabling realtime for ${tableName}:`, error);
+      return false;
+    }
+  };
+  
   const handleEnableRealtime = async () => {
     setIsEnabling(true);
     toast.info("Enabling realtime for all tables...");
     
     try {
-      const results = await realtimeService.enableRealtimeForAllTables();
+      const results = [];
+      
+      // Try to enable for each table that isn't already enabled
+      for (const table of tableStatus) {
+        if (!table.enabled) {
+          const success = await enableRealtime(table.name);
+          results.push({ table: table.name, success });
+        } else {
+          results.push({ table: table.name, success: true });
+        }
+      }
       
       const successful = results.filter(r => r.success).length;
       const failed = results.filter(r => !r.success).length;

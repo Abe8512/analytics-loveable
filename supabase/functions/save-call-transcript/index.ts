@@ -52,11 +52,14 @@ serve(async (req) => {
     const duration = typeof data.duration === 'number' ? data.duration : 0
     const callScore = typeof data.call_score === 'number' ? data.call_score : 50
 
-    // Direct insert to the call_transcripts table
+    // Generate a unique ID if not provided
+    const transcriptId = data.id || crypto.randomUUID()
+    
+    // Direct insert to the call_transcripts table with proper handling of unique constraint
     const { data: insertData, error } = await supabase
       .from('call_transcripts')
       .insert({
-        id: data.id || undefined,
+        id: transcriptId,
         user_id: data.user_id || 'anonymous',
         text: cleanText,
         filename: data.filename || 'unnamed_recording.mp3',
@@ -83,7 +86,7 @@ serve(async (req) => {
     }
     
     console.log('Call transcript saved successfully, ID:', 
-      insertData && insertData.length > 0 ? insertData[0].id : data.id)
+      insertData && insertData.length > 0 ? insertData[0].id : transcriptId)
     
     // The trigger function will automatically create a corresponding call record
     
@@ -91,7 +94,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Call transcript saved successfully',
-        id: insertData && insertData.length > 0 ? insertData[0].id : data.id
+        id: insertData && insertData.length > 0 ? insertData[0].id : transcriptId
       }),
       { 
         headers: { 'Content-Type': 'application/json', ...corsHeaders } 

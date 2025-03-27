@@ -56,16 +56,23 @@ export class DatabaseDiagnosticService {
   
   async getTableMetadata(): Promise<any[]> {
     try {
-      // We'll use a raw SQL query through RPC instead of directly querying information_schema
-      const { data, error } = await supabase
-        .rpc('get_table_metadata');
+      // Get a list of tables
+      const { data: tables, error: tablesError } = await supabase
+        .from('information_schema.tables')
+        .select('table_name')
+        .eq('table_schema', 'public');
       
-      if (error) {
-        console.error('Error getting table metadata:', error);
+      if (tablesError) {
+        console.error('Error getting table metadata:', tablesError);
         return [];
       }
       
-      return data as any[] || [];
+      // If we found tables, map them into a more useful format
+      return (tables || []).map((table: any) => ({
+        table_name: table.table_name,
+        table_type: 'BASE TABLE',
+        table_schema: 'public'
+      }));
     } catch (error) {
       console.error('Exception getting table metadata:', error);
       errorHandler.handleError(error, 'DatabaseDiagnosticService.getTableMetadata');
@@ -75,9 +82,13 @@ export class DatabaseDiagnosticService {
   
   async getTableColumns(tableName: string): Promise<DatabaseColumn[]> {
     try {
-      // Use RPC call to get columns for a table
+      // Query directly for columns
       const { data, error } = await supabase
-        .rpc('get_table_columns', { table_name: tableName });
+        .from('information_schema.columns')
+        .select('column_name, data_type, is_nullable, column_default')
+        .eq('table_schema', 'public')
+        .eq('table_name', tableName)
+        .order('ordinal_position');
       
       if (error) {
         console.error(`Error getting columns for table ${tableName}:`, error);
@@ -98,19 +109,21 @@ export class DatabaseDiagnosticService {
   
   async checkColumnExists(tableName: string, columnName: string): Promise<boolean> {
     try {
-      // Use RPC call to check if column exists
+      // Query directly for the column
       const { data, error } = await supabase
-        .rpc('check_column_exists', { 
-          p_table_name: tableName,
-          p_column_name: columnName
-        });
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_schema', 'public')
+        .eq('table_name', tableName)
+        .eq('column_name', columnName)
+        .maybeSingle();
       
       if (error) {
         console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, error);
         return false;
       }
       
-      return data as boolean;
+      return !!data;
     } catch (error) {
       console.error(`Exception checking if column ${columnName} exists in table ${tableName}:`, error);
       errorHandler.handleError(error, 'DatabaseDiagnosticService.checkColumnExists');
@@ -123,7 +136,7 @@ export class DatabaseDiagnosticService {
       // Check connection
       const connectionCheck = await this.checkConnection();
       
-      // Get table information
+      // Get table names
       const tableMetadata = await this.getTableMetadata();
       
       // Build detailed table info

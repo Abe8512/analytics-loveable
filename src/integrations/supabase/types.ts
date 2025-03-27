@@ -648,6 +648,12 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      check_table_exists: {
+        Args: {
+          table_name: string
+        }
+        Returns: boolean
+      }
       check_table_in_publication: {
         Args: {
           table_name: string
@@ -809,6 +815,18 @@ export type Database = {
             }
             Returns: Json
           }
+      get_table_columns: {
+        Args: {
+          table_name: string
+        }
+        Returns: Json
+      }
+      get_table_metadata: {
+        Args: {
+          table_name: string
+        }
+        Returns: Json
+      }
       query: {
         Args: {
           sql_query: string

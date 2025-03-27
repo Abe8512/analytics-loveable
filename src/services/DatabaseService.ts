@@ -53,10 +53,13 @@ export class DatabaseService {
       const duration = typeof input.duration === 'number' ? input.duration : 0;
       const callScore = typeof input.call_score === 'number' ? input.call_score : 50;
       
+      // Generate a transcript ID
+      const transcriptId = uuidv4();
+      
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
-          id: uuidv4(),
+          id: transcriptId,
           user_id: input.user_id || 'anonymous',
           call_id: input.call_id,
           filename: input.filename,
@@ -76,27 +79,34 @@ export class DatabaseService {
         console.error('Error saving call transcript:', error);
         
         // Try the edge function as a fallback
-        const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
-          body: { 
-            data: {
-              id: uuidv4(),
-              user_id: input.user_id || 'anonymous',
-              text: input.text,
-              filename: input.filename,
-              duration: duration,
-              sentiment: input.sentiment || 'neutral',
-              keywords: input.keywords || [],
-              call_score: callScore,
-              created_at: new Date().toISOString()
+        try {
+          const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
+            body: { 
+              data: {
+                id: transcriptId,
+                user_id: input.user_id || 'anonymous',
+                text: input.text,
+                filename: input.filename,
+                duration: duration,
+                sentiment: input.sentiment || 'neutral',
+                keywords: input.keywords || [],
+                key_phrases: input.key_phrases || [],
+                call_score: callScore,
+                metadata: input.metadata || {},
+                created_at: new Date().toISOString()
+              }
             }
+          });
+          
+          if (edgeFunctionResult.error) {
+            throw new Error(`Edge function error: ${edgeFunctionResult.error.message}`);
           }
-        });
-        
-        if (edgeFunctionResult.error) {
-          throw new Error(`Edge function error: ${edgeFunctionResult.error.message}`);
+          
+          return edgeFunctionResult.data;
+        } catch (edgeFunctionError) {
+          console.error('Edge function also failed:', edgeFunctionError);
+          throw error;
         }
-        
-        return edgeFunctionResult.data;
       }
       
       return data;
