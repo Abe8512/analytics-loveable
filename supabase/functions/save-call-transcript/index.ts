@@ -57,7 +57,7 @@ serve(async (req) => {
     // Generate a unique ID if not provided
     const transcriptId = data.id || crypto.randomUUID()
     
-    // Simple insert without ON CONFLICT - completely removed since it's causing errors
+    // Simple insert - no ON CONFLICT clause since we now have proper constraints
     const { data: insertData, error } = await supabase
       .from('call_transcripts')
       .insert({
@@ -86,16 +86,13 @@ serve(async (req) => {
       )
     }
     
-    console.log('Call transcript saved successfully, ID:', 
-      insertData && insertData.length > 0 ? insertData[0].id : transcriptId)
-    
-    // The trigger function will automatically create a corresponding call record
+    console.log('Call transcript saved successfully, ID:', transcriptId)
     
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: 'Call transcript saved successfully',
-        id: insertData && insertData.length > 0 ? insertData[0].id : transcriptId
+        id: transcriptId
       }),
       { 
         headers: { 'Content-Type': 'application/json', ...corsHeaders } 
@@ -107,7 +104,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: err.message || 'Unknown error occurred' 
+        error: err instanceof Error ? err.message : 'Unknown error occurred' 
       }),
       { 
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
