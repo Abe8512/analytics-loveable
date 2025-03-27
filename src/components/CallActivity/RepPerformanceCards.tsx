@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { BadgeDelta } from '@/components/ui/badge';
+import { BadgeDelta } from '@/components/ui/badge-delta';
 import { useRepMetrics } from '@/services/RealTimeMetricsService';
 
 const RepPerformanceCards = () => {

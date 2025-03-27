@@ -11,7 +11,11 @@ export const useEventListener = (eventType: EventType | string, callback: (paylo
 
   useEffect(() => {
     const removeListener = addEventListener(eventType as EventType, memoizedCallback);
-    return removeListener;
+    return () => {
+      if (removeListener) {
+        removeListener();
+      }
+    };
   }, [eventType, memoizedCallback]);
 };
 

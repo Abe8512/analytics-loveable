@@ -89,13 +89,14 @@ const storeTeamMembers = (teamMembers: TeamMember[]): void => {
 };
 
 // Add a team member (to Supabase if available, otherwise localStorage)
-const addTeamMember = async (member: Omit<TeamMember, 'id'>): Promise<TeamMember | null> => {
+const addTeamMember = async (member: Omit<Partial<TeamMember>, 'id'>): Promise<TeamMember | null> => {
   try {
     const newMember: TeamMember = {
       ...member,
       id: uuidv4(),
       user_id: member.user_id || uuidv4(), // Ensure user_id is set
-      email: member.email || `${member.name.toLowerCase().replace(' ', '.')}@example.com` // Ensure email is set
+      email: member.email || `${member.name?.toLowerCase().replace(' ', '.')}@example.com` || '', // Ensure email is set
+      name: member.name || '',
     };
     
     const tableMissing = await isTeamMembersTableMissing();
@@ -114,7 +115,7 @@ const addTeamMember = async (member: Omit<TeamMember, 'id'>): Promise<TeamMember
       }
       
       // Dispatch event for components to refresh
-      dispatchEvent('team-member-added' as EventType, data);
+      dispatchEvent('team-member-added' as EventType, { data });
       
       return data;
     } else {
@@ -124,7 +125,7 @@ const addTeamMember = async (member: Omit<TeamMember, 'id'>): Promise<TeamMember
       storeTeamMembers(teamMembers);
       
       // Dispatch event for components to refresh
-      dispatchEvent('team-member-added' as EventType, newMember);
+      dispatchEvent('team-member-added' as EventType, { data: newMember });
       
       return newMember;
     }
@@ -158,7 +159,7 @@ const removeTeamMember = async (id: string): Promise<boolean> => {
     storeTeamMembers(filteredMembers);
     
     // Dispatch event for components to refresh
-    dispatchEvent('team-member-removed' as EventType, id);
+    dispatchEvent('team-member-removed' as EventType, { id });
     
     return true;
   } catch (error) {
@@ -237,18 +238,17 @@ const useTeamMembers = () => {
   useEffect(() => {
     refreshTeamMembers();
     
-    // Set up event listeners for team member changes
-    const addedListener = (data: any) => refreshTeamMembers();
-    const removedListener = (data: any) => refreshTeamMembers();
+    const addedListenerFunction = (event: any) => refreshTeamMembers();
+    const removedListenerFunction = (event: any) => refreshTeamMembers();
     
     // Add event listeners
-    const removeAddedListener = addEventListener('team-member-added' as EventType, addedListener);
-    const removeRemovedListener = addEventListener('team-member-removed' as EventType, removedListener);
+    const addedListenerCleanup = addEventListener('team-member-added' as EventType, addedListenerFunction);
+    const removedListenerCleanup = addEventListener('team-member-removed' as EventType, removedListenerFunction);
     
     // Cleanup function
     return () => {
-      removeAddedListener();
-      removeRemovedListener();
+      if (addedListenerCleanup) addedListenerCleanup();
+      if (removedListenerCleanup) removedListenerCleanup();
     };
   }, []);
   

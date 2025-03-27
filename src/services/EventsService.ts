@@ -6,9 +6,8 @@ import {
   removeEventListener, 
   useEventListener, 
   EVENT_TYPES,
-  EventType,
-  EventPayload
 } from './events';
+import type { EventType, EventPayload } from './events/types';
 
 // Re-export the event hooks and types for backward compatibility
 export { 
@@ -16,9 +15,10 @@ export {
   EVENT_TYPES,
   addEventListener,
   removeEventListener,
-  EventType,
-  EventPayload
 };
+
+// Re-export types with 'export type'
+export type { EventType, EventPayload };
 
 // Event dispatcher service
 export const EventsService = {

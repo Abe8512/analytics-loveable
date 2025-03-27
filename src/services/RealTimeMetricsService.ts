@@ -1,23 +1,48 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { TeamMetric, RepMetric, MetricsHookResult } from './RealTimeMetrics.types';
+import { TeamMetric, RepMetric, MetricsHookResult, RepMetricDb, TeamMetricDb } from './RealTimeMetrics.types';
 import { useEventListener } from '@/services/events/hooks';
 import { EventType } from '@/services/events/types';
 
 // Helper to check if table exists
 const isTableMissing = async (tableName: string): Promise<boolean> => {
   try {
+    // Use a safer approach that doesn't rely on dynamic table names
     const { error } = await supabase
-      .from(tableName)
-      .select('id')
-      .limit(1);
+      .rpc('check_table_exists', { table_name: tableName })
+      .single();
     
-    return error?.message.includes(`relation "${tableName}" does not exist`) || false;
+    // If the function doesn't exist or returns an error, consider the table missing
+    return !!error;
   } catch (error) {
     console.error(`Error checking if ${tableName} table exists:`, error);
     return true; // Assume missing if we can't check
   }
+};
+
+// Convert database rep metrics to the application model
+const convertRepDbMetricsToAppMetrics = (repMetrics: RepMetricDb[]): RepMetric[] => {
+  return repMetrics.map(metric => ({
+    id: metric.id,
+    rep_name: metric.rep_name,
+    call_count: metric.call_volume || 0,
+    avg_sentiment: metric.sentiment_score || 0.5,
+    avg_duration: 300, // Default 5 minutes in seconds
+    conversion_rate: metric.success_rate || 0.4,
+  }));
+};
+
+// Convert database team metrics to the application model
+const convertTeamDbMetricsToAppMetrics = (teamMetrics: TeamMetricDb[]): TeamMetric[] => {
+  return teamMetrics.map(metric => ({
+    id: metric.id,
+    team_name: metric.team_name || 'Unknown Team',
+    call_count: metric.call_volume || 0,
+    avg_sentiment: metric.sentiment_score || 0.5,
+    avg_duration: 300, // Default 5 minutes in seconds
+    conversion_rate: metric.success_rate || 0.4,
+  }));
 };
 
 // Generate mock team metrics
@@ -102,15 +127,14 @@ export const useTeamMetrics = (): MetricsHookResult<TeamMetric> => {
       } else {
         // Fetch from database if table exists
         const { data, error: fetchError } = await supabase
-          .from('team_metrics_summary')
-          .select('*');
+          .rpc('get_team_metrics_summary');
         
         if (fetchError) {
           throw new Error(`Failed to fetch team metrics: ${fetchError.message}`);
         }
         
         if (data && data.length > 0) {
-          setMetrics(data);
+          setMetrics(convertTeamDbMetricsToAppMetrics(data as TeamMetricDb[]));
         } else {
           // Use mock data if no records found
           setMetrics(generateMockTeamMetrics());
@@ -174,7 +198,7 @@ export const useRepMetrics = (): MetricsHookResult<RepMetric> => {
         }
         
         if (data && data.length > 0) {
-          setMetrics(data);
+          setMetrics(convertRepDbMetricsToAppMetrics(data as RepMetricDb[]));
         } else {
           // Use mock data if no records found
           setMetrics(generateMockRepMetrics());

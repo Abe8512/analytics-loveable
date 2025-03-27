@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UserPlus, Trash2 } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import TeamMemberCard from '@/components/Team/TeamMemberCard';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -35,7 +35,8 @@ const Team = () => {
       await teamService.addTeamMember({
         name: newMemberName,
         email: newMemberEmail,
-        role: newMemberRole
+        role: newMemberRole,
+        user_id: `user-${Date.now()}` // Generate a new user_id if none exists
       });
       
       toast({
@@ -144,10 +145,13 @@ const Team = () => {
               {teamMembers.map((member) => (
                 <TeamMemberCard
                   key={member.id}
-                  name={member.name}
-                  email={member.email || ''}
-                  role={member.role || ''}
-                  avatar={member.avatar_url}
+                  teamMember={{
+                    id: member.id,
+                    name: member.name,
+                    email: member.email || '',
+                    role: member.role || '',
+                    avatar: member.avatar_url
+                  }}
                   onDelete={() => handleRemoveMember(member.id)}
                 />
               ))}
