@@ -55,7 +55,7 @@ serve(async (req) => {
     // Generate a unique ID if not provided
     const transcriptId = data.id || crypto.randomUUID()
     
-    // Add ON CONFLICT clause to handle duplicates properly
+    // Remove ON CONFLICT clause completely since it's causing errors
     const { data: insertData, error } = await supabase
       .from('call_transcripts')
       .insert({
