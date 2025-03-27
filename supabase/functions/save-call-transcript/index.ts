@@ -20,9 +20,11 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseAnonKey)
     
     // Parse the request body
-    const { data } = await req.json()
+    const requestData = await req.json()
+    const data = requestData.data || requestData.transcript || {}
     
     if (!data || !data.text) {
+      console.error('Missing required transcript data:', JSON.stringify(requestData))
       return new Response(
         JSON.stringify({ error: 'Missing required transcript data' }),
         { 
@@ -55,7 +57,7 @@ serve(async (req) => {
     // Generate a unique ID if not provided
     const transcriptId = data.id || crypto.randomUUID()
     
-    // Remove ON CONFLICT clause completely since it's causing errors
+    // Simple insert without ON CONFLICT - completely removed since it's causing errors
     const { data: insertData, error } = await supabase
       .from('call_transcripts')
       .insert({
@@ -72,7 +74,6 @@ serve(async (req) => {
         user_name: data.user_name || null,
         customer_name: data.customer_name || null
       })
-      .select()
     
     if (error) {
       console.error('Error inserting call transcript:', error)

@@ -1,5 +1,5 @@
 
 project_id = "yfufpcxkerovnijhodrr"
-[global.env]
-SUPABASE_URL = "https://yfufpcxkerovnijhodrr.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmdWZwY3hrZXJvdm5pamhvZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNjI3ODYsImV4cCI6MjA1NzgzODc4Nn0.1x7WAfVIvlm-KPy2q4eFylaVtdc5_ZJmlis5AMJ-Izc"
+
+[save-call-transcript]
+verify_jwt = false

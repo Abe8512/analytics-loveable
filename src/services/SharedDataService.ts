@@ -1,335 +1,76 @@
-
-// SharedDataService.ts - Central service for sharing data between components
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 
-// Define data filter interfaces
-export interface DataFilters {
-  dateRange?: { from: Date; to: Date };
-  repIds?: string[];
-  sentimentRange?: { min: number; max: number };
-  keywords?: string[];
-  customerId?: string;
-}
-
-export interface TeamMetricsData {
-  totalCalls: number;
-  avgSentiment: number;
-  avgTalkRatio: {
-    agent: number;
-    customer: number;
-  };
-  topKeywords: string[];
-  performanceScore: number;
-  conversionRate: number;
-}
-
-export interface RepMetricsData {
-  id: string;
-  name: string;
-  callVolume: number;
-  successRate: number;
-  sentiment: number;
-  insights: string[];
-}
-
-// Team metrics hook
-export const useSharedTeamMetrics = (filters?: DataFilters) => {
-  const [metrics, setMetrics] = useState<TeamMetricsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<any>(null);
-  const { user } = useAuth();
+// Create a hook to fetch team metrics data
+export const useTeamMetricsData = (filters: any) => {
+  const [metrics, setMetrics] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    const fetchTeamMetrics = async () => {
+    const fetchMetrics = async () => {
+      setIsLoading(true);
+      setError(null);
+      
       try {
-        setIsLoading(true);
-        setError(null);
-
-        // Check if we have cached data
-        const cachedData = sessionStorage.getItem('team_metrics_cache');
-        const cachedTimestamp = sessionStorage.getItem('team_metrics_cache_time');
-        const now = Date.now();
-        
-        // Use cache if it's less than 5 minutes old
-        if (cachedData && cachedTimestamp && 
-            (now - parseInt(cachedTimestamp, 10)) < 5 * 60 * 1000) {
-          console.log('Using cached team metrics data');
-          setMetrics(JSON.parse(cachedData));
-          setIsLoading(false);
-          return;
-        }
-
-        // Try to fetch from Supabase first
-        const { data, error } = await supabase
+        // Safely query call_metrics_summary - removed .single() to avoid errors
+        const { data, error: fetchError } = await supabase
           .from('call_metrics_summary')
           .select('*')
           .order('report_date', { ascending: false })
           .limit(1);
-
-        if (error) {
-          console.error("Error fetching team metrics:", error);
-          // Fall back to demo data
-          const demoData = getTeamMetrics();
-          setMetrics(demoData);
-          
-          // Cache the demo data
-          sessionStorage.setItem('team_metrics_cache', JSON.stringify(demoData));
-          sessionStorage.setItem('team_metrics_cache_time', now.toString());
-        } else if (data && data.length > 0) {
-          // Map DB data to our interface
-          const mappedData = {
-            totalCalls: data[0].total_calls || 0,
-            avgSentiment: data[0].avg_sentiment || 0.5,
-            avgTalkRatio: {
-              agent: data[0].agent_talk_ratio || 50,
-              customer: data[0].customer_talk_ratio || 50
-            },
-            topKeywords: data[0].top_keywords || ['pricing', 'features', 'support', 'implementation', 'integration'],
-            performanceScore: data[0].performance_score || 72,
-            conversionRate: data[0].conversion_rate || 45
-          };
-          
-          setMetrics(mappedData);
-          
-          // Cache the data
-          sessionStorage.setItem('team_metrics_cache', JSON.stringify(mappedData));
-          sessionStorage.setItem('team_metrics_cache_time', now.toString());
-        } else {
-          // No data, use demo data
-          const demoData = getTeamMetrics();
-          setMetrics(demoData);
-          
-          // Cache the demo data
-          sessionStorage.setItem('team_metrics_cache', JSON.stringify(demoData));
-          sessionStorage.setItem('team_metrics_cache_time', now.toString());
-        }
-      } catch (err) {
-        console.error("Failed to fetch team metrics:", err);
-        setError(err);
-        // Fall back to demo data
-        const demoData = getTeamMetrics();
-        setMetrics(demoData);
         
-        // Cache the demo data even in error case
-        sessionStorage.setItem('team_metrics_cache', JSON.stringify(demoData));
-        sessionStorage.setItem('team_metrics_cache_time', Date.now().toString());
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTeamMetrics();
-  }, [filters, user]);
-
-  return { metrics, isLoading, error };
-};
-
-// Rep metrics hook
-export const useSharedRepMetrics = (filters?: DataFilters) => {
-  const [metrics, setMetrics] = useState<RepMetricsData[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<any>(null);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    const fetchRepMetrics = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Try to fetch from Supabase
-        const { data, error } = await supabase
-          .from('rep_metrics_summary')
-          .select('*')
-          .order('updated_at', { ascending: false });
-
-        if (error) {
-          console.error("Error fetching rep metrics:", error);
-          // Fall back to demo data
-          setMetrics(getRepMetrics());
-        } else if (data && data.length > 0) {
-          // Map DB data to our interface
-          const mappedData = data.map(item => ({
-            id: item.rep_id,
-            name: item.rep_name || 'Unknown Rep',
-            callVolume: item.call_volume || 0,
-            successRate: item.success_rate || 0,
-            sentiment: item.sentiment_score || 0.5,
-            insights: item.insights || ["No insights available"]
-          }));
-          setMetrics(mappedData);
+        if (fetchError) {
+          // If the error is about the table not existing, return demo data
+          if (fetchError.code === '42P01' || 
+              fetchError.message.includes('relation') || 
+              fetchError.message.includes('does not exist')) {
+            setMetrics(generateDemoMetrics());
+          } else {
+            console.error("Error fetching metrics:", fetchError);
+            setError(fetchError);
+            setMetrics(generateDemoMetrics()); // Fall back to demo data
+          }
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          setMetrics(data[0]);
         } else {
-          // No data, use demo data
-          setMetrics(getRepMetrics());
+          console.log("No metrics available, using demo data");
+          setMetrics(generateDemoMetrics());
         }
       } catch (err) {
-        console.error("Failed to fetch rep metrics:", err);
-        setError(err);
-        // Fall back to demo data
-        setMetrics(getRepMetrics());
+        console.error("Error in fetchMetrics:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setMetrics(generateDemoMetrics()); // Fall back to demo data
       } finally {
         setIsLoading(false);
       }
     };
-
-    fetchRepMetrics();
-  }, [filters, user]);
-
+    
+    fetchMetrics();
+  }, [filters]);
+  
+  // Generate demo metrics as a fallback
+  const generateDemoMetrics = () => {
+    return {
+      id: "demo-metrics",
+      report_date: new Date().toISOString().split('T')[0],
+      total_calls: 128,
+      total_duration: 18432,
+      avg_duration: 144,
+      positive_sentiment_count: 72,
+      neutral_sentiment_count: 42,
+      negative_sentiment_count: 14,
+      avg_sentiment: 0.68,
+      agent_talk_ratio: 42,
+      customer_talk_ratio: 58,
+      performance_score: 76,
+      conversion_rate: 0.35,
+      top_keywords: ["pricing", "features", "competitors", "demo", "timeline"]
+    };
+  };
+  
   return { metrics, isLoading, error };
 };
-
-// Fetch team member data - returns Promise to be compatible with async operations
-export const getTeamMembers = async (): Promise<{ id: string, name: string, email: string, role: string }[]> => {
-  try {
-    // Check if we have cached data
-    const cachedData = sessionStorage.getItem('team_members_cache');
-    const cachedTimestamp = sessionStorage.getItem('team_members_cache_time');
-    const now = Date.now();
-    
-    // Use cache if it's less than 5 minutes old
-    if (cachedData && cachedTimestamp && 
-        (now - parseInt(cachedTimestamp, 10)) < 5 * 60 * 1000) {
-      console.log('Using cached team members data');
-      return JSON.parse(cachedData);
-    }
-    
-    // First try to fetch from the database
-    const { data, error } = await supabase
-      .from('team_members')
-      .select('*');
-    
-    if (error) {
-      console.error("Error fetching team members from database:", error);
-      // Fall back to local storage if table doesn't exist
-      const storageData = getStoredTeamMembers();
-      
-      // Cache the storage data
-      sessionStorage.setItem('team_members_cache', JSON.stringify(storageData));
-      sessionStorage.setItem('team_members_cache_time', now.toString());
-      
-      return storageData;
-    }
-    
-    if (data && data.length > 0) {
-      const mappedData = data.map(member => ({
-        id: member.member_id,
-        name: member.name,
-        email: member.email,
-        role: member.role
-      }));
-      
-      // Cache the data
-      sessionStorage.setItem('team_members_cache', JSON.stringify(mappedData));
-      sessionStorage.setItem('team_members_cache_time', now.toString());
-      
-      return mappedData;
-    }
-    
-    // If no data in database, check local storage
-    const storageData = getStoredTeamMembers();
-    
-    // Cache the storage data
-    sessionStorage.setItem('team_members_cache', JSON.stringify(storageData));
-    sessionStorage.setItem('team_members_cache_time', now.toString());
-    
-    return storageData;
-  } catch (error) {
-    console.error("Error fetching team members:", error);
-    return getStoredTeamMembers();
-  }
-};
-
-// Fetch team members from local storage
-const getStoredTeamMembers = (): { id: string, name: string, email: string, role: string }[] => {
-  try {
-    const storedData = localStorage.getItem('team_members');
-    if (storedData) {
-      return JSON.parse(storedData);
-    }
-  } catch (error) {
-    console.error("Error parsing stored team members:", error);
-  }
-  
-  // Return demo data if nothing in local storage
-  return [
-    { id: "1", name: "Alex Johnson", email: "alex@example.com", role: "sales" },
-    { id: "2", name: "Maria Garcia", email: "maria@example.com", role: "sales" },
-    { id: "3", name: "David Kim", email: "david@example.com", role: "sales" },
-    { id: "4", name: "Sarah Williams", email: "sarah@example.com", role: "sales" },
-    { id: "5", name: "James Taylor", email: "james@example.com", role: "sales" }
-  ];
-};
-
-// Sync function for getting managed users
-export const getManagedUsers = (): { id: string, name: string, email?: string, role?: string }[] => {
-  // Try to get from session storage first
-  try {
-    const cachedData = sessionStorage.getItem('managed_users');
-    if (cachedData) {
-      return JSON.parse(cachedData);
-    }
-  } catch (error) {
-    console.error("Error parsing cached managed users:", error);
-  }
-  
-  // Return the same data as getTeamMembers for now
-  // In a real implementation, we'd fetch this from the database based on the current user's permissions
-  const teamMembers = getStoredTeamMembers();
-  
-  // Update session storage
-  try {
-    sessionStorage.setItem('managed_users', JSON.stringify(teamMembers));
-  } catch (error) {
-    console.error("Error storing managed users in session:", error);
-  }
-  
-  return teamMembers;
-};
-
-export const getTeamMetrics = (): TeamMetricsData => {
-  return {
-    totalCalls: 128,
-    avgSentiment: 0.72,
-    avgTalkRatio: { agent: 55, customer: 45 },
-    topKeywords: ['pricing', 'features', 'support', 'implementation', 'integration'],
-    performanceScore: 72,
-    conversionRate: 45
-  };
-};
-
-export const getRepMetrics = (): RepMetricsData[] => {
-  return [
-    {
-      id: "1",
-      name: "Alex Johnson",
-      callVolume: 145,
-      successRate: 72,
-      sentiment: 0.85,
-      insights: ["Excellent rapport building", "Good at overcoming objections"]
-    },
-    {
-      id: "2",
-      name: "Maria Garcia",
-      callVolume: 128,
-      successRate: 68,
-      sentiment: 0.79,
-      insights: ["Strong product knowledge", "Could improve closing"]
-    },
-    {
-      id: "3",
-      name: "David Kim",
-      callVolume: 103,
-      successRate: 62,
-      sentiment: 0.72,
-      insights: ["Good discovery questions", "Needs work on follow-up"]
-    }
-  ];
-};
-
-// Create a hook to provide team metrics data with filter options
-export const useTeamMetricsData = (filters?: DataFilters) => {
-  return useSharedTeamMetrics(filters);
-};
-

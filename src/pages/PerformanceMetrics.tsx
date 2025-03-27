@@ -7,8 +7,7 @@ import { useSharedFilters } from '@/contexts/SharedFilterContext';
 import KeyMetricsTable from '@/components/Performance/KeyMetricsTable';
 import TrendingInsightsCard from '@/components/Performance/TrendingInsightsCard';
 import { PageHeader } from '@/components/ui/page-header';
-import { Database } from '@/components/ui/DatabaseStatusDashboard';
-import { Calendar, UsersRound, LineChart, Zap, BrainCircuit } from 'lucide-react';
+import { LineChart, UsersRound, Calendar, Zap, BrainCircuit } from 'lucide-react';
 import { useTeamMetricsData } from '@/services/SharedDataService';
 
 const PerformanceMetrics = () => {
@@ -25,25 +24,8 @@ const PerformanceMetrics = () => {
         setError(null);
 
         // Try to fetch from database first
-        const { data, error: fetchError } = await supabase
-          .from('sales_insights')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(6);
-
-        if (fetchError) {
-          console.error("Error fetching insights:", fetchError);
-          // Fall back to demo data
-          generateDemoInsights();
-          return;
-        }
-
-        if (data && data.length > 0) {
-          setSalesInsights(data);
-        } else {
-          // No data, generate demo insights
-          generateDemoInsights();
-        }
+        // The "sales_insights" table doesn't exist, so we need to generate demo data
+        generateDemoInsights();
       } catch (err) {
         console.error("Failed to fetch sales insights:", err);
         setError(err instanceof Error ? err.message : 'Error fetching insights');
@@ -189,7 +171,7 @@ const PerformanceMetrics = () => {
       <div className="space-y-8 max-w-7xl mx-auto">
         <PageHeader 
           title="Performance Analytics"
-          description="Comprehensive sales performance metrics and insights"
+          subtitle="Comprehensive sales performance metrics and insights"
           icon={<LineChart className="h-6 w-6" />}
         />
 

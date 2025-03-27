@@ -73,127 +73,136 @@ export class BulkUploadProcessorService {
         ? Math.round(sentimentScore * 100) 
         : 50;
       
-      // Modified insert without ON CONFLICT clause - this was causing the error
-      const { data, error } = await supabase
-        .from('call_transcripts')
-        .insert({
-          id: transcriptId,
-          user_id: this.assignedUserId || 'anonymous',
-          text: cleanText,
-          filename: file.name,
-          duration: duration,
-          sentiment: sentiment,
-          keywords: keywords,
-          key_phrases: keyPhrases,
-          call_score: callScore,
-          transcript_segments: transcriptionResult.segments,
-          metadata: {
-            source: 'bulk_upload',
-            created_at: new Date().toISOString(),
-            original_filename: file.name,
-            file_size: file.size,
-            file_type: file.type,
-            assigned_to: this.assignedUserId || 'unassigned'
-          }
-        })
-        .select('id');
-      
-      if (error) {
-        console.error('Error saving transcript to database:', error);
-        
-        // Try fallback to edge function if there's an error
-        try {
-          progressCallback('processing', 70, 'Using edge function fallback...');
-          
-          // Modified to pass the exact structure expected by the edge function
-          // without any ON CONFLICT references that might be causing issues
-          const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
-            body: { 
-              transcript: {
-                id: transcriptId,
-                user_id: this.assignedUserId || 'anonymous',
-                text: cleanText,
-                filename: file.name,
-                duration: duration,
-                sentiment: sentiment,
-                keywords: keywords,
-                key_phrases: keyPhrases,
-                call_score: callScore,
-                transcript_segments: transcriptionResult.segments,
-                metadata: {
-                  source: 'bulk_upload',
-                  created_at: new Date().toISOString(),
-                  original_filename: file.name,
-                  file_size: file.size,
-                  file_type: file.type,
-                  assigned_to: this.assignedUserId || 'unassigned'
-                }
-              }
+      // Try direct insert first without any ON CONFLICT clause
+      try {
+        const { data, error } = await supabase
+          .from('call_transcripts')
+          .insert({
+            id: transcriptId,
+            user_id: this.assignedUserId || 'anonymous',
+            text: cleanText,
+            filename: file.name,
+            duration: duration,
+            sentiment: sentiment,
+            keywords: keywords,
+            key_phrases: keyPhrases,
+            call_score: callScore,
+            transcript_segments: transcriptionResult.segments,
+            metadata: {
+              source: 'bulk_upload',
+              created_at: new Date().toISOString(),
+              original_filename: file.name,
+              file_size: file.size,
+              file_type: file.type,
+              assigned_to: this.assignedUserId || 'unassigned'
             }
           });
-          
-          // Improved error checking for edge function response
-          if (edgeFunctionResult.error) {
-            throw new Error(`Edge function error: ${edgeFunctionResult.error.message || JSON.stringify(edgeFunctionResult.error)}`);
-          }
-          
-          // Check if we have data in the response
-          if (!edgeFunctionResult.data && typeof edgeFunctionResult.data !== 'object') {
-            console.warn('Edge function returned success but no data. Using original transcript ID:', transcriptId);
-          }
-          
-          // Use the returned ID if available, otherwise use the original
-          const finalTranscriptId = 
-            edgeFunctionResult.data && edgeFunctionResult.data.id ? 
-            edgeFunctionResult.data.id : transcriptId;
-            
-          progressCallback('complete', 100, 'File processed successfully', undefined, finalTranscriptId);
-        } catch (fallbackError) {
-          console.error('Fallback also failed:', fallbackError);
-          
-          // Try direct insert again without returning the ID
-          try {
-            progressCallback('processing', 80, 'Trying simplified insert...');
-            
-            const { error: insertError } = await supabase
-              .from('call_transcripts')
-              .insert({
-                id: transcriptId,
-                user_id: this.assignedUserId || 'anonymous',
-                text: cleanText,
-                filename: file.name,
-                duration: duration,
-                sentiment: sentiment,
-                keywords: keywords,
-                key_phrases: keyPhrases,
-                call_score: callScore
-              });
-              
-            if (insertError) {
-              throw new Error(`Final insert attempt also failed: ${insertError.message}`);
-            }
-            
-            progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
-          } catch (finalError) {
-            // All attempts failed
-            progressCallback('error', 0, undefined, 
-              finalError instanceof Error ? 
-              `Database error: ${finalError.message}` : 
-              'Unknown database error');
-            return;
-          }
+        
+        if (error) {
+          console.error('Error saving transcript to database:', error);
+          throw error;
         }
-      } else {
+        
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
+        
+        // Dispatch event for other components
+        const eventsStore = useEventsStore.getState();
+        eventsStore.dispatchEvent('call-uploaded', {
+          transcriptId,
+          fileName: file.name,
+          assignedTo: this.assignedUserId
+        });
+        
+        return;
+      } catch (error) {
+        console.error('Error saving transcript to database:', error);
       }
       
-      // Dispatch event for other components
-      const eventsStore = useEventsStore.getState();
-      eventsStore.dispatchEvent('call-uploaded', {
-        transcriptId,
-        fileName: file.name,
-        assignedTo: this.assignedUserId
-      });
+      // If direct insert fails, try edge function
+      progressCallback('processing', 70, 'Using edge function fallback...');
+      
+      try {
+        const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
+          body: { 
+            data: {
+              id: transcriptId,
+              user_id: this.assignedUserId || 'anonymous',
+              text: cleanText,
+              filename: file.name,
+              duration: duration,
+              sentiment: sentiment,
+              keywords: keywords,
+              key_phrases: keyPhrases,
+              call_score: callScore,
+              metadata: {
+                source: 'bulk_upload',
+                created_at: new Date().toISOString(),
+                original_filename: file.name,
+                file_size: file.size,
+                file_type: file.type,
+                assigned_to: this.assignedUserId || 'unassigned'
+              }
+            }
+          }
+        });
+        
+        if (edgeFunctionResult.error) {
+          throw new Error(`Edge function error: ${edgeFunctionResult.error.message || JSON.stringify(edgeFunctionResult.error)}`);
+        }
+        
+        const finalTranscriptId = 
+          edgeFunctionResult.data && edgeFunctionResult.data.id ? 
+          edgeFunctionResult.data.id : transcriptId;
+          
+        progressCallback('complete', 100, 'File processed successfully', undefined, finalTranscriptId);
+        
+        // Dispatch event for other components
+        const eventsStore = useEventsStore.getState();
+        eventsStore.dispatchEvent('call-uploaded', {
+          transcriptId: finalTranscriptId,
+          fileName: file.name,
+          assignedTo: this.assignedUserId
+        });
+        
+        return;
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
+      
+      // Final fallback: simplest direct insert without returning data
+      progressCallback('processing', 80, 'Trying simplified insert...');
+      
+      try {
+        // Simplest possible insert without ON CONFLICT clause or select
+        const { error: insertError } = await supabase
+          .from('call_transcripts')
+          .insert({
+            id: transcriptId,
+            user_id: this.assignedUserId || 'anonymous',
+            text: cleanText || "No transcript available",
+            filename: file.name
+          });
+          
+        if (insertError) {
+          throw new Error(`Final insert attempt also failed: ${insertError.message}`);
+        }
+        
+        progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
+        
+        // Dispatch event for other components
+        const eventsStore = useEventsStore.getState();
+        eventsStore.dispatchEvent('call-uploaded', {
+          transcriptId,
+          fileName: file.name,
+          assignedTo: this.assignedUserId
+        });
+      } catch (finalError) {
+        // All attempts failed
+        progressCallback('error', 0, undefined, 
+          finalError instanceof Error ? 
+          `Database error: ${finalError.message}` : 
+          'Unknown database error');
+      }
     } catch (error) {
       console.error('Error processing file:', error);
       errorHandler.handleError(error, 'BulkUploadProcessorService.processFile');
