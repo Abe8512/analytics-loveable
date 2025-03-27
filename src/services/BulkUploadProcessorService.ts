@@ -73,7 +73,7 @@ export class BulkUploadProcessorService {
         ? Math.round(sentimentScore * 100) 
         : 50;
       
-      // Modified insert to correctly handle the ON CONFLICT clause
+      // Modified insert without ON CONFLICT clause
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -129,14 +129,28 @@ export class BulkUploadProcessorService {
             }
           });
           
+          // Improved error checking for edge function response
           if (edgeFunctionResult.error) {
-            throw new Error(`Edge function error: ${edgeFunctionResult.error.message}`);
+            throw new Error(`Edge function error: ${edgeFunctionResult.error.message || JSON.stringify(edgeFunctionResult.error)}`);
           }
           
-          progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
+          // Check if we have data in the response
+          if (!edgeFunctionResult.data && typeof edgeFunctionResult.data !== 'object') {
+            console.warn('Edge function returned success but no data. Using original transcript ID:', transcriptId);
+          }
+          
+          // Use the returned ID if available, otherwise use the original
+          const finalTranscriptId = 
+            edgeFunctionResult.data && edgeFunctionResult.data.id ? 
+            edgeFunctionResult.data.id : transcriptId;
+            
+          progressCallback('complete', 100, 'File processed successfully', undefined, finalTranscriptId);
         } catch (fallbackError) {
           console.error('Fallback also failed:', fallbackError);
-          progressCallback('error', 0, undefined, `Database error: ${error.message}`);
+          progressCallback('error', 0, undefined, 
+            fallbackError instanceof Error ? 
+            `Database error: ${fallbackError.message}` : 
+            'Unknown database error');
           return;
         }
       } else {

@@ -56,6 +56,7 @@ export class DatabaseService {
       // Generate a transcript ID
       const transcriptId = uuidv4();
       
+      // Remove ON CONFLICT clause to match the edge function approach
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -98,11 +99,15 @@ export class DatabaseService {
             }
           });
           
+          // Improved error handling for edge function
           if (edgeFunctionResult.error) {
-            throw new Error(`Edge function error: ${edgeFunctionResult.error.message}`);
+            console.error('Edge function error:', edgeFunctionResult.error);
+            throw new Error(`Edge function error: ${
+              edgeFunctionResult.error.message || JSON.stringify(edgeFunctionResult.error)
+            }`);
           }
           
-          return edgeFunctionResult.data;
+          return edgeFunctionResult.data || { id: transcriptId };
         } catch (edgeFunctionError) {
           console.error('Edge function also failed:', edgeFunctionError);
           throw error;

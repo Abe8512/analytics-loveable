@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface RealtimeTableStatus {
   name: string;
@@ -15,6 +16,7 @@ const RealtimeStatus = () => {
   const [tableStatus, setTableStatus] = useState<RealtimeTableStatus[]>([]);
   const [isChecking, setIsChecking] = useState(false);
   const [isEnabling, setIsEnabling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const coreTables = ['call_transcripts', 'calls', 'keyword_trends', 'sentiment_trends'];
   
@@ -24,6 +26,7 @@ const RealtimeStatus = () => {
   
   const checkRealtimeStatus = async () => {
     setIsChecking(true);
+    setError(null);
     
     try {
       // Use RPC instead of direct table access
@@ -31,7 +34,7 @@ const RealtimeStatus = () => {
       
       for (const table of coreTables) {
         try {
-          // Use the new RPC function we created
+          // Use the RPC function for checking
           const { data, error } = await supabase
             .rpc('check_table_in_publication', { 
               table_name: table,
@@ -43,6 +46,7 @@ const RealtimeStatus = () => {
             enabled: !error && !!data
           });
         } catch (err) {
+          console.error(`Error checking realtime status for ${table}:`, err);
           // Fallback to assume it's not enabled if we can't check
           statuses.push({
             name: table,
@@ -54,6 +58,8 @@ const RealtimeStatus = () => {
       setTableStatus(statuses);
     } catch (error) {
       console.error('Error checking realtime status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error checking realtime status';
+      setError(errorMessage);
     } finally {
       setIsChecking(false);
     }
@@ -61,6 +67,8 @@ const RealtimeStatus = () => {
   
   const enableRealtime = async (tableName: string) => {
     try {
+      console.log(`Attempting to enable realtime for ${tableName}`);
+      
       // Use the RPC function
       const { error } = await supabase.rpc('add_table_to_realtime_publication', {
         table_name: tableName
@@ -68,7 +76,9 @@ const RealtimeStatus = () => {
       
       if (error) {
         console.error(`Error enabling realtime for ${tableName}:`, error);
-        toast.error(`Failed to enable realtime for ${tableName}`);
+        toast.error(`Failed to enable realtime for ${tableName}`, {
+          description: error.message
+        });
         return false;
       }
       
@@ -76,12 +86,17 @@ const RealtimeStatus = () => {
       return true;
     } catch (error) {
       console.error(`Error enabling realtime for ${tableName}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error enabling realtime';
+      toast.error(`Failed to enable realtime for ${tableName}`, {
+        description: errorMessage
+      });
       return false;
     }
   };
   
   const handleEnableRealtime = async () => {
     setIsEnabling(true);
+    setError(null);
     toast.info("Enabling realtime for all tables...");
     
     try {
@@ -108,8 +123,11 @@ const RealtimeStatus = () => {
       
       await checkRealtimeStatus();
     } catch (error) {
+      console.error('Error enabling realtime:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(errorMessage);
       toast.error("Failed to enable realtime", {
-        description: error instanceof Error ? error.message : "Unknown error"
+        description: errorMessage
       });
     } finally {
       setIsEnabling(false);
@@ -118,6 +136,14 @@ const RealtimeStatus = () => {
   
   return (
     <div className="space-y-2">
+      {error && (
+        <Alert variant="destructive" className="mb-2">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium">Realtime Status:</h4>
         <RefreshCw 
@@ -154,7 +180,7 @@ const RealtimeStatus = () => {
           size="sm" 
           className="w-full text-xs h-8" 
           onClick={handleEnableRealtime}
-          disabled={isEnabling}
+          disabled={isEnabling || isChecking}
         >
           {isEnabling ? (
             <>

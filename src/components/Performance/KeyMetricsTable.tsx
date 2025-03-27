@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,16 +39,26 @@ const KeyMetricsTable: React.FC<KeyMetricsTableProps> = ({ dateRange }) => {
           query = query.gte('report_date', last7Days.toISOString().split('T')[0]);
         }
         
+        // Use standard select instead of single to avoid 406 errors
         const { data, error } = await query;
         
         if (error) {
           console.error('Error fetching metrics:', error);
+          setMetrics([]);
+          return;
+        }
+        
+        // Handle empty data gracefully
+        if (!data || data.length === 0) {
+          console.log('No metrics data available');
+          setMetrics([]);
           return;
         }
         
         setMetrics(data || []);
       } catch (err) {
         console.error('Error in fetchMetrics:', err);
+        setMetrics([]);
       } finally {
         setLoading(false);
       }

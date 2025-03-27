@@ -47,40 +47,74 @@ export const useSharedTeamMetrics = (filters?: DataFilters) => {
         setIsLoading(true);
         setError(null);
 
+        // Check if we have cached data
+        const cachedData = sessionStorage.getItem('team_metrics_cache');
+        const cachedTimestamp = sessionStorage.getItem('team_metrics_cache_time');
+        const now = Date.now();
+        
+        // Use cache if it's less than 5 minutes old
+        if (cachedData && cachedTimestamp && 
+            (now - parseInt(cachedTimestamp, 10)) < 5 * 60 * 1000) {
+          console.log('Using cached team metrics data');
+          setMetrics(JSON.parse(cachedData));
+          setIsLoading(false);
+          return;
+        }
+
         // Try to fetch from Supabase first
         const { data, error } = await supabase
           .from('call_metrics_summary')
           .select('*')
           .order('report_date', { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
 
         if (error) {
           console.error("Error fetching team metrics:", error);
           // Fall back to demo data
-          setMetrics(getTeamMetrics());
-        } else if (data) {
+          const demoData = getTeamMetrics();
+          setMetrics(demoData);
+          
+          // Cache the demo data
+          sessionStorage.setItem('team_metrics_cache', JSON.stringify(demoData));
+          sessionStorage.setItem('team_metrics_cache_time', now.toString());
+        } else if (data && data.length > 0) {
           // Map DB data to our interface
-          setMetrics({
-            totalCalls: data.total_calls || 0,
-            avgSentiment: data.avg_sentiment || 0.5,
+          const mappedData = {
+            totalCalls: data[0].total_calls || 0,
+            avgSentiment: data[0].avg_sentiment || 0.5,
             avgTalkRatio: {
-              agent: data.agent_talk_ratio || 50,
-              customer: data.customer_talk_ratio || 50
+              agent: data[0].agent_talk_ratio || 50,
+              customer: data[0].customer_talk_ratio || 50
             },
-            topKeywords: data.top_keywords || ['pricing', 'features', 'support', 'implementation', 'integration'],
-            performanceScore: data.performance_score || 72,
-            conversionRate: data.conversion_rate || 45
-          });
+            topKeywords: data[0].top_keywords || ['pricing', 'features', 'support', 'implementation', 'integration'],
+            performanceScore: data[0].performance_score || 72,
+            conversionRate: data[0].conversion_rate || 45
+          };
+          
+          setMetrics(mappedData);
+          
+          // Cache the data
+          sessionStorage.setItem('team_metrics_cache', JSON.stringify(mappedData));
+          sessionStorage.setItem('team_metrics_cache_time', now.toString());
         } else {
           // No data, use demo data
-          setMetrics(getTeamMetrics());
+          const demoData = getTeamMetrics();
+          setMetrics(demoData);
+          
+          // Cache the demo data
+          sessionStorage.setItem('team_metrics_cache', JSON.stringify(demoData));
+          sessionStorage.setItem('team_metrics_cache_time', now.toString());
         }
       } catch (err) {
         console.error("Failed to fetch team metrics:", err);
         setError(err);
         // Fall back to demo data
-        setMetrics(getTeamMetrics());
+        const demoData = getTeamMetrics();
+        setMetrics(demoData);
+        
+        // Cache the demo data even in error case
+        sessionStorage.setItem('team_metrics_cache', JSON.stringify(demoData));
+        sessionStorage.setItem('team_metrics_cache_time', Date.now().toString());
       } finally {
         setIsLoading(false);
       }
@@ -149,6 +183,18 @@ export const useSharedRepMetrics = (filters?: DataFilters) => {
 // Fetch team member data - returns Promise to be compatible with async operations
 export const getTeamMembers = async (): Promise<{ id: string, name: string, email: string, role: string }[]> => {
   try {
+    // Check if we have cached data
+    const cachedData = sessionStorage.getItem('team_members_cache');
+    const cachedTimestamp = sessionStorage.getItem('team_members_cache_time');
+    const now = Date.now();
+    
+    // Use cache if it's less than 5 minutes old
+    if (cachedData && cachedTimestamp && 
+        (now - parseInt(cachedTimestamp, 10)) < 5 * 60 * 1000) {
+      console.log('Using cached team members data');
+      return JSON.parse(cachedData);
+    }
+    
     // First try to fetch from the database
     const { data, error } = await supabase
       .from('team_members')
@@ -157,20 +203,38 @@ export const getTeamMembers = async (): Promise<{ id: string, name: string, emai
     if (error) {
       console.error("Error fetching team members from database:", error);
       // Fall back to local storage if table doesn't exist
-      return getStoredTeamMembers();
+      const storageData = getStoredTeamMembers();
+      
+      // Cache the storage data
+      sessionStorage.setItem('team_members_cache', JSON.stringify(storageData));
+      sessionStorage.setItem('team_members_cache_time', now.toString());
+      
+      return storageData;
     }
     
     if (data && data.length > 0) {
-      return data.map(member => ({
+      const mappedData = data.map(member => ({
         id: member.member_id,
         name: member.name,
         email: member.email,
         role: member.role
       }));
+      
+      // Cache the data
+      sessionStorage.setItem('team_members_cache', JSON.stringify(mappedData));
+      sessionStorage.setItem('team_members_cache_time', now.toString());
+      
+      return mappedData;
     }
     
     // If no data in database, check local storage
-    return getStoredTeamMembers();
+    const storageData = getStoredTeamMembers();
+    
+    // Cache the storage data
+    sessionStorage.setItem('team_members_cache', JSON.stringify(storageData));
+    sessionStorage.setItem('team_members_cache_time', now.toString());
+    
+    return storageData;
   } catch (error) {
     console.error("Error fetching team members:", error);
     return getStoredTeamMembers();
