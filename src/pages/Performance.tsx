@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { useSharedFilters } from '@/contexts/SharedFilterContext';
 import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart2, LineChart, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react';
+import { BarChart2, LineChart, TrendingUp, ArrowUp, ArrowDown, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TeamPerformanceMetrics from '@/components/Analytics/TeamPerformanceMetrics';
 import { AdvancedMetricsChart } from '@/components/Analytics/AdvancedMetricsChart';
