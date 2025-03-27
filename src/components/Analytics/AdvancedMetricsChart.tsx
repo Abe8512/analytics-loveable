@@ -1,18 +1,51 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { AdvancedMetricsService, AdvancedMetric } from '@/services/AdvancedMetricsService';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Mock data - in a real application, this would come from your API
-const data = [
-  { name: 'Jan', callVolume: 120, sentiment: 72, conversion: 28 },
-  { name: 'Feb', callVolume: 132, sentiment: 68, conversion: 32 },
-  { name: 'Mar', callVolume: 141, sentiment: 75, conversion: 35 },
-  { name: 'Apr', callVolume: 128, sentiment: 79, conversion: 30 },
-  { name: 'May', callVolume: 155, sentiment: 82, conversion: 38 },
-  { name: 'Jun', callVolume: 165, sentiment: 78, conversion: 42 },
-];
+interface AdvancedMetricsChartProps {
+  period?: 'day' | 'week' | 'month' | 'year';
+  groupBy?: 'day' | 'week' | 'month';
+}
 
-export const AdvancedMetricsChart = () => {
+export const AdvancedMetricsChart: React.FC<AdvancedMetricsChartProps> = ({ 
+  period = 'month',
+  groupBy = 'month'
+}) => {
+  const [data, setData] = useState<AdvancedMetric[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const metrics = await AdvancedMetricsService.getAdvancedMetrics({
+          period,
+          groupBy
+        });
+        setData(metrics);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching advanced metrics data:', err);
+        setError(err instanceof Error ? err : new Error('Failed to fetch metrics'));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [period, groupBy]);
+
+  if (isLoading) {
+    return <Skeleton className="w-full h-[400px]" />;
+  }
+
+  if (error) {
+    return <div className="text-center py-10 text-muted-foreground">Error loading metrics data</div>;
+  }
+
   return (
     <ResponsiveContainer width="100%" height={400}>
       <BarChart
