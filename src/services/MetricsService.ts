@@ -173,7 +173,7 @@ export const useMetricsData = (filters?: MetricsFilters) => {
         setData(formatMetricsForDisplay(metricsData));
       } else {
         console.log('No metrics data found, using demo data');
-        const demoData = generateDemoCallMetrics()[0];
+        const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
         setRawData(demoData);
         setData(formatMetricsForDisplay(demoData));
       }
@@ -182,7 +182,7 @@ export const useMetricsData = (filters?: MetricsFilters) => {
       setError(err instanceof Error ? err : new Error(String(err)));
       
       // Use demo data as fallback
-      const demoData = generateDemoCallMetrics()[0];
+      const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
       setRawData(demoData);
       setData(formatMetricsForDisplay(demoData));
     } finally {

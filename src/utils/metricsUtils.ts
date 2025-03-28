@@ -50,12 +50,12 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
     if (error) {
       console.error('Error fetching metrics data:', error);
       console.log('Falling back to demo data');
-      return generateDemoCallMetrics();
+      return generateDemoCallMetrics() as RawMetricsRecord[];
     }
     
     if (!data || data.length === 0) {
       console.log('No metrics data found, using demo data');
-      return generateDemoCallMetrics();
+      return generateDemoCallMetrics() as RawMetricsRecord[];
     }
     
     console.log(`Successfully retrieved ${data.length} metrics records`);
@@ -63,7 +63,7 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
   } catch (err) {
     console.error('Exception in getMetricsData:', err);
     console.log('Falling back to demo data');
-    return generateDemoCallMetrics();
+    return generateDemoCallMetrics() as RawMetricsRecord[];
   }
 };
 
