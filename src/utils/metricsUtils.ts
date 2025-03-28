@@ -59,7 +59,7 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
     }
     
     console.log(`Successfully retrieved ${data.length} metrics records`);
-    return data;
+    return data as RawMetricsRecord[];
   } catch (err) {
     console.error('Exception in getMetricsData:', err);
     console.log('Falling back to demo data');
