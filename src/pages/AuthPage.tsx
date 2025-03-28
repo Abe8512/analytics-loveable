@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import ConnectionStatusBadge from '@/components/ui/ConnectionStatusBadge';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -20,13 +21,17 @@ const AuthPage = () => {
   
   const { login, signup, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get the redirect path from location state, or default to '/'
+  const from = location.state?.from?.pathname || '/';
   
   useEffect(() => {
     // Redirect if already authenticated
     if (isAuthenticated) {
-      navigate('/');
+      navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, from]);
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +44,7 @@ const AuthPage = () => {
       if (error) {
         setError(error.message);
       } else {
-        navigate('/');
+        navigate(from, { replace: true });
       }
     } catch (err: any) {
       setError(err.message || 'Failed to login');
@@ -67,6 +72,9 @@ const AuthPage = () => {
       } else {
         // Switch to login tab after successful signup
         setActiveTab('login');
+        setError(null);
+        // Clear password for security
+        setPassword('');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to sign up');
@@ -78,6 +86,10 @@ const AuthPage = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-4">
+        <div className="flex justify-end mb-2">
+          <ConnectionStatusBadge showLatency={false} size="sm" />
+        </div>
+        
         <Card className="w-full">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">Future Sentiment Analytics</CardTitle>
@@ -109,6 +121,7 @@ const AuthPage = () => {
                       placeholder="your@email.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      disabled={isSubmitting}
                       required
                     />
                   </div>
@@ -119,6 +132,7 @@ const AuthPage = () => {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      disabled={isSubmitting}
                       required
                     />
                   </div>
@@ -147,6 +161,7 @@ const AuthPage = () => {
                       placeholder="John Doe"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      disabled={isSubmitting}
                       required
                     />
                   </div>
@@ -158,6 +173,7 @@ const AuthPage = () => {
                       placeholder="your@email.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      disabled={isSubmitting}
                       required
                     />
                   </div>
@@ -168,6 +184,7 @@ const AuthPage = () => {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      disabled={isSubmitting}
                       required
                     />
                   </div>
@@ -187,8 +204,8 @@ const AuthPage = () => {
               </TabsContent>
             </Tabs>
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <p className="text-sm text-muted-foreground">
+          <CardFooter className="flex flex-col space-y-2">
+            <p className="text-sm text-muted-foreground text-center">
               By continuing, you agree to our Terms of Service.
             </p>
           </CardFooter>

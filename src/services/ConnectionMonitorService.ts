@@ -4,6 +4,12 @@ import { checkSupabaseConnection, isConnected as checkSupabaseConnected } from '
 import { useEventsStore } from '@/services/events';
 import { errorHandler } from './ErrorHandlingService';
 
+// Define consistent event names as constants
+export const CONNECTION_EVENTS = {
+  RESTORED: 'connection-restored',
+  LOST: 'connection-lost',
+}
+
 export const useConnectionStatus = () => {
   const [isConnected, setIsConnected] = useState<boolean>(checkSupabaseConnected());
   const [lastChecked, setLastChecked] = useState<number | null>(null);
@@ -32,28 +38,28 @@ export const useConnectionStatus = () => {
       console.log('Browser reports online status');
       setIsConnected(true);
       setLastChecked(Date.now());
-      dispatchEvent('connection-restored');
+      dispatchEvent(CONNECTION_EVENTS.RESTORED);
     };
 
     const handleOffline = () => {
       console.log('Browser reports offline status');
       setIsConnected(false);
       setLastChecked(Date.now());
-      dispatchEvent('connection-lost');
+      dispatchEvent(CONNECTION_EVENTS.LOST);
     };
 
     const handleSupabaseConnectionRestored = () => {
       console.log('Supabase connection restored');
       setIsConnected(true);
       setLastChecked(Date.now());
-      dispatchEvent('connection-restored');
+      dispatchEvent(CONNECTION_EVENTS.RESTORED);
     };
 
     const handleSupabaseConnectionLost = () => {
       console.log('Supabase connection lost');
       setIsConnected(false);
       setLastChecked(Date.now());
-      dispatchEvent('connection-lost');
+      dispatchEvent(CONNECTION_EVENTS.LOST);
     };
 
     // Listen for browser online/offline events
@@ -70,11 +76,11 @@ export const useConnectionStatus = () => {
         setIsConnected(online);
         setLastChecked(Date.now());
         
-        // Dispatch appropriate event
+        // Dispatch appropriate event using standardized event names
         if (online) {
-          dispatchEvent('connection-restored');
+          dispatchEvent(CONNECTION_EVENTS.RESTORED);
         } else {
-          dispatchEvent('connection-lost');
+          dispatchEvent(CONNECTION_EVENTS.LOST);
         }
       }
     });

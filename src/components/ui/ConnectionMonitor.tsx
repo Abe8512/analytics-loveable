@@ -1,8 +1,9 @@
 
 import React, { useEffect } from 'react';
 import { toast } from 'sonner';
-import { useConnectionStatus } from '@/services/ConnectionMonitorService';
+import { useConnectionStatus, CONNECTION_EVENTS } from '@/services/ConnectionMonitorService';
 import { Wifi, WifiOff } from 'lucide-react';
+import { useEventsStore } from '@/services/events';
 
 /**
  * Component that monitors connection status and shows toast notifications
@@ -10,6 +11,7 @@ import { Wifi, WifiOff } from 'lucide-react';
  */
 const ConnectionMonitor: React.FC = () => {
   const { isConnected } = useConnectionStatus();
+  const { subscribeToEvent } = useEventsStore();
   
   // Track previous connection state to detect changes
   const prevConnectedRef = React.useRef<boolean | null>(null);
@@ -35,6 +37,22 @@ const ConnectionMonitor: React.FC = () => {
     // Update the previous state reference
     prevConnectedRef.current = isConnected;
   }, [isConnected]);
+  
+  useEffect(() => {
+    // Subscribe to connection events from the event system
+    const unsubscribeRestore = subscribeToEvent(CONNECTION_EVENTS.RESTORED, () => {
+      console.log('Connection restored event received');
+    });
+    
+    const unsubscribeLost = subscribeToEvent(CONNECTION_EVENTS.LOST, () => {
+      console.log('Connection lost event received');
+    });
+    
+    return () => {
+      unsubscribeRestore();
+      unsubscribeLost();
+    };
+  }, [subscribeToEvent]);
   
   // This component doesn't render anything visible
   return null;
