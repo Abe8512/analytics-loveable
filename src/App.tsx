@@ -4,7 +4,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import CallPage from './pages/CallPage';
-import AuthPage from './pages/AuthPage';
+import Auth from './pages/Auth';
+import ForgotPassword from './pages/ForgotPassword';
 import { AuthProvider } from './contexts/AuthContext';
 import { QueryProvider } from './contexts/QueryContext';
 import AICoaching from './pages/AICoaching';
@@ -67,9 +68,11 @@ function App() {
               <Toaster position="top-right" />
               
               <Routes>
-                {/* Auth routes - consolidated to only use AuthPage */}
-                <Route path="/auth" element={<AuthPage />} />
-                {/* Redirect old auth routes to the main auth page */}
+                {/* Auth routes */}
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                
+                {/* Redirect /login and /signup to /auth for consistency */}
                 <Route path="/login" element={<Navigate to="/auth" replace />} />
                 <Route path="/signup" element={<Navigate to="/auth" replace />} />
                 
@@ -124,6 +127,9 @@ function App() {
                     <PerformanceMetrics />
                   </ProtectedRoute>
                 } />
+                
+                {/* Catch all route - redirect to login */}
+                <Route path="*" element={<Navigate to="/auth" replace />} />
               </Routes>
             </SharedFilterProvider>
           </QueryProvider>
