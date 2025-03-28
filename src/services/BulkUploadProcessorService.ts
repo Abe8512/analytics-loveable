@@ -1,3 +1,4 @@
+
 import { useWhisperService } from "./WhisperService";
 import { useEventsStore } from "./events";
 import { errorHandler } from "./ErrorHandlingService";
@@ -38,10 +39,11 @@ export class BulkUploadProcessorService {
     this.assignedUserId = userId;
     
     // Notify other components about the assignment update
-    dispatchEvent("call-updated" as EventType, { assignedTo: userId });
+    // Use the correct event types that are defined in types.ts
+    dispatchEvent("call-assigned" as EventType, { assignedTo: userId });
     
-    // Also dispatch legacy event format for backward compatibility
-    dispatchEvent("CALL_UPDATED" as EventType, { assignedTo: userId });
+    // Also dispatch the legacy event format for backward compatibility
+    dispatchEvent("CALL_ASSIGNED" as EventType, { assignedTo: userId });
   }
   
   async processFile(
@@ -157,7 +159,8 @@ export class BulkUploadProcessorService {
           userName: userName
         });
         
-        dispatchEvent('CALL_UPDATED', {
+        // Ensure we're using proper event types that are defined
+        dispatchEvent('call-updated' as EventType, {
           id: transcriptId,
           assignedTo: this.assignedUserId,
           repName: userName
@@ -216,7 +219,7 @@ export class BulkUploadProcessorService {
             userName: userName
           });
           
-          dispatchEvent('CALL_UPDATED', {
+          dispatchEvent('call-updated' as EventType, {
             id: transcriptId,
             assignedTo: this.assignedUserId,
             repName: userName
@@ -256,7 +259,7 @@ export class BulkUploadProcessorService {
               userName: userName
             });
             
-            dispatchEvent('CALL_UPDATED', {
+            dispatchEvent('call-updated' as EventType, {
               id: transcriptId,
               assignedTo: this.assignedUserId,
               repName: userName

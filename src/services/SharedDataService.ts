@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { TeamMember } from "./TeamService";
 import { dispatchEvent } from "@/services/events";
@@ -176,5 +177,7 @@ export const useSharedTeamMetrics = (filters?: any) => {
   return { metrics, isLoading, error };
 };
 
-// Export useTeamMetricsData hook explicitly to fix the missing export error
-export const useTeamMetricsData = useSharedTeamMetrics;
+// Export useTeamMetricsData hook as a function to fix React hooks rules
+export const useTeamMetricsData = (filters?: any) => {
+  return useSharedTeamMetrics(filters);
+};

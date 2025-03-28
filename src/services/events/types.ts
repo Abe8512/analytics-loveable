@@ -12,18 +12,18 @@ export type EventType =
   | 'team-member-removed'
   | 'managed-users-updated'
   | 'call-updated'
-  | 'call-assigned' // Added for call assignment
+  | 'call-assigned'
   | 'recording-completed'
   | 'sentiment-updated'
   | 'connection-restored'
   | 'connection-lost'
   | 'call-uploaded'
-  | 'TEAM_MEMBER_ADDED'      // Added for backward compatibility
-  | 'TEAM_MEMBER_REMOVED'    // Added for backward compatibility
-  | 'MANAGED_USERS_UPDATED'  // Added for backward compatibility
-  | 'CALL_UPDATED'           // Added for backward compatibility
-  | 'TEAM_DATA_UPDATED'      // Added for data update notifications
-  | 'CALL_ASSIGNED';         // Added for backward compatibility
+  | 'TEAM_MEMBER_ADDED'      // Legacy format
+  | 'TEAM_MEMBER_REMOVED'    // Legacy format
+  | 'MANAGED_USERS_UPDATED'  // Legacy format
+  | 'CALL_UPDATED'           // Legacy format
+  | 'TEAM_DATA_UPDATED'      // Legacy format
+  | 'CALL_ASSIGNED';         // Legacy format
 
 export interface EventPayload {
   [key: string]: any;
