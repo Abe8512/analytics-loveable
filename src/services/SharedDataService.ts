@@ -176,7 +176,5 @@ export const useSharedTeamMetrics = (filters?: any) => {
   return { metrics, isLoading, error };
 };
 
-// useTeamMetricsData hook (for PerformanceMetrics page)
-export const useTeamMetricsData = (filters?: any) => {
-  return useSharedTeamMetrics(filters);
-};
+// Export useTeamMetricsData hook explicitly to fix the missing export error
+export const useTeamMetricsData = useSharedTeamMetrics;

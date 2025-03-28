@@ -39,6 +39,9 @@ export class BulkUploadProcessorService {
     
     // Notify other components about the assignment update
     dispatchEvent("call-updated" as EventType, { assignedTo: userId });
+    
+    // Also dispatch legacy event format for backward compatibility
+    dispatchEvent("CALL_UPDATED" as EventType, { assignedTo: userId });
   }
   
   async processFile(
