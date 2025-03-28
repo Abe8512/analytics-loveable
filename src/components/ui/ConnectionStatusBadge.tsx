@@ -1,15 +1,32 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 import { Wifi, WifiOff, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { errorHandler } from '@/services/ErrorHandlingService';
 
 interface ConnectionStatusBadgeProps {
   className?: string;
   showLatency?: boolean;
   size?: 'sm' | 'md' | 'lg';
 }
+
+// Custom hook to use the error handler's network latency
+const useErrorHandler = () => {
+  const [networkLatency, setNetworkLatency] = useState(0);
+  
+  useEffect(() => {
+    // Update latency every second
+    const interval = setInterval(() => {
+      setNetworkLatency(errorHandler.networkLatency);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return { networkLatency };
+};
 
 const ConnectionStatusBadge: React.FC<ConnectionStatusBadgeProps> = ({
   className,
@@ -89,25 +106,6 @@ const ConnectionStatusBadge: React.FC<ConnectionStatusBadgeProps> = ({
       </Tooltip>
     </TooltipProvider>
   );
-};
-
-// Import the errorHandler from the existing service
-import { errorHandler } from '@/services/ErrorHandlingService';
-
-// Create a hook to use the error handler's network latency
-const useErrorHandler = () => {
-  const [networkLatency, setNetworkLatency] = React.useState(0);
-  
-  React.useEffect(() => {
-    // Update latency every second
-    const interval = setInterval(() => {
-      setNetworkLatency(errorHandler.networkLatency);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
-  
-  return { networkLatency };
 };
 
 export default ConnectionStatusBadge;
