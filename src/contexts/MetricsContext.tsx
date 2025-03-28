@@ -1,11 +1,11 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { fixCallSentiments } from '@/utils/fixCallSentiments';
 import { MetricsData, RawMetricsRecord, FormattedMetrics, initialMetricsData } from '@/types/metrics';
 import { processMetricsData } from '@/utils/metricsProcessor';
-import { getMetricsData } from '@/utils/metricsUtils';
+import { useMetricsFetcher, clearMetricsCache } from '@/hooks/useMetricsFetcher';
+import { useSharedFilters } from '@/contexts/SharedFilterContext';
 
 interface MetricsContextValue {
   rawMetrics: RawMetricsRecord | null;
@@ -29,112 +29,88 @@ const MetricsContext = createContext<MetricsContextValue>({
   error: null
 });
 
-/**
- * Hook to access metrics data and functions
- */
 export const useMetrics = () => useContext(MetricsContext);
 
-/**
- * Provider component that makes metrics data available throughout the application
- */
-export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [rawMetrics, setRawMetrics] = useState<RawMetricsRecord | null>(null);
-  const [metricsData, setMetricsData] = useState<MetricsData>(initialMetricsData);
-  const [formattedMetrics, setFormattedMetrics] = useState<FormattedMetrics | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [isUsingDemoData, setIsUsingDemoData] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+interface MetricsProviderProps {
+  children: React.ReactNode;
+}
+
+export const MetricsProvider: React.FC<MetricsProviderProps> = ({ children }) => {
+  const { filters } = useSharedFilters();
   const { toast } = useToast();
   
-  /**
-   * Fetches the latest metrics data
-   */
-  const fetchMetrics = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Get metrics data from API or database
-      const latestMetrics = await getMetricsData(7);
-      
-      if (latestMetrics && latestMetrics.length > 0) {
-        const latestMetricsRecord = latestMetrics[0];
-        setRawMetrics(latestMetricsRecord);
-        
-        // Process raw metrics into consistent format
-        const { metricsData: processedData, formattedMetrics: formatted, isUsingDemoData: usingDemo } = 
-          processMetricsData(latestMetricsRecord, false, false);
-        
-        setMetricsData(processedData);
-        setFormattedMetrics(formatted);
-        setIsUsingDemoData(usingDemo);
-      } else {
-        console.warn('No metrics data available');
-        setRawMetrics(null);
-        
-        // Process with null data to get demo data
-        const { metricsData: demoData, formattedMetrics: demoFormatted, isUsingDemoData: usingDemo } = 
-          processMetricsData(null, false, true);
-        
-        setMetricsData(demoData);
-        setFormattedMetrics(demoFormatted);
-        setIsUsingDemoData(usingDemo);
-        setError('No metrics data available');
-      }
-    } catch (err) {
-      console.error('Error fetching metrics:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error fetching metrics');
-      
-      // Fallback to demo data in case of error
-      const { metricsData: demoData, formattedMetrics: demoFormatted } = 
-        processMetricsData(null, false, true);
-      
-      setMetricsData(demoData);
-      setFormattedMetrics(demoFormatted);
-      setIsUsingDemoData(true);
-    } finally {
-      setIsLoading(false);
+  // Use our enhanced metrics fetcher with caching
+  const {
+    data: rawMetrics,
+    isLoading,
+    isError,
+    error: fetchError,
+    isUsingDemoData,
+    refresh: refreshRawMetrics,
+    lastUpdated
+  } = useMetricsFetcher({
+    cacheKey: 'dashboard-metrics',
+    cacheDuration: 2 * 60 * 1000, // 2 minutes
+    filters: {
+      dateRange: filters.dateRange
     }
-  }, []);
+  });
   
-  /**
-   * Refreshes metrics data and shows a toast notification
-   */
-  const refresh = async () => {
-    setIsLoading(true);
-    await fetchMetrics();
+  // Process the raw metrics data into the format needed by components
+  const [processedData, setProcessedData] = useState<{
+    metricsData: MetricsData;
+    formattedMetrics: FormattedMetrics | null;
+  }>({
+    metricsData: initialMetricsData,
+    formattedMetrics: null
+  });
+  
+  // Update processed data when raw metrics change
+  useEffect(() => {
+    const { metricsData, formattedMetrics } = processMetricsData(
+      rawMetrics,
+      isLoading,
+      isError
+    );
     
-    toast({
-      title: "Metrics Refreshed",
-      description: isUsingDemoData 
-        ? "Using demo data (no real metrics found)" 
-        : "Latest metrics data has been loaded"
+    setProcessedData({
+      metricsData: {
+        ...metricsData,
+        isUsingDemoData,
+        lastUpdated: lastUpdated || metricsData.lastUpdated
+      },
+      formattedMetrics
     });
-  };
+  }, [rawMetrics, isLoading, isError, isUsingDemoData, lastUpdated]);
   
-  /**
-   * Fixes neutral sentiment values and refreshes metrics
-   */
-  const fixSentiments = async () => {
-    setIsUpdating(true);
+  // Handle filter changes by refreshing data
+  useEffect(() => {
+    const refreshData = async () => {
+      // Clear cache when filters change
+      clearMetricsCache();
+      await refreshRawMetrics(true);
+    };
     
+    refreshData();
+  }, [filters, refreshRawMetrics]);
+  
+  // Function to fix sentiments and refresh data
+  const fixSentiments = useCallback(async () => {
     try {
       const result = await fixCallSentiments();
       
       if (result.success) {
         toast({
           title: "Sentiment Update Complete",
-          description: `Updated ${result.updated} of ${result.total} calls. Failed: ${result.failed}`,
-          variant: result.failed > 0 ? "destructive" : "default"
+          description: `Updated ${result.updated} of ${result.total} calls`
         });
         
-        // Refresh metrics after updating sentiments
-        await fetchMetrics();
+        // Refresh metrics after fixing sentiments
+        await refreshRawMetrics(true);
       } else {
         toast({
-          title: "Update Failed",
-          description: result.error || "Could not update sentiments",
+          title: "Sentiment Update Failed",
+          description: result.error || "Could not update call sentiments",
           variant: "destructive"
         });
       }
@@ -145,41 +121,19 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
         description: "Failed to update call sentiments",
         variant: "destructive"
       });
-    } finally {
-      setIsUpdating(false);
     }
-  };
+  }, [toast, refreshRawMetrics]);
   
-  // Set up real-time subscription for metrics updates
-  useEffect(() => {
-    // Initial fetch
-    fetchMetrics();
-    
-    // Subscribe to changes on the call_metrics_summary table
-    const subscription = supabase
-      .channel('metrics-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'call_metrics_summary' }, 
-        () => {
-          console.log('Metrics data updated in database, refreshing...');
-          fetchMetrics();
-        })
-      .subscribe();
-    
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [fetchMetrics]);
-  
-  const contextValue = {
+  // Prepare context value
+  const contextValue: MetricsContextValue = {
     rawMetrics,
-    metricsData,
-    formattedMetrics,
+    metricsData: processedData.metricsData,
+    formattedMetrics: processedData.formattedMetrics,
     isLoading,
     isUsingDemoData,
-    refresh,
+    refresh: refreshRawMetrics,
     fixSentiments,
-    error
+    error: fetchError
   };
   
   return (
