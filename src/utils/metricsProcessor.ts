@@ -1,4 +1,3 @@
-
 import { formatMetricsForDisplay } from './metricsUtils';
 import { 
   MetricsData, 
@@ -119,13 +118,14 @@ export const processMetricsData = (
 /**
  * Extracts key performance indicators from metrics data
  * for use in dashboard displays
+ * Updated to accept FormattedMetrics instead of MetricsData
  */
-export const extractDashboardKPIs = (metricsData: MetricsData) => {
+export const extractDashboardKPIs = (metrics: FormattedMetrics) => {
   return {
-    totalCalls: metricsData.totalCalls,
-    avgDuration: metricsData.avgDuration,
-    positiveSentiment: metricsData.positiveSentiment,
-    callScore: metricsData.callScore,
-    conversionRate: metricsData.conversionRate
+    totalCalls: metrics.totalCalls,
+    avgDuration: metrics.avgDurationMinutes,
+    positiveSentiment: metrics.positiveSentimentPercent,
+    callScore: metrics.callScore,
+    conversionRate: metrics.conversionRate
   };
 };

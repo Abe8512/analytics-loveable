@@ -8,17 +8,24 @@ import { formatMetricsForDisplay } from '@/utils/metricsUtils';
 // Default formatted metrics data structure
 const defaultFormattedMetrics: FormattedMetrics = {
   totalCalls: 0,
-  avgDuration: 0,
-  successRate: 0,
-  conversionRate: 0,
+  avgDuration: "0:00", // Changed from number to string to match FormattedMetrics type
+  avgDurationSeconds: 0,
+  avgDurationMinutes: 0,
+  totalDuration: 0,
+  positiveCallsCount: 0,
+  negativeCallsCount: 0,
+  neutralCallsCount: 0,
+  positiveSentimentPercent: 0,
+  negativeSentimentPercent: 0,
+  neutralSentimentPercent: 0,
   avgSentiment: 0,
+  avgSentimentPercent: 0,
+  callScore: 0,
+  conversionRate: 0,
   agentTalkRatio: 0,
   customerTalkRatio: 0,
-  positiveSentiment: 0,
-  negativeSentiment: 0,
-  neutralSentiment: 0,
   topKeywords: [],
-  callScore: 0,
+  reportDate: new Date().toISOString().split('T')[0]
 };
 
 // Context interface
