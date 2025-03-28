@@ -166,7 +166,7 @@ export const useSharedTeamMetrics = (filters?: any) => {
 
     fetchMetrics();
 
-    // Set up listeners for data updates
+    // Set up listeners for data updates - using the correct EventType
     const unsubscribe = addEventListener("team-data-updated", fetchMetrics);
 
     return () => {

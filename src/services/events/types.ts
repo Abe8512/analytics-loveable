@@ -1,3 +1,4 @@
+
 export type EventType = 
   | 'transcript-created'
   | 'transcript-updated'
@@ -17,6 +18,7 @@ export type EventType =
   | 'connection-restored'
   | 'connection-lost'
   | 'call-uploaded'
+  | 'team-data-updated'
   | 'TEAM_MEMBER_ADDED'
   | 'TEAM_MEMBER_REMOVED'
   | 'MANAGED_USERS_UPDATED'
