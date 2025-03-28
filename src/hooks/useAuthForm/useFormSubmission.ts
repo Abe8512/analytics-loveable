@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 import { validateLoginForm, validateSignupForm } from '@/utils/formValidation';
@@ -29,6 +29,7 @@ export const useFormSubmission = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, signup } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { isConnected } = useConnectionStatus();
   
@@ -65,7 +66,9 @@ export const useFormSubmission = ({
       if (loginError) {
         setError(loginError.message);
       } else {
-        const from = location.state?.from?.pathname || '/';
+        // Fixed error: Instead of accessing location.state directly,
+        // safely handle the case when state might not exist
+        const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
         navigate(from, { replace: true });
         toast({
           title: "Login successful",
