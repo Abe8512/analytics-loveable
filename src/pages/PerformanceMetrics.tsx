@@ -7,7 +7,7 @@ import KeyMetricsTable from '@/components/Performance/KeyMetricsTable';
 import TrendingInsightsCard from '@/components/Performance/TrendingInsightsCard';
 import { PageHeader } from '@/components/ui/page-header';
 import { LineChart } from 'lucide-react';
-import { useTeamMetricsData } from '@/services/SharedDataService';
+import { useTeamMetricsData } from '@/services/MetricsService';
 import { 
   generateDemoSalesInsights, 
   generateDemoCoachingInsights, 
@@ -23,7 +23,7 @@ const PerformanceMetrics = () => {
   const { filters } = useSharedFilters();
   const metricsFilters: MetricsFilters = {
     dateRange: filters.dateRange,
-    repIds: filters.repIds // Use repIds from DataFilters which now matches the type definition
+    repIds: filters.repIds
   };
   
   const { metrics, isLoading: metricsLoading } = useTeamMetricsData(metricsFilters);

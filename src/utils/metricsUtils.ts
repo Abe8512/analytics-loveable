@@ -1,5 +1,7 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { generateDemoCallMetrics, generateDemoRepMetricsData } from '@/services/DemoDataService';
+import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
 
 /**
  * Checks if metrics data is available in the database
@@ -29,11 +31,11 @@ export const checkMetricsAvailability = async (): Promise<boolean> => {
 };
 
 /**
- * Gets real metrics data or falls back to demo data
+ * Gets metrics data from the database
  * @param {number} days Number of days to retrieve
  * @returns {Promise<any[]>} Metrics data array
  */
-export const getMetricsData = async (days = 7): Promise<any[]> => {
+export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
   try {
     console.log(`Fetching metrics data for last ${days} days...`);
     const startDate = new Date();
@@ -66,11 +68,11 @@ export const getMetricsData = async (days = 7): Promise<any[]> => {
 };
 
 /**
- * Gets real rep metrics data or falls back to demo data
+ * Gets rep metrics data or falls back to demo data
  * @param {number} count Number of reps to retrieve
  * @returns {Promise<any[]>} Rep metrics data array
  */
-export const getRepMetricsData = async (count = 5): Promise<any[]> => {
+export const getRepMetricsData = async (count = 5) => {
   try {
     console.log('Fetching rep metrics data...');
     const { data, error } = await supabase
@@ -101,10 +103,10 @@ export const getRepMetricsData = async (count = 5): Promise<any[]> => {
 
 /**
  * Formats metrics for display
- * @param {any} metrics Raw metrics data
- * @returns {Object} Formatted metrics
+ * @param {RawMetricsRecord} metrics Raw metrics data
+ * @returns {FormattedMetrics | null} Formatted metrics
  */
-export const formatMetricsForDisplay = (metrics: any) => {
+export const formatMetricsForDisplay = (metrics: RawMetricsRecord): FormattedMetrics | null => {
   if (!metrics) return null;
   
   // Format duration from seconds to minutes and seconds

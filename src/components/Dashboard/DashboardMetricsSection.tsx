@@ -5,15 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import PerformanceMetrics from './PerformanceMetrics';
+import { MetricsData } from '@/types/metrics';
 
 interface DashboardMetricsSectionProps {
-  dashboardStats: {
-    totalCalls: number;
-    avgDuration: number;
-    positiveSentiment: number;
-    callScore: number;
-    conversionRate: number;
-  };
+  dashboardStats: Partial<MetricsData>;
   isLoading: boolean;
   refreshData: () => void;
 }
