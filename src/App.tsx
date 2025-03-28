@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import CallPage from './pages/CallPage';
@@ -19,8 +19,6 @@ import PerformanceMetrics from './pages/PerformanceMetrics';
 import { SharedFilterProvider } from './contexts/SharedFilterContext';
 import { createContext, useState, useEffect } from 'react';
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
 
 // Define the ThemeContext type
 interface ThemeContextType {
@@ -69,10 +67,11 @@ function App() {
               <Toaster position="top-right" />
               
               <Routes>
-                {/* Auth routes */}
+                {/* Auth routes - consolidated to only use AuthPage */}
                 <Route path="/auth" element={<AuthPage />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
+                {/* Redirect old auth routes to the main auth page */}
+                <Route path="/login" element={<Navigate to="/auth" replace />} />
+                <Route path="/signup" element={<Navigate to="/auth" replace />} />
                 
                 {/* Protected routes */}
                 <Route path="/" element={

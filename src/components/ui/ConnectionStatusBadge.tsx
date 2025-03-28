@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 import { Wifi, WifiOff, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { errorHandler } from '@/services/ErrorHandlingService';
+import { useNetworkLatency } from '@/hooks/useNetworkLatency';
 
 interface ConnectionStatusBadgeProps {
   className?: string;
@@ -12,29 +13,13 @@ interface ConnectionStatusBadgeProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-// Custom hook to use the error handler's network latency
-const useErrorHandler = () => {
-  const [networkLatency, setNetworkLatency] = useState(0);
-  
-  useEffect(() => {
-    // Update latency every second
-    const interval = setInterval(() => {
-      setNetworkLatency(errorHandler.networkLatency);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
-  
-  return { networkLatency };
-};
-
 const ConnectionStatusBadge: React.FC<ConnectionStatusBadgeProps> = ({
   className,
   showLatency = false,
   size = 'md',
 }) => {
   const { isConnected, checkConnection } = useConnectionStatus();
-  const { networkLatency } = useErrorHandler();
+  const { networkLatency } = useNetworkLatency();
   
   // Determine icon and status text based on connection state
   const statusIcon = isConnected ? <Wifi className="h-full w-full" /> : <WifiOff className="h-full w-full" />;
