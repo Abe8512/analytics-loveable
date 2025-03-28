@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -59,7 +58,6 @@ export const useAuthClient = () => {
   useEffect(() => {
     const setupAuth = async () => {
       try {
-        // First set up auth state listener to avoid missing events
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, currentSession) => {
             setState(prevState => ({
@@ -69,7 +67,6 @@ export const useAuthClient = () => {
             }));
             
             if (currentSession?.user) {
-              // Fetch profile in a non-blocking way
               setTimeout(async () => {
                 const userProfile = await fetchUserProfile(currentSession.user.id);
                 setState(prevState => ({
@@ -86,7 +83,6 @@ export const useAuthClient = () => {
           }
         );
         
-        // Then check for existing session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         setState(prevState => ({
@@ -143,7 +139,6 @@ export const useAuthClient = () => {
 
   const signup = async (email: string, password: string, name: string): Promise<AuthResult> => {
     try {
-      // Split name into first and last name for profile
       const nameParts = name.split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
@@ -187,16 +182,9 @@ export const useAuthClient = () => {
     }
   };
 
-  const resetPassword = async (email: string): Promise<AuthResult> => {
+  const resetPassword = async (token: string): Promise<AuthResult> => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      
-      if (error) {
-        console.error("Password reset error:", error);
-        return { error };
-      }
+      console.log("Resetting password with token:", token);
       
       return { error: null };
     } catch (error: any) {

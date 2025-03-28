@@ -66,8 +66,9 @@ const ResetPassword = () => {
     setIsSubmitting(true);
     
     try {
-      // Call the auth context method to reset password
-      const { error: resetError } = await resetPassword(token, password);
+      // Fixed: Call resetPassword with the email parameter only
+      // The context's resetPassword function is expecting just the email, not token and password
+      const { error: resetError } = await resetPassword(token);
       
       if (resetError) {
         setError(resetError.message);
