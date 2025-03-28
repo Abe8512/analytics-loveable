@@ -1,332 +1,212 @@
 
-import { useState, useCallback, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect, useCallback } from 'react';
 import { RawMetricsRecord, MetricsFilters } from '@/types/metrics';
-import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { generateDemoCallMetrics } from '@/services/DemoDataService';
+import { supabase } from '@/integrations/supabase/client';
 import { formatError } from '@/utils/errorUtils';
 
-interface MetricsFetcherOptions {
-  initialLoad?: boolean;
+// Cache for metrics data
+const metricsCache = new Map<string, {
+  data: RawMetricsRecord | null;
+  timestamp: number;
+  lastUpdated: Date | null;
+}>();
+
+// Function to generate a cache key based on filters
+const generateCacheKey = (filters?: MetricsFilters): string => {
+  if (!filters) return 'default';
+  
+  const dateRange = filters.dateRange 
+    ? `${filters.dateRange.from?.toISOString() || ''}-${filters.dateRange.to?.toISOString() || ''}` 
+    : '';
+    
+  const repIds = filters.repIds ? filters.repIds.join(',') : '';
+  
+  return `metrics-${dateRange}-${repIds}`;
+};
+
+// Clear metrics cache for a specific key or all keys
+export const clearMetricsCache = (cacheKey?: string): void => {
+  if (cacheKey) {
+    metricsCache.delete(cacheKey);
+    console.log(`Cleared metrics cache for key: ${cacheKey}`);
+  } else {
+    metricsCache.clear();
+    console.log('Cleared all metrics cache');
+  }
+};
+
+interface UseMetricsFetcherOptions {
   cacheKey?: string;
   cacheDuration?: number; // in milliseconds
   filters?: MetricsFilters;
+  shouldSubscribe?: boolean;
 }
 
-interface MetricsFetcherResult {
-  data: RawMetricsRecord | null;
-  isLoading: boolean;
-  isError: boolean;
-  error: string | null;
-  lastUpdated: Date | null;
-  isUsingDemoData: boolean;
-  refresh: (force?: boolean) => Promise<void>;
-}
-
-// Simple client-side cache for metrics data
-const metricsCache: Record<string, {
-  data: RawMetricsRecord;
-  timestamp: number;
-  filters?: MetricsFilters;
-}> = {};
-
-export const useMetricsFetcher = (options: MetricsFetcherOptions = {}): MetricsFetcherResult => {
+/**
+ * Custom hook for fetching metrics data with caching and real-time updates
+ */
+export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
+  const { 
+    cacheKey: providedCacheKey, 
+    cacheDuration = 5 * 60 * 1000, // 5 minutes default
+    filters,
+    shouldSubscribe = true
+  } = options;
+  
+  const cacheKey = providedCacheKey || generateCacheKey(filters);
+  
   const [data, setData] = useState<RawMetricsRecord | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(options.initialLoad !== false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isUsingDemoData, setIsUsingDemoData] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
-  const { toast } = useToast();
-  const { cacheKey, cacheDuration = 60000, filters } = options; // Default 1 minute cache
-
-  // Function to generate a demo metrics record for fallback
-  const generateDemoMetrics = useCallback((): RawMetricsRecord => {
-    console.log('Generating demo metrics as fallback');
-    const today = new Date();
-    
-    return {
-      id: 'demo-metrics',
-      report_date: today.toISOString().split('T')[0],
-      total_calls: 42,
-      avg_duration: 348,
-      total_duration: 14616,
-      positive_sentiment_count: 28,
-      negative_sentiment_count: 5,
-      neutral_sentiment_count: 9,
-      avg_sentiment: 0.76,
-      agent_talk_ratio: 46,
-      customer_talk_ratio: 54,
-      performance_score: 82,
-      conversion_rate: 0.35,
-      top_keywords: ['pricing', 'feature', 'support', 'timeline', 'demo']
-    };
-  }, []);
-
-  // Function to fetch metrics data from database
-  const fetchMetricsData = useCallback(async (force = false): Promise<void> => {
-    // Check cache first if not forced refresh
-    if (cacheKey && !force && metricsCache[cacheKey]) {
-      const cachedData = metricsCache[cacheKey];
-      const now = Date.now();
-      
-      // If cache is still valid, use it
-      if (now - cachedData.timestamp < cacheDuration) {
-        console.log(`Using cached metrics data for key: ${cacheKey}`);
-        setData(cachedData.data);
-        setLastUpdated(new Date(cachedData.timestamp));
-        setIsLoading(false);
-        setIsError(false);
-        setError(null);
-        setIsUsingDemoData(false);
-        return;
-      }
-    }
-    
+  // Fetch metrics data
+  const fetchMetrics = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
     setIsLoading(true);
+    setIsError(false);
     setError(null);
     
     try {
-      // Build the base query
+      // Check cache first if not forcing refresh
+      if (!forceRefresh && metricsCache.has(cacheKey)) {
+        const cachedData = metricsCache.get(cacheKey);
+        
+        if (cachedData && (Date.now() - cachedData.timestamp < cacheDuration)) {
+          console.log(`Using cached metrics data for key: ${cacheKey}`);
+          setData(cachedData.data);
+          setLastUpdated(cachedData.lastUpdated);
+          setIsUsingDemoData(cachedData.data === null);
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      console.log(`Fetching metrics data with key: ${cacheKey}`, filters);
+      
+      // Build the query based on filters
       let query = supabase
         .from('call_metrics_summary')
         .select('*')
-        .order('report_date', { ascending: false })
-        .limit(1);
+        .order('report_date', { ascending: false });
+      
+      // Apply date range filter if provided
+      if (filters?.dateRange?.from && filters?.dateRange?.to) {
+        const fromDate = format(filters.dateRange.from, 'yyyy-MM-dd');
+        const toDate = format(filters.dateRange.to, 'yyyy-MM-dd');
         
-      // Apply date filters if available
-      if (filters?.dateRange?.from) {
-        query = query.gte('report_date', filters.dateRange.from.toISOString().split('T')[0]);
+        query = query
+          .gte('report_date', fromDate)
+          .lte('report_date', toDate);
       }
       
-      if (filters?.dateRange?.to) {
-        query = query.lte('report_date', filters.dateRange.to.toISOString().split('T')[0]);
-      }
-
-      // Execute query
-      const { data: metricsData, error: dbError } = await query;
-      
-      if (dbError) {
-        throw new Error(`Database error: ${dbError.message}`);
+      // Apply rep filter if provided
+      if (filters?.repIds && filters.repIds.length > 0) {
+        // If we had a rep_id column in the metrics table, we would filter by it
+        // For now, we're assuming the metrics are aggregated for all reps
       }
       
-      if (!metricsData || metricsData.length === 0) {
-        console.log('No metrics data found in database, trying calls table for raw calculation...');
+      const { data: metricsData, error: fetchError } = await query.limit(1);
+      
+      if (fetchError) {
+        throw fetchError;
+      }
+      
+      const now = new Date();
+      
+      if (metricsData && metricsData.length > 0) {
+        console.log('Successfully fetched metrics data');
+        const metrics = metricsData[0] as RawMetricsRecord;
+        setData(metrics);
+        setLastUpdated(now);
+        setIsUsingDemoData(false);
         
-        // Try to calculate metrics from calls table if no summary data exists
-        const result = await fetchAndCalculateFromCalls();
-        
-        if (result) {
-          setData(result);
-          setLastUpdated(new Date());
-          setIsLoading(false);
-          setIsError(false);
-          setError(null);
-          setIsUsingDemoData(false);
-          
-          // Cache the calculated results
-          if (cacheKey) {
-            metricsCache[cacheKey] = {
-              data: result,
-              timestamp: Date.now(),
-              filters
-            };
-          }
-          
-          return;
-        }
-        
-        // If both approaches fail, use demo data
-        const demoData = generateDemoMetrics();
+        // Update cache
+        metricsCache.set(cacheKey, {
+          data: metrics,
+          timestamp: Date.now(),
+          lastUpdated: now
+        });
+      } else {
+        console.log('No metrics data found, using demo data');
+        // Use demo data if no metrics found
+        const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
         setData(demoData);
-        setLastUpdated(new Date());
-        setIsLoading(false);
-        setIsError(false);
-        setError(null);
+        setLastUpdated(now);
         setIsUsingDemoData(true);
         
-        // Cache the demo data but with shorter expiration
-        if (cacheKey) {
-          metricsCache[cacheKey] = {
-            data: demoData,
-            timestamp: Date.now() - (cacheDuration / 2), // Set shorter expiration for demo data
-            filters
-          };
-        }
-        
-        return;
-      }
-      
-      // We have real metrics data
-      setData(metricsData[0]);
-      setLastUpdated(new Date());
-      setIsLoading(false);
-      setIsError(false);
-      setError(null);
-      setIsUsingDemoData(false);
-      
-      // Cache the result
-      if (cacheKey) {
-        metricsCache[cacheKey] = {
-          data: metricsData[0],
+        // Cache the demo data too
+        metricsCache.set(cacheKey, {
+          data: demoData,
           timestamp: Date.now(),
-          filters
-        };
-      }
-      
-    } catch (err) {
-      console.error('Error fetching metrics data:', err);
-      setIsError(true);
-      setError(formatError(err));
-      setIsLoading(false);
-      
-      // Use demo data as fallback
-      const demoData = generateDemoMetrics();
-      setData(demoData);
-      setIsUsingDemoData(true);
-    }
-  }, [cacheKey, cacheDuration, filters, generateDemoMetrics]);
-  
-  // Helper function to calculate metrics directly from calls table
-  const fetchAndCalculateFromCalls = async (): Promise<RawMetricsRecord | null> => {
-    try {
-      // Fetch call data
-      const { data: callsData, error: callsError } = await supabase
-        .from('calls')
-        .select('duration, sentiment_agent, sentiment_customer, talk_ratio_agent, talk_ratio_customer, key_phrases, created_at');
-      
-      if (callsError || !callsData || callsData.length === 0) {
-        return null;
-      }
-      
-      // Calculate metrics
-      const totalCalls = callsData.length;
-      const totalDuration = callsData.reduce((sum, call) => sum + (call.duration || 0), 0);
-      const avgDuration = totalDuration / totalCalls;
-      
-      // Count sentiment categories
-      let positiveCount = 0;
-      let negativeCount = 0;
-      let neutralCount = 0;
-      let totalSentiment = 0;
-      
-      callsData.forEach(call => {
-        const sentiment = call.sentiment_agent || 0.5;
-        totalSentiment += sentiment;
-        
-        if (sentiment > 0.66) positiveCount++;
-        else if (sentiment < 0.33) negativeCount++;
-        else neutralCount++;
-      });
-      
-      const avgSentiment = totalSentiment / totalCalls;
-      
-      // Calculate talk ratios
-      const avgAgentTalkRatio = callsData.reduce((sum, call) => sum + (call.talk_ratio_agent || 50), 0) / totalCalls;
-      const avgCustomerTalkRatio = callsData.reduce((sum, call) => sum + (call.talk_ratio_customer || 50), 0) / totalCalls;
-      
-      // Extract keywords
-      const keywordsMap = new Map<string, number>();
-      callsData.forEach(call => {
-        if (call.key_phrases && Array.isArray(call.key_phrases)) {
-          call.key_phrases.forEach(phrase => {
-            keywordsMap.set(phrase, (keywordsMap.get(phrase) || 0) + 1);
-          });
-        }
-      });
-      
-      // Sort keywords by frequency
-      const topKeywords = Array.from(keywordsMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(entry => entry[0]);
-      
-      // Assemble metrics record
-      return {
-        id: 'calculated-metrics',
-        report_date: new Date().toISOString().split('T')[0],
-        total_calls: totalCalls,
-        total_duration: totalDuration,
-        avg_duration: avgDuration,
-        positive_sentiment_count: positiveCount,
-        negative_sentiment_count: negativeCount,
-        neutral_sentiment_count: neutralCount,
-        avg_sentiment: avgSentiment,
-        agent_talk_ratio: avgAgentTalkRatio,
-        customer_talk_ratio: avgCustomerTalkRatio,
-        performance_score: Math.round(avgSentiment * 100),
-        conversion_rate: 0.3, // Default/mock value
-        top_keywords: topKeywords
-      };
-    } catch (err) {
-      console.error('Error calculating metrics from calls:', err);
-      return null;
-    }
-  };
-
-  // Function to manually refresh the data
-  const refresh = useCallback(async (force = true): Promise<void> => {
-    try {
-      await fetchMetricsData(force);
-      
-      if (!isUsingDemoData) {
-        toast({
-          title: "Metrics Refreshed",
-          description: "Latest performance data has been loaded",
+          lastUpdated: now
         });
       }
     } catch (err) {
-      console.error('Error refreshing metrics:', err);
-      toast({
-        title: "Refresh Failed",
-        description: formatError(err),
-        variant: "destructive",
-      });
+      console.error('Error fetching metrics:', err);
+      setIsError(true);
+      setError(formatError(err));
+      
+      // Use demo data in case of error
+      const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
+      setData(demoData);
+      setLastUpdated(new Date());
+      setIsUsingDemoData(true);
+    } finally {
+      setIsLoading(false);
     }
-  }, [fetchMetricsData, isUsingDemoData, toast]);
-
-  // Initial data fetch on mount
+  }, [cacheKey, cacheDuration, filters]);
+  
+  // Handle real-time updates via Supabase subscription
   useEffect(() => {
-    if (options.initialLoad !== false) {
-      fetchMetricsData(false);
-    }
+    if (!shouldSubscribe) return;
     
-    // Set up refresh interval (5 minutes)
-    const intervalId = setInterval(() => {
-      console.log('Auto-refreshing metrics data...');
-      fetchMetricsData(true);
-    }, 5 * 60 * 1000);
-    
+    // Set up real-time subscription for metrics updates
+    const channel = supabase
+      .channel('metrics-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'call_metrics_summary' }, 
+        payload => {
+          console.log('Received real-time metrics update:', payload);
+          
+          // Update local state and cache with new data
+          const newData = payload.new as RawMetricsRecord;
+          const now = new Date();
+          
+          setData(newData);
+          setLastUpdated(now);
+          setIsUsingDemoData(false);
+          
+          // Update cache
+          metricsCache.set(cacheKey, {
+            data: newData,
+            timestamp: Date.now(),
+            lastUpdated: now
+          });
+        })
+      .subscribe();
+      
+    // Clean up the subscription
     return () => {
-      clearInterval(intervalId);
+      supabase.removeChannel(channel);
     };
-  }, [fetchMetricsData, options.initialLoad]);
-
+  }, [cacheKey, shouldSubscribe]);
+  
+  // Initial data fetch
+  useEffect(() => {
+    fetchMetrics();
+  }, [fetchMetrics]);
+  
   return {
     data,
     isLoading,
     isError,
     error,
-    lastUpdated,
     isUsingDemoData,
-    refresh
+    refresh: fetchMetrics,
+    lastUpdated
   };
-};
-
-// Utility function to clear all cached metrics data
-export const clearMetricsCache = (): void => {
-  Object.keys(metricsCache).forEach(key => {
-    delete metricsCache[key];
-  });
-  console.log('Cleared all metrics cache entries');
-};
-
-// Utility function to clear specific metrics cache by key
-export const clearMetricsCacheByKey = (key: string): void => {
-  if (metricsCache[key]) {
-    delete metricsCache[key];
-    console.log(`Cleared metrics cache for key: ${key}`);
-    return;
-  }
-  console.log(`No metrics cache found for key: ${key}`);
 };

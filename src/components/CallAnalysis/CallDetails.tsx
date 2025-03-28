@@ -1,17 +1,20 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import CallTranscript from './CallTranscript';
 import SentimentAnalysis from './SentimentAnalysis';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, LineChart, BarChart2, UserSquare } from 'lucide-react';
+import { FileText, LineChart, BarChart2, UserSquare, RefreshCcw } from 'lucide-react';
 import CallInsights from './CallInsights';
 import CallQualityScore from './CallQualityScore';
 import { transcriptAnalysisService } from '@/services/TranscriptAnalysisService';
 import { useToast } from '@/hooks/use-toast';
 import AdvancedCallMetrics from './AdvancedCallMetrics';
+import { Button } from '@/components/ui/button';
+import { formatError } from '@/utils/errorUtils';
+import { clearMetricsCache } from '@/hooks/useMetricsFetcher';
 
 const CallDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,65 +23,83 @@ const CallDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('transcript');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const fetchTranscript = useCallback(async (forceRefresh: boolean = false) => {
+    if (!id) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (error) {
+        throw error;
+      }
+      
+      setTranscript(data);
+      
+      // Check if the transcript has been analyzed
+      if (!data.sentiment || !data.call_score || forceRefresh) {
+        // Analyze the transcript
+        try {
+          setIsAnalyzing(true);
+          const analysisResult = await transcriptAnalysisService.analyzeTranscript(id);
+          console.log('Analyzed transcript:', analysisResult);
+          
+          // Refresh the transcript data to get the updated analysis
+          const { data: updatedData, error: updatedError } = await supabase
+            .from('call_transcripts')
+            .select('*')
+            .eq('id', id)
+            .single();
+            
+          if (updatedError) {
+            console.error('Error refreshing transcript after analysis:', updatedError);
+          } else {
+            setTranscript(updatedData);
+            
+            // Clear metrics cache to ensure fresh data
+            clearMetricsCache();
+            
+            toast({
+              title: 'Analysis Complete',
+              description: 'Call metrics and insights have been updated'
+            });
+          }
+        } catch (analysisErr) {
+          console.error('Error analyzing transcript:', analysisErr);
+          toast({
+            title: 'Analysis Error',
+            description: formatError(analysisErr),
+            variant: 'destructive'
+          });
+        } finally {
+          setIsAnalyzing(false);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching call transcript:', err);
+      setError(formatError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [id, toast]);
 
   useEffect(() => {
-    const fetchTranscript = async () => {
-      if (!id) return;
-      
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const { data, error } = await supabase
-          .from('call_transcripts')
-          .select('*')
-          .eq('id', id)
-          .single();
-          
-        if (error) {
-          throw error;
-        }
-        
-        setTranscript(data);
-        
-        // Check if the transcript has been analyzed
-        if (!data.sentiment || !data.call_score) {
-          // Analyze the transcript
-          try {
-            const analysisResult = await transcriptAnalysisService.analyzeTranscript(id);
-            console.log('Analyzed transcript:', analysisResult);
-            
-            // Refresh the transcript data to get the updated analysis
-            const { data: updatedData, error: updatedError } = await supabase
-              .from('call_transcripts')
-              .select('*')
-              .eq('id', id)
-              .single();
-              
-            if (updatedError) {
-              console.error('Error refreshing transcript after analysis:', updatedError);
-            } else {
-              setTranscript(updatedData);
-            }
-          } catch (analysisErr) {
-            console.error('Error analyzing transcript:', analysisErr);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching call transcript:', err);
-        setError('Failed to load call details');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchTranscript();
-  }, [id, toast]);
+  }, [fetchTranscript]);
 
   const handleReanalyze = async () => {
     if (!id) return;
     
     try {
+      setIsAnalyzing(true);
       toast({
         title: 'Analyzing Call',
         description: 'Updating call metrics and sentiment analysis...'
@@ -100,6 +121,9 @@ const CallDetails: React.FC = () => {
       
       setTranscript(data);
       
+      // Clear metrics cache to ensure metrics data is refreshed
+      clearMetricsCache();
+      
       toast({
         title: 'Analysis Complete',
         description: 'Call metrics and insights have been updated'
@@ -108,10 +132,16 @@ const CallDetails: React.FC = () => {
       console.error('Error reanalyzing transcript:', err);
       toast({
         title: 'Analysis Error',
-        description: 'Failed to update call analysis',
+        description: formatError(err),
         variant: 'destructive'
       });
+    } finally {
+      setIsAnalyzing(false);
     }
+  };
+  
+  const handleRefresh = () => {
+    fetchTranscript(true);
   };
   
   if (loading) {
@@ -131,6 +161,15 @@ const CallDetails: React.FC = () => {
           <CardContent className="flex flex-col items-center justify-center h-64">
             <div className="text-destructive text-lg">Error Loading Call</div>
             <p className="text-muted-foreground mt-2">{error || 'Call data not found'}</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh} 
+              className="mt-4"
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Try Again
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -150,14 +189,26 @@ const CallDetails: React.FC = () => {
           </p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <span className="text-sm">Agent: {transcript.user_name || 'Unknown'}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-pink-500"></div>
-            <span className="text-sm">Customer: {transcript.customer_name || 'Unknown'}</span>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loading || isAnalyzing}
+            className="flex items-center gap-1"
+          >
+            <RefreshCcw className={`h-4 w-4 ${loading || isAnalyzing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span className="text-sm">Agent: {transcript.user_name || 'Unknown'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-pink-500"></div>
+              <span className="text-sm">Customer: {transcript.customer_name || 'Unknown'}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -201,7 +252,11 @@ const CallDetails: React.FC = () => {
                 </TabsContent>
                 <TabsContent value="insights" className="m-0 p-4 h-full overflow-auto">
                   <div className="space-y-6">
-                    <CallQualityScore transcript={transcript} onReanalyze={handleReanalyze} />
+                    <CallQualityScore 
+                      transcript={transcript} 
+                      onReanalyze={handleReanalyze} 
+                      isAnalyzing={isAnalyzing} 
+                    />
                     <CallInsights transcript={transcript} />
                   </div>
                 </TabsContent>

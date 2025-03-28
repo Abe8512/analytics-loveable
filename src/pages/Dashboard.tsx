@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { fixCallSentiments } from '@/utils/fixCallSentiments';
 import DashboardMetricsSection from '@/components/Dashboard/DashboardMetricsSection';
 import DashboardContentSection from '@/components/Dashboard/DashboardContentSection';
+import { useMetrics } from '@/contexts/MetricsContext';
+import { clearMetricsCache } from '@/hooks/useMetricsFetcher';
 
 const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +22,7 @@ const Dashboard = () => {
   const bulkUploadService = useBulkUploadService();
   const { transcripts, fetchTranscripts } = useCallTranscripts();
   const { toast: toastNotification } = useToast();
+  const { refresh: refreshMetrics } = useMetrics();
   
   const handleFixSentiments = async () => {
     setIsUpdating(true);
@@ -77,6 +80,10 @@ const Dashboard = () => {
         .then(() => {
           fetchTranscripts({ force: true })
             .then(() => {
+              // Clear metrics cache and refresh metrics data
+              clearMetricsCache();
+              refreshMetrics(true);
+              
               setIsLoading(false);
               if (bulkUploadService.files.some(f => f.status === 'complete')) {
                 toast.success('Dashboard data refreshed with new transcripts');
@@ -87,16 +94,21 @@ const Dashboard = () => {
           setIsLoading(false);
         });
     }
-  }, [bulkUploadService, fetchTranscripts]);
+  }, [bulkUploadService, fetchTranscripts, refreshMetrics]);
   
   const refreshData = useCallback(() => {
     setIsLoading(true);
+    
+    // Clear metrics cache to ensure fresh data
+    clearMetricsCache();
     
     // Use the bulk upload service to refresh transcripts
     bulkUploadService.refreshTranscripts({ force: true })
       .then(() => {
         fetchTranscripts({ force: true })
           .then(() => {
+            // Refresh metrics with force flag to bypass cache
+            refreshMetrics(true);
             setIsLoading(false);
             toast('Dashboard data refreshed');
           });
@@ -105,7 +117,7 @@ const Dashboard = () => {
         setIsLoading(false);
         toast.error('Failed to refresh data');
       });
-  }, [bulkUploadService, fetchTranscripts]);
+  }, [bulkUploadService, fetchTranscripts, refreshMetrics]);
   
   return (
     <DashboardLayout>

@@ -1,19 +1,21 @@
 
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { useSharedFilters } from '@/contexts/SharedFilterContext';
 import KeyMetricsTable from '@/components/Performance/KeyMetricsTable';
 import TrendingInsightsCard from '@/components/Performance/TrendingInsightsCard';
 import { PageHeader } from '@/components/ui/page-header';
-import { LineChart } from 'lucide-react';
-import { useTeamMetricsData } from '@/services/MetricsService';
+import { LineChart, RefreshCcw } from 'lucide-react';
+import { useMetrics } from '@/contexts/MetricsContext';
 import { 
   generateDemoSalesInsights, 
   generateDemoCoachingInsights, 
   generateDemoOpportunityInsights 
 } from '@/services/DemoDataService';
 import { MetricsFilters } from '@/types/metrics';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
 
 /**
  * Performance Metrics Page
@@ -21,28 +23,24 @@ import { MetricsFilters } from '@/types/metrics';
  */
 const PerformanceMetrics = () => {
   const { filters } = useSharedFilters();
-  const metricsFilters: MetricsFilters = {
-    dateRange: filters.dateRange,
-    repIds: filters.repIds
-  };
+  const { metricsData, refresh, isLoading: metricsLoading, error } = useMetrics();
   
-  const { metrics, isLoading: metricsLoading } = useTeamMetricsData(metricsFilters);
   const [salesInsights, setSalesInsights] = useState<any[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSalesInsights = async () => {
       try {
         setIsLoadingInsights(true);
-        setError(null);
+        setInsightsError(null);
 
         // Try to fetch from database first
         // The "sales_insights" table doesn't exist, so we need to generate demo data
         setSalesInsights(generateDemoSalesInsights());
       } catch (err) {
         console.error("Failed to fetch sales insights:", err);
-        setError(err instanceof Error ? err.message : 'Error fetching insights');
+        setInsightsError(err instanceof Error ? err.message : 'Error fetching insights');
         // Fall back to demo data
         setSalesInsights(generateDemoSalesInsights());
       } finally {
@@ -56,15 +54,45 @@ const PerformanceMetrics = () => {
   // Prepare insights for coaching and opportunities sections
   const coachingInsights = generateDemoCoachingInsights();
   const opportunityInsights = generateDemoOpportunityInsights();
+  
+  const handleRefresh = async () => {
+    try {
+      await refresh(true); // Force refresh metrics data
+      toast({
+        title: "Data Refreshed",
+        description: "Performance metrics have been updated with the latest data."
+      });
+    } catch (err) {
+      console.error("Failed to refresh metrics:", err);
+      toast({
+        title: "Refresh Failed",
+        description: "Could not update performance metrics.",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <DashboardLayout>
       <div className="space-y-8 max-w-7xl mx-auto">
-        <PageHeader 
-          title="Performance Analytics"
-          subtitle="Comprehensive sales performance metrics and insights"
-          icon={<LineChart className="h-6 w-6" />}
-        />
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <PageHeader 
+            title="Performance Analytics"
+            subtitle="Comprehensive sales performance metrics and insights"
+            icon={<LineChart className="h-6 w-6" />}
+          />
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={metricsLoading}
+            className="flex items-center gap-1"
+          >
+            <RefreshCcw className={`h-4 w-4 ${metricsLoading ? 'animate-spin' : ''}`} />
+            Refresh Data
+          </Button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <KeyMetricsTable dateRange={filters.dateRange} />
@@ -74,7 +102,7 @@ const PerformanceMetrics = () => {
             description="Key metrics trends over the selected period"
             insights={salesInsights}
             isLoading={isLoadingInsights}
-            error={error}
+            error={insightsError}
           />
         </div>
 
