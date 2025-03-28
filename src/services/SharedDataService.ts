@@ -46,7 +46,7 @@ export const getManagedUsers = (): ManagedUser[] => {
 export const storeManagedUsers = (users: ManagedUser[]): void => {
   try {
     sessionStorage.setItem(MANAGED_USERS_KEY, JSON.stringify(users));
-    dispatchEvent("MANAGED_USERS_UPDATED", { users });
+    dispatchEvent("managed-users-updated", { users });
   } catch (error) {
     console.error('Error storing managed users in session storage:', error);
   }
@@ -167,7 +167,7 @@ export const useSharedTeamMetrics = (filters?: any) => {
     fetchMetrics();
 
     // Set up listeners for data updates
-    const unsubscribe = addEventListener("TEAM_DATA_UPDATED", fetchMetrics);
+    const unsubscribe = addEventListener("team-data-updated", fetchMetrics);
 
     return () => {
       unsubscribe();
@@ -177,5 +177,5 @@ export const useSharedTeamMetrics = (filters?: any) => {
   return { metrics, isLoading, error };
 };
 
-// Export the hook with the correct name
-export const useTeamMetricsData = useSharedTeamMetrics;
+// Properly export the hook with the correct name
+export { useSharedTeamMetrics as useTeamMetricsData };

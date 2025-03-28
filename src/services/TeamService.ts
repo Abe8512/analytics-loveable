@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
@@ -83,10 +82,10 @@ class TeamService {
       // Initial load
       refreshTeamMembers();
       
-      // Set up event listeners
-      const removeAddedListener = addEventListener('TEAM_MEMBER_ADDED', refreshTeamMembers);
-      const removeRemovedListener = addEventListener('TEAM_MEMBER_REMOVED', refreshTeamMembers);
-      const removeUpdatedListener = addEventListener('MANAGED_USERS_UPDATED', refreshTeamMembers);
+      // Set up event listeners using consistent kebab-case event names
+      const removeAddedListener = addEventListener('team-member-added', refreshTeamMembers);
+      const removeRemovedListener = addEventListener('team-member-removed', refreshTeamMembers);
+      const removeUpdatedListener = addEventListener('managed-users-updated', refreshTeamMembers);
       
       // Clean up listeners
       return () => {
@@ -138,7 +137,6 @@ class TeamService {
     }
   }
   
-  // Add a new team member
   public async addTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
     try {
       // Ensure required fields
@@ -179,8 +177,8 @@ class TeamService {
         storedMembers.push(completeTeamMember);
         this.storeTeamMembers(storedMembers);
         
-        // Dispatch event
-        dispatchEvent("TEAM_MEMBER_ADDED", completeTeamMember);
+        // Dispatch event using consistent kebab-case format
+        dispatchEvent("team-member-added", completeTeamMember);
         
         return completeTeamMember;
       }
@@ -192,9 +190,9 @@ class TeamService {
       storedMembers.push(data);
       this.storeTeamMembers(storedMembers);
       
-      // Dispatch events for cross-component sync
-      dispatchEvent("TEAM_MEMBER_ADDED", data);
-      dispatchEvent("MANAGED_USERS_UPDATED", { teamMembers: this.getStoredTeamMembers() });
+      // Dispatch events for cross-component sync using consistent kebab-case format
+      dispatchEvent("team-member-added", data);
+      dispatchEvent("managed-users-updated", { teamMembers: this.getStoredTeamMembers() });
       SharedDataService.syncManagedUsersWithTeamMembers([...storedMembers, data]);
       
       return data;
@@ -229,9 +227,9 @@ class TeamService {
       storedMembers = storedMembers.filter(member => member.id !== id);
       this.storeTeamMembers(storedMembers);
       
-      // Dispatch events for cross-component sync
-      dispatchEvent("TEAM_MEMBER_REMOVED", { id });
-      dispatchEvent("MANAGED_USERS_UPDATED", { teamMembers: storedMembers });
+      // Dispatch events for cross-component sync using consistent kebab-case format
+      dispatchEvent("team-member-removed", { id });
+      dispatchEvent("managed-users-updated", { teamMembers: storedMembers });
       SharedDataService.syncManagedUsersWithTeamMembers(storedMembers);
       
     } catch (err) {

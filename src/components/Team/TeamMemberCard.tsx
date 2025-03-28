@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MailIcon, Briefcase, Trash } from 'lucide-react';
-import { dispatchEvent } from '@/services/events';
 
 interface TeamMemberProps {
   member: {
@@ -26,11 +25,8 @@ const TeamMemberCard: React.FC<TeamMemberProps> = ({ member, onDelete }) => {
       .toUpperCase();
   };
 
+  // Simplified to just call the parent's handler without dispatching events
   const handleDelete = () => {
-    // Only dispatch one event type to avoid duplicate calls and potential loops
-    dispatchEvent('TEAM_MEMBER_REMOVED', { id: member.id });
-    
-    // Then call the parent component's delete handler
     onDelete();
   };
 

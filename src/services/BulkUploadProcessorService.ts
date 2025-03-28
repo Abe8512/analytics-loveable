@@ -31,24 +31,31 @@ export class BulkUploadProcessorService {
   private assignedUserId: string = '';
   private whisperService = useWhisperService();
   private previousAssignedUserId: string = '';
+  private lastEventTimestamp: number = 0;
+  private readonly EVENT_THROTTLE_MS = 300; // Throttle events to once per 300ms
   
   constructor() {
     // Initialize service
   }
   
   setAssignedUserId(userId: string) {
-    // Only dispatch events if the ID has actually changed
-    if (this.assignedUserId !== userId) {
-      this.previousAssignedUserId = this.assignedUserId;
-      this.assignedUserId = userId;
-      
-      console.log(`Setting assigned user ID: ${userId}`);
-      
-      // Only dispatch once per unique user ID
-      if (userId && userId.trim() !== '') {
-        // Use only one consistent event type to prevent loops
-        dispatchEvent("CALL_ASSIGNED", { assignedTo: userId });
-      }
+    // Skip if the ID is the same (no change)
+    if (this.assignedUserId === userId) {
+      return;
+    }
+    
+    // Store previous value for comparison
+    this.previousAssignedUserId = this.assignedUserId;
+    this.assignedUserId = userId;
+    
+    console.log(`Setting assigned user ID: ${userId}`);
+    
+    // Throttle event dispatching to prevent rapid successive events
+    const now = Date.now();
+    if (userId && userId.trim() !== '' && now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
+      // Use only the kebab-case event name to be consistent
+      dispatchEvent("call-assigned", { assignedTo: userId });
+      this.lastEventTimestamp = now;
     }
   }
   
@@ -156,12 +163,17 @@ export class BulkUploadProcessorService {
         
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
-        // Use a single, consistent event type to prevent duplicate events
-        dispatchEvent('CALL_UPDATED', {
-          id: transcriptId,
-          assignedTo: this.assignedUserId,
-          repName: userName
-        });
+        // Throttle event dispatch
+        const now = Date.now();
+        if (now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
+          // Use the kebab-case event name consistently
+          dispatchEvent('call-updated', {
+            id: transcriptId,
+            assignedTo: this.assignedUserId,
+            repName: userName
+          });
+          this.lastEventTimestamp = now;
+        }
         
         return;
       } catch (error) {
@@ -207,12 +219,16 @@ export class BulkUploadProcessorService {
           
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
-          // Use a single, consistent event type
-          dispatchEvent('CALL_UPDATED', {
-            id: transcriptId,
-            assignedTo: this.assignedUserId,
-            repName: userName
-          });
+          // Throttle event dispatch
+          const now = Date.now();
+          if (now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
+            dispatchEvent('call-updated', {
+              id: transcriptId,
+              assignedTo: this.assignedUserId,
+              repName: userName
+            });
+            this.lastEventTimestamp = now;
+          }
           
           return;
         } catch (fallbackError) {
@@ -239,12 +255,16 @@ export class BulkUploadProcessorService {
             
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
-            // Use a single, consistent event type
-            dispatchEvent('CALL_UPDATED', {
-              id: transcriptId,
-              assignedTo: this.assignedUserId,
-              repName: userName
-            });
+            // Throttle event dispatch
+            const now = Date.now();
+            if (now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
+              dispatchEvent('call-updated', {
+                id: transcriptId,
+                assignedTo: this.assignedUserId,
+                repName: userName
+              });
+              this.lastEventTimestamp = now;
+            }
             
             return;
           } catch (finalError) {
