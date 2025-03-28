@@ -196,7 +196,7 @@ const Team = () => {
                       name: member.name,
                       email: member.email || '',
                       role: member.role || '',
-                      avatar: member.avatar_url || member.avatar
+                      avatar: member.avatar_url || '' // Fixed: Use avatar_url instead of non-existent avatar property
                     }}
                     onDelete={() => handleRemoveMember(member.id)}
                   />
