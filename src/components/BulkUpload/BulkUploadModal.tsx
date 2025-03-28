@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useRef, useEffect } from "react";
 import { X, Upload, CheckCircle, Clock, AlertCircle, FileAudio, ToggleLeft, ToggleRight, UserPlus, Settings } from "lucide-react";
 import { ThemeContext } from "@/App";
@@ -13,6 +14,8 @@ import { useBulkUploadService } from "@/services/BulkUploadService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { teamService } from "@/services/TeamService";
+import { dispatchEvent } from "@/services/events";
 
 interface BulkUploadModalProps {
   isOpen: boolean;
@@ -23,7 +26,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const { toast } = useToast();
   const whisperService = useWhisperService();
-  const { user, managedUsers, getManagedUsers } = useAuth();
+  const { user } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [openAIKeyMissing, setOpenAIKeyMissing] = useState(false);
   const [useLocalWhisper, setUseLocalWhisperState] = useState(false);
@@ -32,6 +35,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const [apiKey, setApiKey] = useState("");
   const { files, addFiles, setAssignedUserId, processQueue, isProcessing } = useBulkUploadService();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { teamMembers, isLoading: isTeamLoading } = teamService.useTeamMembers();
   
   useEffect(() => {
     if (isOpen) {
@@ -46,9 +50,10 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
       // Set default rep ID to current user if available
       if (user?.id && !selectedRepId) {
         setSelectedRepId(user.id);
+        setAssignedUserId(user.id); // Set assigned user ID when modal opens
       }
     }
-  }, [isOpen, whisperService, user, selectedRepId]);
+  }, [isOpen, whisperService, user, selectedRepId, setAssignedUserId]);
   
   // Listen for upload events
   useEffect(() => {
@@ -159,6 +164,16 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const handleRepChange = (value: string) => {
     setSelectedRepId(value);
     setAssignedUserId(value);
+    
+    // Dispatch event for call assignment
+    const selectedMember = teamMembers.find(member => member.id === value);
+    if (selectedMember) {
+      dispatchEvent("CALL_UPDATED", { 
+        assignedTo: value,
+        repName: selectedMember.name
+      });
+    }
+    
     toast({
       title: "Sales Rep Selected",
       description: "All uploaded files will be assigned to this rep"
@@ -206,6 +221,13 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
     processQueue();
   };
 
+  // Get a team member name for display
+  const getTeamMemberName = (id: string): string => {
+    const member = teamMembers.find(m => m.id === id || m.user_id === id);
+    if (member) return member.name;
+    return id.substring(0, 8); // Fallback to ID substring
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={`sm:max-w-[600px] ${isDarkMode ? "bg-dark-purple border border-white/10" : "bg-white"}`}>
@@ -242,23 +264,35 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
                     <SelectValue placeholder="Select a sales rep" />
                   </SelectTrigger>
                   <SelectContent>
-                    {user && (
-                      <SelectItem value={user.id}>
-                        {user.email || 'Current User'} (You)
-                      </SelectItem>
-                    )}
-                    
-                    {managedUsers && managedUsers.length > 0 && (
-                      managedUsers
-                        .filter(rep => rep.id !== user?.id) // Filter out current user
-                        .map(rep => (
-                          <SelectItem key={rep.id} value={rep.id}>
-                            {rep.email}
+                    {isTeamLoading ? (
+                      <SelectItem value="loading" disabled>Loading team members...</SelectItem>
+                    ) : (
+                      <>
+                        {user && (
+                          <SelectItem value={user.id}>
+                            {user.email || 'Current User'} (You)
                           </SelectItem>
-                        ))
+                        )}
+                        
+                        {teamMembers && teamMembers.length > 0 && (
+                          teamMembers
+                            .filter(rep => rep.id !== user?.id) // Filter out current user
+                            .map(rep => (
+                              <SelectItem key={rep.id} value={rep.id}>
+                                {rep.name} {rep.email ? `(${rep.email})` : ''}
+                              </SelectItem>
+                            ))
+                        )}
+                      </>
                     )}
                   </SelectContent>
                 </Select>
+                
+                {selectedRepId && (
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Selected: {getTeamMemberName(selectedRepId)}
+                  </div>
+                )}
               </div>
               
               {/* Whisper Mode Toggle */}

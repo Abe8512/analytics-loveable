@@ -86,11 +86,13 @@ class TeamService {
       // Set up event listeners
       const removeAddedListener = addEventListener('TEAM_MEMBER_ADDED', refreshTeamMembers);
       const removeRemovedListener = addEventListener('TEAM_MEMBER_REMOVED', refreshTeamMembers);
+      const removeUpdatedListener = addEventListener('MANAGED_USERS_UPDATED', refreshTeamMembers);
       
       // Clean up listeners
       return () => {
         removeAddedListener();
         removeRemovedListener();
+        removeUpdatedListener();
       };
     }, []);
     
@@ -190,8 +192,10 @@ class TeamService {
       storedMembers.push(data);
       this.storeTeamMembers(storedMembers);
       
-      // Dispatch event
+      // Dispatch events for cross-component sync
       dispatchEvent("TEAM_MEMBER_ADDED", data);
+      dispatchEvent("MANAGED_USERS_UPDATED", { teamMembers: this.getStoredTeamMembers() });
+      SharedDataService.syncManagedUsersWithTeamMembers([...storedMembers, data]);
       
       return data;
     } catch (err) {
@@ -225,14 +229,24 @@ class TeamService {
       storedMembers = storedMembers.filter(member => member.id !== id);
       this.storeTeamMembers(storedMembers);
       
-      // Dispatch event
+      // Dispatch events for cross-component sync
       dispatchEvent("TEAM_MEMBER_REMOVED", { id });
+      dispatchEvent("MANAGED_USERS_UPDATED", { teamMembers: storedMembers });
+      SharedDataService.syncManagedUsersWithTeamMembers(storedMembers);
       
     } catch (err) {
       console.error("Error in removeTeamMember:", err);
       errorHandler.handleError(err, "TeamService.removeTeamMember");
       throw err;
     }
+  }
+  
+  // Find a team member by id or user_id
+  public findTeamMember(id: string): TeamMember | undefined {
+    const storedMembers = this.getStoredTeamMembers();
+    return storedMembers.find(
+      member => member.id === id || member.user_id === id
+    );
   }
   
   // Get team members from local storage

@@ -6,6 +6,7 @@ import { getSentimentScore } from "./AIService";
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from "@/integrations/supabase/client";
 import { teamService } from "./TeamService";
+import { dispatchEvent } from "./events";
 
 export type UploadStatus = 'queued' | 'processing' | 'complete' | 'error';
 
@@ -35,6 +36,9 @@ export class BulkUploadProcessorService {
   
   setAssignedUserId(userId: string) {
     this.assignedUserId = userId;
+    
+    // Notify other components about the assignment update
+    dispatchEvent("CALL_ASSIGNED", { assignedTo: userId });
   }
   
   async processFile(
@@ -141,13 +145,19 @@ export class BulkUploadProcessorService {
         
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
-        // Dispatch event for other components
+        // Dispatch multiple events for various components to react
         const eventsStore = useEventsStore.getState();
         eventsStore.dispatchEvent('call-uploaded', {
           transcriptId,
           fileName: file.name,
           assignedTo: this.assignedUserId,
           userName: userName
+        });
+        
+        dispatchEvent('CALL_UPDATED', {
+          id: transcriptId,
+          assignedTo: this.assignedUserId,
+          repName: userName
         });
         
         return;
@@ -194,13 +204,19 @@ export class BulkUploadProcessorService {
           
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
-          // Dispatch event for other components
+          // Dispatch multiple events for various components
           const eventsStore = useEventsStore.getState();
           eventsStore.dispatchEvent('call-uploaded', {
             transcriptId,
             fileName: file.name,
             assignedTo: this.assignedUserId,
             userName: userName
+          });
+          
+          dispatchEvent('CALL_UPDATED', {
+            id: transcriptId,
+            assignedTo: this.assignedUserId,
+            repName: userName
           });
           
           return;
@@ -228,13 +244,19 @@ export class BulkUploadProcessorService {
             
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
-            // Dispatch event for other components
+            // Dispatch events for components to react
             const eventsStore = useEventsStore.getState();
             eventsStore.dispatchEvent('call-uploaded', {
               transcriptId,
               fileName: file.name,
               assignedTo: this.assignedUserId,
               userName: userName
+            });
+            
+            dispatchEvent('CALL_UPDATED', {
+              id: transcriptId,
+              assignedTo: this.assignedUserId,
+              repName: userName
             });
             
             return;

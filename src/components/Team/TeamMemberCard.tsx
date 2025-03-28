@@ -1,67 +1,78 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash2 } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { MailIcon, Briefcase, Trash } from 'lucide-react';
+import { dispatchEvent } from '@/services/events';
 
-export interface TeamMember {
-  id: string;
-  name: string;
-  email?: string;
-  role?: string;
-  avatar?: string;
-  avatar_url?: string; // Add this for compatibility with different prop formats
-}
-
-export interface TeamMemberCardProps {
-  member: TeamMember;
+interface TeamMemberProps {
+  member: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    avatar: string;
+  };
   onDelete: () => void;
 }
 
-const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, onDelete }) => {
+const TeamMemberCard: React.FC<TeamMemberProps> = ({ member, onDelete }) => {
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(part => part[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase();
   };
 
-  // Use avatar or avatar_url, whichever is available
-  const avatarSrc = member.avatar || member.avatar_url;
+  const handleDelete = () => {
+    // First notify any listening components that this member is being removed
+    dispatchEvent('TEAM_MEMBER_REMOVED', { id: member.id });
+    
+    // Then call the parent component's delete handler
+    onDelete();
+  };
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="p-4 pb-0 flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-sm font-medium">{member.name}</CardTitle>
-        <Button
-          variant="destructive"
-          size="icon"
-          className="h-8 w-8"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </CardHeader>
-      <CardContent className="p-4 pt-2">
-        <div className="flex items-center space-x-3">
-          <Avatar>
-            {avatarSrc ? (
-              <AvatarImage src={avatarSrc} alt={member.name} />
-            ) : null}
-            <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
-          </Avatar>
-          <div className="space-y-1">
-            {member.email && (
-              <p className="text-sm text-muted-foreground">{member.email}</p>
-            )}
-            {member.role && (
-              <p className="text-xs text-muted-foreground/70">{member.role}</p>
-            )}
-          </div>
+      <CardHeader className="p-4 pb-2 flex flex-row items-center gap-3">
+        <Avatar className="h-12 w-12">
+          <AvatarImage src={member.avatar} alt={member.name} />
+          <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+        </Avatar>
+        <div>
+          <h3 className="font-medium text-base">{member.name}</h3>
+          {member.role && <p className="text-sm text-muted-foreground flex items-center mt-0.5">
+            <Briefcase className="h-3.5 w-3.5 mr-1" />
+            {member.role}
+          </p>}
         </div>
+      </CardHeader>
+      
+      <CardContent className="p-4 pt-2">
+        {member.email && (
+          <a 
+            href={`mailto:${member.email}`} 
+            className="text-sm text-muted-foreground hover:text-primary flex items-center"
+          >
+            <MailIcon className="h-3.5 w-3.5 mr-1.5" />
+            {member.email}
+          </a>
+        )}
       </CardContent>
+      
+      <CardFooter className="p-4 pt-2 flex justify-end">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive flex gap-1.5"
+          onClick={handleDelete}
+        >
+          <Trash className="h-4 w-4" />
+          Remove
+        </Button>
+      </CardFooter>
     </Card>
   );
 };
