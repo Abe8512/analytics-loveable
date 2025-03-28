@@ -57,7 +57,7 @@ const PerformanceMetrics = () => {
   
   const handleRefresh = async () => {
     try {
-      await refresh(true); // Force refresh metrics data
+      await refresh(); // Fixed: removed the argument
       toast({
         title: "Data Refreshed",
         description: "Performance metrics have been updated with the latest data."

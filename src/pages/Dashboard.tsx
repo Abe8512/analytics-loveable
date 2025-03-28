@@ -82,7 +82,7 @@ const Dashboard = () => {
             .then(() => {
               // Clear metrics cache and refresh metrics data
               clearMetricsCache();
-              refreshMetrics(true);
+              refreshMetrics(); // Fixed: removed the argument
               
               setIsLoading(false);
               if (bulkUploadService.files.some(f => f.status === 'complete')) {
@@ -108,7 +108,7 @@ const Dashboard = () => {
         fetchTranscripts({ force: true })
           .then(() => {
             // Refresh metrics with force flag to bypass cache
-            refreshMetrics(true);
+            refreshMetrics(true); // This is correct - we want to force refresh here
             setIsLoading(false);
             toast('Dashboard data refreshed');
           });
