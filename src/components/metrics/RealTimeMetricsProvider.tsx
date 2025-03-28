@@ -3,73 +3,40 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { fixCallSentiments } from '@/utils/fixCallSentiments';
+import { MetricsData, initialMetricsData } from '@/types/metrics';
 
-export interface MetricsData {
-  // Call metrics
-  totalCalls: number;
-  avgDuration: number;
-  positiveSentiment: number;
-  negativeSentiment: number;
-  neutralSentiment: number;
-  avgSentiment: number;
-  callScore: number;
-  conversionRate: number;
-  
-  // Talk metrics
-  agentTalkRatio: number;
-  customerTalkRatio: number;
-  
-  // Keywords
-  topKeywords: string[];
-  
-  // Time-based data
-  lastUpdated: Date | null;
-  reportDate: string;
-  
-  // Status
-  isLoading: boolean;
-  isUsingDemoData: boolean;
-  lastError: string | null;
-}
-
-const initialMetricsData: MetricsData = {
-  totalCalls: 0,
-  avgDuration: 0,
-  positiveSentiment: 0,
-  negativeSentiment: 0,
-  neutralSentiment: 0,
-  avgSentiment: 0,
-  callScore: 0,
-  conversionRate: 0,
-  agentTalkRatio: 50,
-  customerTalkRatio: 50,
-  topKeywords: [],
-  lastUpdated: null,
-  reportDate: new Date().toISOString().split('T')[0],
-  isLoading: true,
-  isUsingDemoData: false,
-  lastError: null
-};
-
-const MetricsContext = createContext<{
+interface MetricsContextType {
   metrics: MetricsData;
   refreshMetrics: () => Promise<void>;
   fixNeutralSentiments: () => Promise<void>;
   isUpdating: boolean;
-}>({
+}
+
+const MetricsContext = createContext<MetricsContextType>({
   metrics: initialMetricsData,
   refreshMetrics: async () => {},
   fixNeutralSentiments: async () => {},
   isUpdating: false
 });
 
+/**
+ * Hook to access metrics data and functions
+ * @returns Metrics context with data and update functions
+ */
 export const useMetrics = () => useContext(MetricsContext);
 
+/**
+ * Provider component that fetches and maintains real-time metrics data
+ * Makes metrics data available throughout the application
+ */
 export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [metrics, setMetrics] = useState<MetricsData>(initialMetricsData);
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
   
+  /**
+   * Fetches the latest metrics data from the database
+   */
   const fetchMetrics = async () => {
     try {
       console.log('Fetching real-time metrics from Supabase...');
@@ -152,6 +119,9 @@ export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = 
     }
   };
   
+  /**
+   * Refreshes metrics data and shows a toast notification
+   */
   const refreshMetrics = async () => {
     await fetchMetrics();
     toast({
@@ -160,6 +130,9 @@ export const RealTimeMetricsProvider: React.FC<{ children: React.ReactNode }> = 
     });
   };
   
+  /**
+   * Fixes neutral sentiment values and refreshes metrics
+   */
   const fixNeutralSentiments = async () => {
     setIsUpdating(true);
     
