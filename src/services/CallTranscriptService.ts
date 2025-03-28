@@ -1,13 +1,12 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CallTranscript } from "@/types/call";
 import { useEventListener } from "@/services/events/hooks";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { StoredTranscription, getStoredTranscriptions } from "@/services/WhisperService";
 import { EventType } from "@/services/events/types";
 import { errorHandler } from "@/services/ErrorHandlingService";
-import { toast } from "sonner";
-import { useConnectionStatus } from "./ConnectionMonitorService";
 
 export interface CallTranscriptFilter {
   dateRange?: { from: Date; to: Date };
@@ -36,13 +35,8 @@ export interface UseCallTranscriptsResult {
 // Default page size for pagination
 const DEFAULT_PAGE_SIZE = 10;
 
-// Cache TTL - 5 minutes is appropriate for standard usage
+// Cache TTL - 5 minutes is more appropriate for real-world usage
 const CACHE_TTL = 5 * 60 * 1000; 
-
-// Configuration for retry mechanism
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
-const REQUEST_COOLDOWN = 2000; // 2 seconds cooldown between identical requests
 
 export const useCallTranscripts = (): UseCallTranscriptsResult => {
   const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);
@@ -54,9 +48,6 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
   const { filters } = useSharedFilters();
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [lastFetchOptions, setLastFetchOptions] = useState<string | null>(null);
-  const pendingRequestRef = useRef<boolean>(false);
-  const lastRequestTimeRef = useRef<number>(0);
-  const { isConnected } = useConnectionStatus();
   
   // Helper to validate CallTranscript data
   const validateTranscript = (data: any): CallTranscript => {
@@ -76,71 +67,8 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       user_id: data.user_id || 'anonymous'
     };
   };
-
-  // Helper function to execute with retries
-  const executeWithRetry = async<T>(
-    operation: () => Promise<T>,
-    retries: number = MAX_RETRIES
-  ): Promise<T> => {
-    try {
-      return await operation();
-    } catch (err) {
-      if (retries <= 0) {
-        throw err;
-      }
-      
-      console.log(`Retrying operation, ${retries} attempts left`);
-      // Exponential backoff
-      const delay = RETRY_DELAY_MS * (MAX_RETRIES - retries + 1);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return executeWithRetry(operation, retries - 1);
-    }
-  };
   
   const fetchTranscripts = useCallback(async (options?: CallTranscriptFilter): Promise<CallTranscript[]> => {
-    // Check if we're already processing a request
-    if (pendingRequestRef.current) {
-      console.log('Request already in progress, skipping duplicate request');
-      return transcripts;
-    }
-    
-    // Check connection status
-    if (!isConnected && !options?.force) {
-      console.log('Offline - using cached data');
-      // If we're offline and not forcing a refresh, use cached data
-      if (transcripts.length > 0) {
-        return transcripts;
-      }
-      // Otherwise try to get data from local storage
-      const localTranscripts = getStoredTranscriptions();
-      if (localTranscripts.length > 0) {
-        const formattedTranscripts = localTranscripts.map(t => validateTranscript({
-          id: t.id,
-          text: t.text,
-          created_at: t.date,
-          duration: t.duration || 0,
-          sentiment: t.sentiment,
-          call_score: t.call_score || 50,
-          keywords: t.keywords || [],
-          filename: t.filename || "Unknown",
-          transcript_segments: t.transcript_segments || [],
-          user_id: t.speakerName || 'anonymous'
-        }));
-        setTranscripts(formattedTranscripts);
-        return formattedTranscripts;
-      }
-      return [];
-    }
-    
-    // Check for request throttling
-    const now = Date.now();
-    if (now - lastRequestTimeRef.current < REQUEST_COOLDOWN && !options?.force) {
-      console.log(`Request throttled, last request was ${now - lastRequestTimeRef.current}ms ago`);
-      return transcripts;
-    }
-    
-    pendingRequestRef.current = true;
-    lastRequestTimeRef.current = now;
     setLoading(true);
     
     // Set default values for pagination
@@ -160,98 +88,57 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     });
     
     // Check if we can use cached data and force isn't set
+    const now = new Date();
     if (
       !options?.force && 
       transcripts.length > 0 && 
       lastFetch && 
-      now - lastFetch.getTime() < CACHE_TTL &&
+      now.getTime() - lastFetch.getTime() < CACHE_TTL &&
       lastFetchOptions === cacheKey
     ) {
       console.log('Using cached transcript data');
       setLoading(false);
-      pendingRequestRef.current = false;
       return transcripts;
     }
     
     try {
       console.log('Fetching transcript data with options:', options);
       
-      // Try to get data from Supabase with retries
-      let data, error, count;
+      // Try to get data from Supabase
+      let query = supabase
+        .from('call_transcripts')
+        .select('*', { count: 'exact' });
       
-      try {
-        // Try to get data from Supabase
-        const result = await executeWithRetry(async () => {
-          let query = supabase
-            .from('call_transcripts')
-            .select('*', { count: 'exact' });
-          
-          // Apply date range filter if provided
-          if (options?.dateRange) {
-            const fromDate = options.dateRange.from.toISOString();
-            const toDate = options.dateRange.to.toISOString();
-            query = query.gte('created_at', fromDate).lte('created_at', toDate);
-          }
-          
-          // Apply rep filter if provided
-          if (options?.repId) {
-            query = query.eq('user_id', options.repId);
-          }
-          
-          // Apply sentiment filter if provided
-          if (options?.sentiment) {
-            query = query.eq('sentiment', options.sentiment);
-          }
-          
-          // Apply ordering
-          const orderBy = options?.orderBy || 'created_at';
-          const orderDirection = options?.orderDirection || 'desc';
-          query = query.order(orderBy, { ascending: orderDirection === 'asc' });
-          
-          // Apply pagination
-          query = query.range(offset, offset + limit - 1);
-          
-          return await query;
-        });
-        
-        data = result.data;
-        error = result.error;
-        count = result.count;
-      } catch (fetchError) {
-        console.error('Failed to fetch from Supabase after retries:', fetchError);
-        toast.error("Connection issue", {
-          description: "Couldn't connect to the database. Using local data instead.",
-          duration: 3000
-        });
-        data = null;
-        error = { message: "Connection failed after retries" };
+      // Apply date range filter if provided
+      if (options?.dateRange) {
+        const fromDate = options.dateRange.from.toISOString();
+        const toDate = options.dateRange.to.toISOString();
+        query = query.gte('created_at', fromDate).lte('created_at', toDate);
       }
+      
+      // Apply rep filter if provided
+      if (options?.repId) {
+        query = query.eq('user_id', options.repId);
+      }
+      
+      // Apply sentiment filter if provided
+      if (options?.sentiment) {
+        query = query.eq('sentiment', options.sentiment);
+      }
+      
+      // Apply ordering
+      const orderBy = options?.orderBy || 'created_at';
+      const orderDirection = options?.orderDirection || 'desc';
+      query = query.order(orderBy, { ascending: orderDirection === 'asc' });
+      
+      // Apply pagination
+      query = query.range(offset, offset + limit - 1);
+      
+      const { data, error, count } = await query;
       
       if (error) {
         console.error('Error fetching transcripts from database:', error);
         errorHandler.handleError(error, 'CallTranscriptService.fetchTranscripts.databaseError');
-        
-        // Use local data as fallback
-        const localTranscripts = getStoredTranscriptions();
-        if (localTranscripts.length > 0) {
-          const formattedTranscripts = localTranscripts.map(t => validateTranscript({
-            id: t.id,
-            text: t.text,
-            created_at: t.date,
-            duration: t.duration || 0,
-            sentiment: t.sentiment,
-            call_score: t.call_score || 50,
-            keywords: t.keywords || [],
-            filename: t.filename || "Unknown",
-            transcript_segments: t.transcript_segments || [],
-            user_id: t.speakerName || 'anonymous'
-          }));
-          setTranscripts(formattedTranscripts);
-          setLoading(false);
-          pendingRequestRef.current = false;
-          return formattedTranscripts;
-        }
-        
         throw new Error(`Database error: ${error.message}`);
       }
       
@@ -268,10 +155,9 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
         setTranscripts(formattedData);
         setTotalCount(total);
         setTotalPages(pages);
-        setLastFetch(new Date());
+        setLastFetch(now);
         setLastFetchOptions(cacheKey);
         setLoading(false);
-        pendingRequestRef.current = false;
         return formattedData;
       }
       
@@ -284,10 +170,9 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
         setTranscripts([]);
         setTotalCount(0);
         setTotalPages(1);
-        setLastFetch(new Date());
+        setLastFetch(now);
         setLastFetchOptions(cacheKey);
         setLoading(false);
-        pendingRequestRef.current = false;
         return [];
       }
       
@@ -353,22 +238,20 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       setTranscripts(formattedTranscripts);
       setTotalCount(totalLocal);
       setTotalPages(pagesLocal);
-      setLastFetch(new Date());
+      setLastFetch(now);
       setLastFetchOptions(cacheKey);
       setLoading(false);
-      pendingRequestRef.current = false;
       return formattedTranscripts;
     } catch (err) {
       console.error('Error in fetchTranscripts:', err);
       errorHandler.handleError(err, 'CallTranscriptService.fetchTranscripts');
       setError(err as Error);
       setLoading(false);
-      pendingRequestRef.current = false;
       
       // Return current transcripts as fallback
       return transcripts.length > 0 ? transcripts : [];
     }
-  }, [transcripts, lastFetch, lastFetchOptions, currentPage, isConnected]);
+  }, [transcripts, lastFetch, lastFetchOptions, currentPage]);
   
   // Pagination helpers
   const nextPage = useCallback(async () => {
@@ -397,86 +280,38 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
   
   // Helper to force refresh data
   const refreshData = useCallback(async () => {
-    if (!isConnected) {
-      toast.error("You're offline", {
-        description: "Can't refresh data while offline",
-        duration: 3000
-      });
-      return;
-    }
-    
     await fetchTranscripts({
       ...filters,
       offset: (currentPage - 1) * DEFAULT_PAGE_SIZE,
       limit: DEFAULT_PAGE_SIZE,
       force: true
     });
-  }, [filters, currentPage, fetchTranscripts, isConnected]);
+  }, [filters, currentPage, fetchTranscripts]);
   
-  // Initial data loading - only once when component mounts
+  // Initial data loading
   useEffect(() => {
-    // Only attempt to fetch if connected
-    if (isConnected) {
-      const initialLoadDelay = setTimeout(() => {
-        fetchTranscripts({
-          dateRange: filters.dateRange,
-          limit: DEFAULT_PAGE_SIZE,
-          offset: 0
-        });
-      }, 500); // Small delay for UI to render first
-      
-      return () => clearTimeout(initialLoadDelay);
-    } else {
-      // If offline, try to get local data
-      const localTranscripts = getStoredTranscriptions();
-      if (localTranscripts.length > 0) {
-        const formattedTranscripts = localTranscripts.map(t => validateTranscript({
-          id: t.id,
-          text: t.text,
-          created_at: t.date,
-          duration: t.duration || 0,
-          sentiment: t.sentiment,
-          call_score: t.call_score || 50,
-          keywords: t.keywords || [],
-          filename: t.filename || "Unknown",
-          transcript_segments: t.transcript_segments || [],
-          user_id: t.speakerName || 'anonymous'
-        }));
-        setTranscripts(formattedTranscripts);
-        setLoading(false);
-      }
-    }
-  }, []);
+    fetchTranscripts({
+      dateRange: filters.dateRange,
+      limit: DEFAULT_PAGE_SIZE,
+      offset: 0
+    });
+  }, [filters.dateRange, fetchTranscripts]);
   
-  // Listen for transcript events but debounce actual refresh
-  const refreshTimeoutRef = useRef<number | null>(null);
+  // Listen for transcript events
+  useEventListener('transcript-created' as EventType, () => {
+    console.log('Received transcript-created event, refreshing data');
+    refreshData();
+  });
   
-  const handleTranscriptEvent = useCallback(() => {
-    // Clear any existing timeout
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-    }
-    
-    // Debounce refresh to avoid multiple rapid refreshes
-    refreshTimeoutRef.current = window.setTimeout(() => {
-      console.log('Handling transcript event, refreshing data');
-      refreshData();
-      refreshTimeoutRef.current = null;
-    }, 1000);
-  }, [refreshData]);
+  useEventListener('transcripts-updated' as EventType, () => {
+    console.log('Received transcriptions-updated event, refreshing data');
+    refreshData();
+  });
   
-  useEventListener('transcript-created' as EventType, handleTranscriptEvent);
-  useEventListener('transcripts-updated' as EventType, handleTranscriptEvent);
-  useEventListener('bulk-upload-completed' as EventType, handleTranscriptEvent);
-  
-  // Clean up timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-    };
-  }, []);
+  useEventListener('bulk-upload-completed' as EventType, () => {
+    console.log('Received bulk-upload-completed event, refreshing data');
+    refreshData();
+  });
   
   return {
     transcripts,

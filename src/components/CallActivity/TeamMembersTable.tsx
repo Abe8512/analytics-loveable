@@ -74,7 +74,6 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
   }, [onTeamMemberSelect]);
 
   const getInitials = useMemo(() => (name: string) => {
-    if (!name) return '??';
     return name
       .split(' ')
       .map((part) => part.charAt(0))
@@ -136,11 +135,11 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
               >
                 <TableCell>
                   <Avatar>
-                    <AvatarImage src={member.avatar_url || member.avatar || ""} alt={member.name} />
+                    <AvatarImage src={member.avatar_url || ""} alt={member.name} />
                     <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                   </Avatar>
                 </TableCell>
-                <TableCell className="font-medium">{member.name || 'Unnamed Member'}</TableCell>
+                <TableCell className="font-medium">{member.name}</TableCell>
                 <TableCell>{member.email || 'No email'}</TableCell>
                 <TableCell>{member.role || 'No role'}</TableCell>
                 <TableCell className="text-right">

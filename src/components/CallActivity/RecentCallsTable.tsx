@@ -1,16 +1,13 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, AlertCircle, WifiOff } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
 import ContentLoader from "@/components/ui/ContentLoader";
 import { useCallTranscripts } from "@/services/CallTranscriptService";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
-import { teamService } from '@/services/TeamService';
-import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 
 interface Call {
   id: string;
@@ -38,80 +35,34 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
 }) => {
   const navigate = useNavigate();
   const { filters } = useSharedFilters();
-  const { transcripts, loading, error, fetchTranscripts } = useCallTranscripts();
+  const { transcripts, loading, fetchTranscripts } = useCallTranscripts();
   const [calls, setCalls] = useState<Call[]>([]);
-  const [teamMembersMap, setTeamMembersMap] = useState<Record<string, string>>({});
-  const [retryCount, setRetryCount] = useState(0);
-  const { isConnected } = useConnectionStatus();
-  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   
-  // Fetch team members to map IDs to names - with error handling
-  const loadTeamMembers = useCallback(async () => {
-    if (teamMembersLoading) return;
-    
-    try {
-      setTeamMembersLoading(true);
-      const members = await teamService.getTeamMembers();
-      const memberMap: Record<string, string> = {};
-      members.forEach(member => {
-        if (member.id) {
-          memberMap[member.id] = member.name;
-        }
-        if (member.user_id) {
-          memberMap[member.user_id] = member.name;
-        }
-      });
-      setTeamMembersMap(memberMap);
-    } catch (error) {
-      console.error("Error loading team members:", error);
-    } finally {
-      setTeamMembersLoading(false);
-    }
-  }, [teamMembersLoading]);
-  
+  // Refresh data to ensure we have the latest transcripts
   useEffect(() => {
-    loadTeamMembers();
-  }, [loadTeamMembers]);
-  
-  // Refresh data only when connected
-  useEffect(() => {
-    if (isConnected) {
-      const loadData = async () => {
-        try {
-          await fetchTranscripts();
-        } catch (err) {
-          console.error("Error fetching transcripts:", err);
-        }
-      };
-      
-      loadData();
-    }
-  }, [fetchTranscripts, isConnected]);
+    const loadData = async () => {
+      await fetchTranscripts({ force: true });
+    };
+    loadData();
+  }, [fetchTranscripts]);
   
   // Convert transcripts to call format - memoized to prevent unnecessary rerenders
   useEffect(() => {
     if (transcripts && Array.isArray(transcripts)) {
-      const formattedCalls = transcripts.map(transcript => {
-        // Try to get team member name from our map if user_id is available
-        const userName = transcript.user_id && teamMembersMap[transcript.user_id] 
-          ? teamMembersMap[transcript.user_id]
-          : transcript.user_name || transcript.assigned_to || 'Unknown Rep';
-            
-        return {
-          id: transcript.id,
-          date: transcript.created_at || new Date().toISOString(),
-          userName,
-          customerName: transcript.customer_name || 'Unknown Customer',
-          duration: transcript.duration || 0,
-          outcome: transcript.metadata?.outcome || 'Pending Analysis',
-          sentiment: transcript.sentiment === 'positive' ? 0.8 : 
-                    transcript.sentiment === 'negative' ? 0.3 : 0.6,
-          nextSteps: transcript.metadata?.next_steps || 'Follow up required'
-        };
-      });
+      const formattedCalls = transcripts.map(transcript => ({
+        id: transcript.id,
+        date: transcript.created_at || new Date().toISOString(),
+        userName: transcript.user_name || 'Unknown Rep',
+        customerName: transcript.customer_name || 'Unknown Customer',
+        duration: transcript.duration || 0,
+        outcome: transcript.metadata?.outcome || 'Pending Analysis',
+        sentiment: transcript.sentiment === 'positive' ? 0.8 : 
+                  transcript.sentiment === 'negative' ? 0.3 : 0.6,
+        nextSteps: transcript.metadata?.next_steps || 'Follow up required'
+      }));
       setCalls(formattedCalls);
     }
-  }, [transcripts, teamMembersMap]);
+  }, [transcripts]);
 
   // Format date in a consistent way
   const formatDate = (dateString: string) => {
@@ -127,19 +78,6 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
   const handleRowClick = (callId: string) => {
     if (onCallSelect) {
       onCallSelect(callId);
-    }
-  };
-
-  const handleRetry = async () => {
-    if (!isConnected) {
-      return; // Don't retry if offline
-    }
-    
-    setRetryCount(prev => prev + 1);
-    try {
-      await fetchTranscripts({ force: true });
-    } catch (err) {
-      console.error("Error retrying fetch:", err);
     }
   };
 
@@ -159,33 +97,6 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {!isConnected && (
-          <Alert variant="warning" className="mb-4">
-            <WifiOff className="h-4 w-4" />
-            <AlertDescription>
-              You are currently offline. Showing cached data.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Error loading calls: {error.message}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="ml-2" 
-                onClick={handleRetry}
-                disabled={!isConnected}
-              >
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-        
         <ContentLoader isLoading={loading} skeletonCount={3} height={200}>
           <Table>
             <TableHeader>
@@ -227,7 +138,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
+                        <div className="w-full bg-gray-200 rounded-full h-2 mr-2">
                           <div 
                             className={`h-2 rounded-full transition-all duration-500 ${
                               call.sentiment > 0.7 ? 'bg-green-500' : 
@@ -258,16 +169,6 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                   <TableCell colSpan={isAdmin || isManager ? 7 : 6} className="text-center py-8">
                     <p className="text-muted-foreground">No calls match the current filters</p>
                     <p className="text-sm mt-1">Try adjusting your filters or date range</p>
-                    {retryCount > 0 && !error && isConnected && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="mt-2" 
-                        onClick={handleRetry}
-                      >
-                        Retry ({retryCount})
-                      </Button>
-                    )}
                   </TableCell>
                 </TableRow>
               )}

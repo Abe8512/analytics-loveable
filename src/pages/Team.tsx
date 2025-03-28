@@ -96,7 +96,7 @@ const Team = () => {
               className="flex items-center"
             >
               {isLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary mr-2"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-neon-purple mr-2"></div>
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
@@ -105,7 +105,7 @@ const Team = () => {
           </div>
           
           {error && (
-            <div className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 p-4 rounded-md">
+            <div className="bg-red-100 text-red-800 p-4 rounded-md">
               <p className="font-semibold">Error loading team members</p>
               <p className="text-sm">{error.message}</p>
               <p className="text-sm mt-2">Try refreshing or check your connection.</p>
@@ -115,7 +115,7 @@ const Team = () => {
           {isLoading ? (
             <div className="flex items-center justify-center p-8">
               <div className="flex flex-col items-center space-y-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-neon-purple"></div>
                 <p className="text-muted-foreground">Loading team members...</p>
               </div>
             </div>
@@ -196,7 +196,7 @@ const Team = () => {
                       name: member.name,
                       email: member.email || '',
                       role: member.role || '',
-                      avatar: member.avatar_url || '' // Fixed: Use avatar_url instead of non-existent avatar property
+                      avatar: member.avatar_url
                     }}
                     onDelete={() => handleRemoveMember(member.id)}
                   />
