@@ -30,20 +30,34 @@ export type BulkUploadProgressCallback = (
 export class BulkUploadProcessorService {
   private assignedUserId: string = '';
   private whisperService = useWhisperService();
+  private hasDispatchedAssignEvent = false;
   
   constructor() {
     // Initialize service
   }
   
   setAssignedUserId(userId: string) {
-    this.assignedUserId = userId;
-    
-    // Notify other components about the assignment update
-    // Use the correct event types that are defined in types.ts
-    dispatchEvent("call-assigned" as EventType, { assignedTo: userId });
-    
-    // Also dispatch the legacy event format for backward compatibility
-    dispatchEvent("CALL_ASSIGNED" as EventType, { assignedTo: userId });
+    // Only dispatch events if the ID has actually changed
+    if (this.assignedUserId !== userId) {
+      this.assignedUserId = userId;
+      
+      // Prevent duplicate event dispatches
+      if (!this.hasDispatchedAssignEvent) {
+        console.log(`Setting assigned user ID: ${userId}`);
+        
+        // Use the correct event types that are defined in types.ts
+        dispatchEvent("call-assigned" as EventType, { assignedTo: userId });
+        
+        // Also dispatch the legacy event format for backward compatibility
+        dispatchEvent("CALL_ASSIGNED" as EventType, { assignedTo: userId });
+        
+        this.hasDispatchedAssignEvent = true;
+      }
+    }
+  }
+  
+  resetAssignEventFlag() {
+    this.hasDispatchedAssignEvent = false;
   }
   
   async processFile(
@@ -150,7 +164,7 @@ export class BulkUploadProcessorService {
         
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
-        // Dispatch multiple events for various components to react
+        // Dispatch only one event with all the necessary information
         const eventsStore = useEventsStore.getState();
         eventsStore.dispatchEvent('call-uploaded', {
           transcriptId,
@@ -159,12 +173,15 @@ export class BulkUploadProcessorService {
           userName: userName
         });
         
-        // Ensure we're using proper event types that are defined
+        // Dispatch a single call-updated event
         dispatchEvent('call-updated' as EventType, {
           id: transcriptId,
           assignedTo: this.assignedUserId,
           repName: userName
         });
+        
+        // Reset after successful processing
+        this.resetAssignEventFlag();
         
         return;
       } catch (error) {
@@ -210,7 +227,7 @@ export class BulkUploadProcessorService {
           
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
-          // Dispatch multiple events for various components
+          // Dispatch only one event with all the necessary information
           const eventsStore = useEventsStore.getState();
           eventsStore.dispatchEvent('call-uploaded', {
             transcriptId,
@@ -219,11 +236,15 @@ export class BulkUploadProcessorService {
             userName: userName
           });
           
+          // Dispatch a single call-updated event
           dispatchEvent('call-updated' as EventType, {
             id: transcriptId,
             assignedTo: this.assignedUserId,
             repName: userName
           });
+          
+          // Reset after successful processing
+          this.resetAssignEventFlag();
           
           return;
         } catch (fallbackError) {
@@ -250,7 +271,7 @@ export class BulkUploadProcessorService {
             
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
-            // Dispatch events for components to react
+            // Dispatch only one event with all the necessary information
             const eventsStore = useEventsStore.getState();
             eventsStore.dispatchEvent('call-uploaded', {
               transcriptId,
@@ -259,11 +280,15 @@ export class BulkUploadProcessorService {
               userName: userName
             });
             
+            // Dispatch a single call-updated event
             dispatchEvent('call-updated' as EventType, {
               id: transcriptId,
               assignedTo: this.assignedUserId,
               repName: userName
             });
+            
+            // Reset after successful processing
+            this.resetAssignEventFlag();
             
             return;
           } catch (finalError) {
@@ -272,6 +297,9 @@ export class BulkUploadProcessorService {
               finalError instanceof Error ? 
               `Database error: ${finalError.message}` : 
               'Unknown database error');
+            
+            // Reset even after failure
+            this.resetAssignEventFlag();
           }
         }
       }
@@ -284,6 +312,9 @@ export class BulkUploadProcessorService {
         undefined, 
         error instanceof Error ? error.message : 'Unknown error processing file'
       );
+      
+      // Reset after error
+      this.resetAssignEventFlag();
     }
   }
 }
