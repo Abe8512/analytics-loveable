@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,24 +11,29 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ConnectionStatusBadge from '@/components/ui/ConnectionStatusBadge';
 import { useConnectionStatus } from '@/services/ConnectionMonitorService';
-import { validateLoginForm, validateSignupForm } from '@/utils/formValidation';
+import { useAuthForm } from '@/hooks/useAuthForm';
 
 const Auth = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('login');
+  const {
+    email,
+    setEmail,
+    password,
+    setPassword,
+    name,
+    setName,
+    confirmPassword,
+    setConfirmPassword,
+    isSubmitting,
+    error,
+    activeTab,
+    handleTabChange,
+    handleLogin,
+    handleSignup
+  } = useAuthForm();
   
-  const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { isConnected } = useConnectionStatus();
-  
-  // Get the redirect path from location state, or default to '/'
-  const from = location.state?.from?.pathname || '/';
   
   // Redirect if we're coming from another page that required auth
   useEffect(() => {
@@ -39,80 +44,6 @@ const Auth = () => {
       });
     }
   }, [location.state, toast]);
-  
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    
-    const validation = validateLoginForm(email, password);
-    if (!validation.isValid) {
-      setError(validation.message);
-      return;
-    }
-    
-    if (!isConnected) {
-      toast({
-        title: "Connection Error",
-        description: "You appear to be offline. Please check your connection and try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    // Simulating login for now
-    // This would be replaced with actual auth implementation
-    setTimeout(() => {
-      setIsSubmitting(false);
-      // Navigate to from path or home
-      navigate(from, { replace: true });
-      toast({
-        title: "Login successful",
-        description: "Welcome back!",
-      });
-    }, 1500);
-  };
-  
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    
-    const validation = validateSignupForm(name, email, password, confirmPassword);
-    if (!validation.isValid) {
-      setError(validation.message);
-      return;
-    }
-    
-    if (!isConnected) {
-      toast({
-        title: "Connection Error",
-        description: "You appear to be offline. Please check your connection and try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    // Simulating signup for now
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setActiveTab('login');
-      setPassword('');
-      setConfirmPassword('');
-      toast({
-        title: "Account created",
-        description: "Your account has been created successfully. You can now log in.",
-      });
-    }, 1500);
-  };
-  
-  // Reset form state when changing tabs
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    setError(null);
-  };
   
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

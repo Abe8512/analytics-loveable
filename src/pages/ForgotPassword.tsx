@@ -10,7 +10,8 @@ import { AlertCircle, Loader2, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ConnectionStatusBadge from '@/components/ui/ConnectionStatusBadge';
 import { useConnectionStatus } from '@/services/ConnectionMonitorService';
-import { isValidEmail } from '@/utils/formValidation';
+import { validateForgotPasswordForm } from '@/utils/formValidation';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -18,29 +19,20 @@ const ForgotPassword = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   
+  const { resetPassword } = useAuth();
   const { toast } = useToast();
   const { isConnected } = useConnectionStatus();
   
-  const validateForm = () => {
-    setError(null);
-    
-    if (!email.trim()) {
-      setError('Email is required');
-      return false;
-    }
-    
-    if (!isValidEmail(email)) {
-      setError('Please enter a valid email address');
-      return false;
-    }
-    
-    return true;
-  };
-  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     
-    if (!validateForm()) return;
+    const validation = validateForgotPasswordForm(email);
+    if (!validation.isValid) {
+      setError(validation.message);
+      return;
+    }
+    
     if (!isConnected) {
       toast({
         title: "Connection Error",
@@ -52,15 +44,24 @@ const ForgotPassword = () => {
     
     setIsSubmitting(true);
     
-    // Simulate sending password reset email
-    setTimeout(() => {
+    try {
+      // Use the auth context to reset password
+      const { error: resetError } = await resetPassword(email);
+      
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        setIsSubmitted(true);
+        toast({
+          title: "Reset link sent",
+          description: `Password reset instructions have been sent to ${email}`,
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
       setIsSubmitting(false);
-      setIsSubmitted(true);
-      toast({
-        title: "Reset link sent",
-        description: `Password reset instructions have been sent to ${email}`,
-      });
-    }, 1500);
+    }
   };
   
   return (

@@ -25,10 +25,17 @@ export const validatePassword = (password: string): { isValid: boolean; message:
   }
   
   // Check for password strength if needed
-  // const hasUpperCase = /[A-Z]/.test(password);
-  // const hasLowerCase = /[a-z]/.test(password);
-  // const hasNumbers = /\d/.test(password);
-  // const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  
+  if (!(hasUpperCase && hasLowerCase && (hasNumbers || hasSpecialChar))) {
+    return { 
+      isValid: false, 
+      message: 'Password must include uppercase, lowercase, and at least a number or special character' 
+    };
+  }
   
   return { isValid: true, message: 'Password is valid' };
 };
@@ -102,6 +109,21 @@ export const validateSignupForm = (
   
   if (!doPasswordsMatch(password, confirmPassword)) {
     return { isValid: false, message: 'Passwords do not match' };
+  }
+  
+  return { isValid: true, message: null };
+};
+
+/**
+ * Forgot password form validation
+ */
+export const validateForgotPasswordForm = (email: string): { isValid: boolean; message: string | null } => {
+  if (isFieldEmpty(email)) {
+    return { isValid: false, message: 'Email is required' };
+  }
+  
+  if (!isValidEmail(email)) {
+    return { isValid: false, message: 'Please enter a valid email address' };
   }
   
   return { isValid: true, message: null };

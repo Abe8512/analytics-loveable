@@ -39,6 +39,11 @@ const ThemeProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
     localStorage.getItem('theme') === 'dark'
   );
 
+  // Apply theme class to html element for global styling
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+  }, [isDarkMode]);
+
   const toggleDarkMode = () => {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
