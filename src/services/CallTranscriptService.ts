@@ -7,6 +7,7 @@ import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { StoredTranscription, getStoredTranscriptions } from "@/services/WhisperService";
 import { EventType } from "@/services/events/types";
 import { errorHandler } from "@/services/ErrorHandlingService";
+import { toast } from "sonner";
 
 export interface CallTranscriptFilter {
   dateRange?: { from: Date; to: Date };
@@ -38,6 +39,10 @@ const DEFAULT_PAGE_SIZE = 10;
 // Cache TTL - 5 minutes is more appropriate for real-world usage
 const CACHE_TTL = 5 * 60 * 1000; 
 
+// Configuration for retry mechanism
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+
 export const useCallTranscripts = (): UseCallTranscriptsResult => {
   const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -66,6 +71,26 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       filename: data.filename || "Unknown",
       user_id: data.user_id || 'anonymous'
     };
+  };
+
+  // Helper function to execute with retries
+  const executeWithRetry = async<T>(
+    operation: () => Promise<T>,
+    retries: number = MAX_RETRIES
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } catch (err) {
+      if (retries <= 0) {
+        throw err;
+      }
+      
+      console.log(`Retrying operation, ${retries} attempts left`);
+      // Exponential backoff
+      const delay = RETRY_DELAY_MS * (MAX_RETRIES - retries + 1);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return executeWithRetry(operation, retries - 1);
+    }
   };
   
   const fetchTranscripts = useCallback(async (options?: CallTranscriptFilter): Promise<CallTranscript[]> => {
@@ -104,37 +129,56 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     try {
       console.log('Fetching transcript data with options:', options);
       
-      // Try to get data from Supabase
-      let query = supabase
-        .from('call_transcripts')
-        .select('*', { count: 'exact' });
+      // Try to get data from Supabase with retries
+      let data, error, count;
       
-      // Apply date range filter if provided
-      if (options?.dateRange) {
-        const fromDate = options.dateRange.from.toISOString();
-        const toDate = options.dateRange.to.toISOString();
-        query = query.gte('created_at', fromDate).lte('created_at', toDate);
+      try {
+        // Try to get data from Supabase
+        const result = await executeWithRetry(async () => {
+          let query = supabase
+            .from('call_transcripts')
+            .select('*', { count: 'exact' });
+          
+          // Apply date range filter if provided
+          if (options?.dateRange) {
+            const fromDate = options.dateRange.from.toISOString();
+            const toDate = options.dateRange.to.toISOString();
+            query = query.gte('created_at', fromDate).lte('created_at', toDate);
+          }
+          
+          // Apply rep filter if provided
+          if (options?.repId) {
+            query = query.eq('user_id', options.repId);
+          }
+          
+          // Apply sentiment filter if provided
+          if (options?.sentiment) {
+            query = query.eq('sentiment', options.sentiment);
+          }
+          
+          // Apply ordering
+          const orderBy = options?.orderBy || 'created_at';
+          const orderDirection = options?.orderDirection || 'desc';
+          query = query.order(orderBy, { ascending: orderDirection === 'asc' });
+          
+          // Apply pagination
+          query = query.range(offset, offset + limit - 1);
+          
+          return await query;
+        });
+        
+        data = result.data;
+        error = result.error;
+        count = result.count;
+      } catch (fetchError) {
+        console.error('Failed to fetch from Supabase after retries:', fetchError);
+        toast.error("Connection issue", {
+          description: "Couldn't connect to the database. Using local data instead.",
+          duration: 3000
+        });
+        data = null;
+        error = { message: "Connection failed after retries" };
       }
-      
-      // Apply rep filter if provided
-      if (options?.repId) {
-        query = query.eq('user_id', options.repId);
-      }
-      
-      // Apply sentiment filter if provided
-      if (options?.sentiment) {
-        query = query.eq('sentiment', options.sentiment);
-      }
-      
-      // Apply ordering
-      const orderBy = options?.orderBy || 'created_at';
-      const orderDirection = options?.orderDirection || 'desc';
-      query = query.order(orderBy, { ascending: orderDirection === 'asc' });
-      
-      // Apply pagination
-      query = query.range(offset, offset + limit - 1);
-      
-      const { data, error, count } = await query;
       
       if (error) {
         console.error('Error fetching transcripts from database:', error);

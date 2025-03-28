@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import ContentLoader from "@/components/ui/ContentLoader";
 import { useCallTranscripts } from "@/services/CallTranscriptService";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
@@ -36,9 +37,10 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
 }) => {
   const navigate = useNavigate();
   const { filters } = useSharedFilters();
-  const { transcripts, loading, fetchTranscripts } = useCallTranscripts();
+  const { transcripts, loading, error, fetchTranscripts } = useCallTranscripts();
   const [calls, setCalls] = useState<Call[]>([]);
   const [teamMembersMap, setTeamMembersMap] = useState<Record<string, string>>({});
+  const [retryCount, setRetryCount] = useState(0);
   
   // Fetch team members to map IDs to names
   useEffect(() => {
@@ -66,7 +68,11 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
   // Refresh data to ensure we have the latest transcripts
   useEffect(() => {
     const loadData = async () => {
-      await fetchTranscripts({ force: true });
+      try {
+        await fetchTranscripts({ force: true });
+      } catch (err) {
+        console.error("Error fetching transcripts:", err);
+      }
     };
     loadData();
   }, [fetchTranscripts]);
@@ -113,6 +119,15 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
     }
   };
 
+  const handleRetry = async () => {
+    setRetryCount(prev => prev + 1);
+    try {
+      await fetchTranscripts({ force: true });
+    } catch (err) {
+      console.error("Error retrying fetch:", err);
+    }
+  };
+
   // Check if we have any calls to display
   const hasCalls = useMemo(() => calls && calls.length > 0, [calls]);
 
@@ -129,6 +144,23 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Error loading calls: {error.message}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="ml-2" 
+                onClick={handleRetry}
+              >
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <ContentLoader isLoading={loading} skeletonCount={3} height={200}>
           <Table>
             <TableHeader>
@@ -201,6 +233,16 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                   <TableCell colSpan={isAdmin || isManager ? 7 : 6} className="text-center py-8">
                     <p className="text-muted-foreground">No calls match the current filters</p>
                     <p className="text-sm mt-1">Try adjusting your filters or date range</p>
+                    {retryCount > 0 && !error && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-2" 
+                        onClick={handleRetry}
+                      >
+                        Retry ({retryCount})
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               )}
