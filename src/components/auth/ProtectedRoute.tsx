@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -17,6 +18,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { isAuthenticated, isLoading, isAdmin, isManager } = useAuth();
   const location = useLocation();
+
+  // Notify user about access requirements if they've been redirected
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      toast.error("Authentication required", {
+        description: "Please sign in to access this page"
+      });
+    } else if (!isLoading && isAuthenticated) {
+      if (requireAdmin && !isAdmin) {
+        toast.error("Access denied", {
+          description: "Administrator privileges required"
+        });
+      } else if (requireManager && !isManager) {
+        toast.error("Access denied", {
+          description: "Manager privileges required"
+        });
+      }
+    }
+  }, [isLoading, isAuthenticated, requireAdmin, requireManager, isAdmin, isManager]);
 
   if (isLoading) {
     return (

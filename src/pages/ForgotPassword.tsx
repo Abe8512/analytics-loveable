@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,10 +18,33 @@ const ForgotPassword = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formReady, setFormReady] = useState(false);
   
-  const { resetPassword } = useAuth();
+  const { resetPassword, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const { isConnected } = useConnectionStatus();
+  const navigate = useNavigate();
+  
+  // Set form ready state
+  useEffect(() => {
+    setFormReady(email.trim() !== '');
+    
+    // Clear error when email changes
+    if (error) {
+      setError(null);
+    }
+  }, [email, error]);
+  
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+      toast({
+        title: "Already logged in",
+        description: "You are already logged in to your account.",
+      });
+    }
+  }, [isAuthenticated, navigate, toast]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,10 +87,20 @@ const ForgotPassword = () => {
     }
   };
   
+  const tryDifferentEmail = () => {
+    setEmail('');
+    setIsSubmitted(false);
+    setError(null);
+  };
+  
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-4">
-        <div className="flex justify-end mb-2">
+        <div className="flex justify-between mb-2">
+          <Link to="/auth" className="flex items-center text-sm text-muted-foreground hover:text-primary">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back to login
+          </Link>
           <ConnectionStatusBadge showLatency={false} size="sm" />
         </div>
         
@@ -101,7 +134,7 @@ const ForgotPassword = () => {
                 <Button 
                   variant="outline" 
                   className="mt-4"
-                  onClick={() => setIsSubmitted(false)}
+                  onClick={tryDifferentEmail}
                 >
                   Try a different email
                 </Button>
@@ -123,7 +156,7 @@ const ForgotPassword = () => {
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !formReady}
                 >
                   {isSubmitting ? (
                     <>
@@ -135,12 +168,6 @@ const ForgotPassword = () => {
               </form>
             )}
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <Link to="/auth" className="flex items-center text-sm text-muted-foreground hover:text-primary">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Back to login
-            </Link>
-          </CardFooter>
         </Card>
       </div>
     </div>

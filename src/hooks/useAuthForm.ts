@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -14,8 +14,9 @@ export const useAuthForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('login');
+  const [formReady, setFormReady] = useState(false);
   
-  const { login, signup } = useAuth();
+  const { login, signup, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -24,10 +25,37 @@ export const useAuthForm = () => {
   // Get the redirect path from location state, or default to '/'
   const from = location.state?.from?.pathname || '/';
   
+  // Clear error when tab changes
   const handleTabChange = (value: string) => {
     setActiveTab(value);
     setError(null);
   };
+  
+  // Clear error when form inputs change
+  useEffect(() => {
+    setError(null);
+  }, [email, password, name, confirmPassword]);
+  
+  // Check if the user is already authenticated and redirect if they are
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
+  
+  // Set form ready state
+  useEffect(() => {
+    if (activeTab === 'login') {
+      setFormReady(email.trim() !== '' && password.trim() !== '');
+    } else {
+      setFormReady(
+        email.trim() !== '' && 
+        password.trim() !== '' && 
+        name.trim() !== '' && 
+        confirmPassword.trim() !== ''
+      );
+    }
+  }, [activeTab, email, password, name, confirmPassword]);
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +139,14 @@ export const useAuthForm = () => {
     }
   };
   
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setName('');
+    setConfirmPassword('');
+    setError(null);
+  };
+  
   return {
     email,
     setEmail,
@@ -124,10 +160,11 @@ export const useAuthForm = () => {
     error,
     setError,
     activeTab,
-    setActiveTab,
+    formReady,
     handleTabChange,
     handleLogin,
     handleSignup,
+    resetForm,
     from
   };
 };
