@@ -1,144 +1,92 @@
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { fixCallSentiments } from '@/utils/fixCallSentiments';
-import { MetricsData, RawMetricsRecord, FormattedMetrics, initialMetricsData } from '@/types/metrics';
-import { processMetricsData } from '@/utils/metricsProcessor';
-import { useMetricsFetcher, clearMetricsCache } from '@/hooks/useMetricsFetcher';
-import { useSharedFilters } from '@/contexts/SharedFilterContext';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { useSharedFilters } from './SharedFilterContext';
+import { useMetricsFetcher } from '@/hooks/useMetricsFetcher';
+import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
+import { formatMetricsForDisplay } from '@/utils/metricsUtils';
 
-interface MetricsContextValue {
-  rawMetrics: RawMetricsRecord | null;
-  metricsData: MetricsData;
-  formattedMetrics: FormattedMetrics | null;
+// Default formatted metrics data structure
+const defaultFormattedMetrics: FormattedMetrics = {
+  totalCalls: 0,
+  avgDuration: 0,
+  successRate: 0,
+  conversionRate: 0,
+  avgSentiment: 0,
+  agentTalkRatio: 0,
+  customerTalkRatio: 0,
+  positiveSentiment: 0,
+  negativeSentiment: 0,
+  neutralSentiment: 0,
+  topKeywords: [],
+  callScore: 0,
+};
+
+// Context interface
+interface MetricsContextType {
+  metricsData: FormattedMetrics;
+  rawMetricsData: RawMetricsRecord | null;
   isLoading: boolean;
-  isUsingDemoData: boolean;
-  refresh: () => Promise<void>;
-  fixSentiments: () => Promise<void>;
   error: string | null;
+  isUsingDemoData: boolean;
+  lastUpdated: Date | null;
+  refresh: (forceRefresh?: boolean) => Promise<void>;
 }
 
-const MetricsContext = createContext<MetricsContextValue>({
-  rawMetrics: null,
-  metricsData: initialMetricsData,
-  formattedMetrics: null,
+// Default context values
+const defaultContext: MetricsContextType = {
+  metricsData: defaultFormattedMetrics,
+  rawMetricsData: null,
   isLoading: true,
+  error: null,
   isUsingDemoData: false,
+  lastUpdated: null,
   refresh: async () => {},
-  fixSentiments: async () => {},
-  error: null
-});
+};
 
-export const useMetrics = () => useContext(MetricsContext);
+// Create context
+const MetricsContext = createContext<MetricsContextType>(defaultContext);
 
-interface MetricsProviderProps {
-  children: React.ReactNode;
-}
-
-export const MetricsProvider: React.FC<MetricsProviderProps> = ({ children }) => {
+// Provider component
+export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { filters } = useSharedFilters();
-  const { toast } = useToast();
-  
-  // Use our enhanced metrics fetcher with caching
-  const {
-    data: rawMetrics,
-    isLoading,
-    isError,
-    error: fetchError,
-    isUsingDemoData,
-    refresh: refreshRawMetrics,
+
+  // Use the metrics fetcher hook
+  const { 
+    data, 
+    isLoading, 
+    isError, 
+    error, 
+    isUsingDemoData, 
+    refresh,
     lastUpdated
   } = useMetricsFetcher({
-    cacheKey: 'dashboard-metrics',
-    cacheDuration: 2 * 60 * 1000, // 2 minutes
-    filters: {
-      dateRange: filters.dateRange
-    }
+    filters,
+    cacheDuration: 5 * 60 * 1000, // 5 minutes cache
+    shouldSubscribe: true,
   });
-  
-  // Process the raw metrics data into the format needed by components
-  const [processedData, setProcessedData] = useState<{
-    metricsData: MetricsData;
-    formattedMetrics: FormattedMetrics | null;
-  }>({
-    metricsData: initialMetricsData,
-    formattedMetrics: null
-  });
-  
-  // Update processed data when raw metrics change
-  useEffect(() => {
-    const { metricsData, formattedMetrics } = processMetricsData(
-      rawMetrics,
-      isLoading,
-      isError
-    );
-    
-    setProcessedData({
-      metricsData: {
-        ...metricsData,
-        isUsingDemoData,
-        lastUpdated: lastUpdated || metricsData.lastUpdated
-      },
-      formattedMetrics
-    });
-  }, [rawMetrics, isLoading, isError, isUsingDemoData, lastUpdated]);
-  
-  // Handle filter changes by refreshing data
-  useEffect(() => {
-    const refreshData = async () => {
-      // Clear cache when filters change
-      clearMetricsCache();
-      await refreshRawMetrics(true);
-    };
-    
-    refreshData();
-  }, [filters, refreshRawMetrics]);
-  
-  // Function to fix sentiments and refresh data
-  const fixSentiments = useCallback(async () => {
-    try {
-      const result = await fixCallSentiments();
-      
-      if (result.success) {
-        toast({
-          title: "Sentiment Update Complete",
-          description: `Updated ${result.updated} of ${result.total} calls`
-        });
-        
-        // Refresh metrics after fixing sentiments
-        await refreshRawMetrics(true);
-      } else {
-        toast({
-          title: "Sentiment Update Failed",
-          description: result.error || "Could not update call sentiments",
-          variant: "destructive"
-        });
-      }
-    } catch (err) {
-      console.error('Error fixing sentiments:', err);
-      toast({
-        title: "Error",
-        description: "Failed to update call sentiments",
-        variant: "destructive"
-      });
-    }
-  }, [toast, refreshRawMetrics]);
-  
-  // Prepare context value
-  const contextValue: MetricsContextValue = {
-    rawMetrics,
-    metricsData: processedData.metricsData,
-    formattedMetrics: processedData.formattedMetrics,
+
+  // Format the raw metrics data for display
+  const formattedMetrics = useMemo(() => {
+    return data ? formatMetricsForDisplay(data) : defaultFormattedMetrics;
+  }, [data]);
+
+  // Create the context value
+  const contextValue = useMemo(() => ({
+    metricsData: formattedMetrics,
+    rawMetricsData: data,
     isLoading,
+    error: isError ? error : null,
     isUsingDemoData,
-    refresh: refreshRawMetrics,
-    fixSentiments,
-    error: fetchError
-  };
-  
+    lastUpdated,
+    refresh,
+  }), [formattedMetrics, data, isLoading, isError, error, isUsingDemoData, lastUpdated, refresh]);
+
   return (
     <MetricsContext.Provider value={contextValue}>
       {children}
     </MetricsContext.Provider>
   );
 };
+
+// Custom hook to use the metrics context
+export const useMetrics = () => useContext(MetricsContext);

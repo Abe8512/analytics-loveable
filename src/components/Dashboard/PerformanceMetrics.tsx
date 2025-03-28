@@ -1,68 +1,13 @@
 
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Phone, Clock, 
   UserCheck, BarChart2, 
   TrendingUp, AlertCircle
 } from 'lucide-react';
 import { formatDurationMinutes } from '@/utils/metricsFormatters';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-
-interface MetricCardProps {
-  title: string;
-  value: number | string;
-  unit?: string;
-  icon: React.ReactNode;
-  change?: string;
-  trend?: 'up' | 'down' | 'neutral';
-  isLoading?: boolean;
-  tooltip?: string;
-}
-
-/**
- * Individual metric card component with enhanced loading states
- */
-const MetricCard: React.FC<MetricCardProps> = ({
-  title,
-  value,
-  unit = '',
-  icon,
-  change,
-  trend = 'neutral',
-  isLoading = false,
-  tooltip
-}) => (
-  <Card className="border-border shadow-sm transition-all duration-300 hover:shadow-md">
-    <CardContent className="p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground flex items-center gap-1" title={tooltip}>
-          {icon}
-          {title}
-        </span>
-        {!isLoading && change && (
-          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-            trend === 'up' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 
-            trend === 'down' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-            'bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-300'
-          }`}>
-            {change}
-          </span>
-        )}
-      </div>
-      <div className="mt-2">
-        {isLoading ? (
-          <Skeleton className="h-9 w-20" />
-        ) : (
-          <span className="text-3xl font-bold">
-            {value}{unit}
-          </span>
-        )}
-      </div>
-    </CardContent>
-  </Card>
-);
+import MetricCard from '@/components/ui/metric-card';
 
 interface DashboardStats {
   totalCalls: number;

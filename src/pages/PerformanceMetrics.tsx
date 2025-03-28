@@ -16,6 +16,7 @@ import {
 import { MetricsFilters } from '@/types/metrics';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 /**
  * Performance Metrics Page
@@ -28,6 +29,7 @@ const PerformanceMetrics = () => {
   const [salesInsights, setSalesInsights] = useState<any[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(true);
   const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     const fetchSalesInsights = async () => {
@@ -35,15 +37,16 @@ const PerformanceMetrics = () => {
         setIsLoadingInsights(true);
         setInsightsError(null);
 
-        // Try to fetch from database first
-        // The "sales_insights" table doesn't exist, so we need to generate demo data
-        setSalesInsights(generateDemoSalesInsights());
+        // Simulating API call with timeout
+        setTimeout(() => {
+          setSalesInsights(generateDemoSalesInsights());
+          setIsLoadingInsights(false);
+        }, 800);
       } catch (err) {
         console.error("Failed to fetch sales insights:", err);
         setInsightsError(err instanceof Error ? err.message : 'Error fetching insights');
         // Fall back to demo data
         setSalesInsights(generateDemoSalesInsights());
-      } finally {
         setIsLoadingInsights(false);
       }
     };
@@ -57,7 +60,17 @@ const PerformanceMetrics = () => {
   
   const handleRefresh = async () => {
     try {
-      await refresh(); // Fixed: removed the argument
+      setIsRefreshing(true);
+      toast({
+        title: "Refreshing metrics",
+        description: "Fetching the latest performance data..."
+      });
+      
+      await refresh();
+      
+      // Also refresh insights
+      setSalesInsights(generateDemoSalesInsights());
+      
       toast({
         title: "Data Refreshed",
         description: "Performance metrics have been updated with the latest data."
@@ -69,6 +82,8 @@ const PerformanceMetrics = () => {
         description: "Could not update performance metrics.",
         variant: "destructive"
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -86,16 +101,27 @@ const PerformanceMetrics = () => {
             variant="outline" 
             size="sm" 
             onClick={handleRefresh}
-            disabled={metricsLoading}
+            disabled={metricsLoading || isRefreshing}
             className="flex items-center gap-1"
           >
-            <RefreshCcw className={`h-4 w-4 ${metricsLoading ? 'animate-spin' : ''}`} />
-            Refresh Data
+            <RefreshCcw className={`h-4 w-4 ${metricsLoading || isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
           </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <KeyMetricsTable dateRange={filters.dateRange} />
+          {metricsLoading ? (
+            <Card className="p-6">
+              <Skeleton className="h-8 w-48 mb-4" />
+              <div className="space-y-2">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            </Card>
+          ) : (
+            <KeyMetricsTable dateRange={filters.dateRange} />
+          )}
           
           <TrendingInsightsCard
             title="Sales Performance Insights"

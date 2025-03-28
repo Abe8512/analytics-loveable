@@ -9,25 +9,37 @@ import { useMetrics } from '@/contexts/MetricsContext';
 import { extractDashboardKPIs } from '@/utils/metricsProcessor';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 const DashboardMetricsSection: React.FC = () => {
-  const { metricsData, isLoading, refresh, error, isUsingDemoData } = useMetrics();
+  const { metricsData, isLoading, refresh, error, isUsingDemoData, lastUpdated } = useMetrics();
   
   // Extract the necessary metrics for the dashboard
   const dashboardStats = extractDashboardKPIs(metricsData);
   
   // Format the last update time
   const getLastUpdateText = () => {
-    if (!metricsData.lastUpdated) return 'Never updated';
+    if (!lastUpdated) return 'Never updated';
     
     // Format relative time (e.g., "2 minutes ago")
     const now = new Date();
-    const diff = Math.floor((now.getTime() - metricsData.lastUpdated.getTime()) / 1000); // diff in seconds
+    const diff = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000); // diff in seconds
     
     if (diff < 60) return 'Just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} minute${Math.floor(diff / 60) !== 1 ? 's' : ''} ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} hour${Math.floor(diff / 3600) !== 1 ? 's' : ''} ago`;
     return `${Math.floor(diff / 86400)} day${Math.floor(diff / 86400) !== 1 ? 's' : ''} ago`;
+  };
+  
+  const handleRefresh = async () => {
+    try {
+      toast.loading("Refreshing metrics...");
+      await refresh();
+      toast.success("Metrics updated successfully");
+    } catch (err) {
+      toast.error("Failed to refresh metrics");
+      console.error("Error refreshing metrics:", err);
+    }
   };
   
   return (
@@ -40,16 +52,16 @@ const DashboardMetricsSection: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-semibold">Performance Overview</h2>
-          {metricsData.lastUpdated && (
+          {lastUpdated && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full text-muted-foreground">
                     {getLastUpdateText()}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {metricsData.lastUpdated.toLocaleString()}
+                  {lastUpdated.toLocaleString()}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -60,7 +72,7 @@ const DashboardMetricsSection: React.FC = () => {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={refresh}
+            onClick={handleRefresh}
             disabled={isLoading}
             className="flex items-center gap-1 w-full sm:w-auto"
           >
