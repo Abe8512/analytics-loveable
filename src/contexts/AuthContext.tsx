@@ -72,7 +72,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       // Dispatch an event to notify other components that users have been refreshed
       EventsService.dispatchEvent('MANAGED_USERS_UPDATED', fetchedUsers);
       
-      return;
     } catch (err) {
       console.error("Error refreshing managed users:", err);
       toast.error("Failed to refresh team members");
