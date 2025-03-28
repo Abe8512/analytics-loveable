@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useMetrics } from '@/components/metrics/RealTimeMetricsProvider';
 import { formatDurationMinutes } from '@/utils/metricsFormatters';
+import { MetricsData } from '@/types/metrics';
 
 interface MetricCardProps {
   title: string;
@@ -60,13 +61,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
 );
 
 interface PerformanceMetricsProps {
-  metricsData?: {
-    totalCalls: number;
-    avgDuration: number;
-    positiveSentiment: number;
-    callScore: number;
-    conversionRate: number;
-  };
+  metricsData?: Partial<MetricsData>;
   isLoading?: boolean;
 }
 
@@ -78,7 +73,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
   metricsData, 
   isLoading: propsLoading = false 
 }) => {
-  const [localMetrics, setLocalMetrics] = useState({
+  const [localMetrics, setLocalMetrics] = useState<Partial<MetricsData>>({
     totalCalls: 0,
     avgDuration: 0,
     positiveSentiment: 0,
@@ -115,14 +110,14 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
   const metricCards = [
     {
       title: 'Total Calls',
-      value: localMetrics.totalCalls,
+      value: localMetrics.totalCalls || 0,
       icon: <Phone className="h-4 w-4 text-muted-foreground" />,
       change: '+12%',
       trend: 'up' as const
     },
     {
       title: 'Avg Duration',
-      value: formatDurationMinutes(localMetrics.avgDuration) || 0,
+      value: formatDurationMinutes(localMetrics.avgDuration || 0),
       unit: 'min',
       icon: <Clock className="h-4 w-4 text-muted-foreground" />,
       change: '-5%',
@@ -130,7 +125,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Positive Sentiment',
-      value: Math.round(localMetrics.positiveSentiment) || 0,
+      value: Math.round(localMetrics.positiveSentiment || 0),
       unit: '%',
       icon: <UserCheck className="h-4 w-4 text-muted-foreground" />,
       change: '+8%',
@@ -138,7 +133,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Call Score',
-      value: Math.round(localMetrics.callScore) || 0,
+      value: Math.round(localMetrics.callScore || 0),
       icon: <BarChart2 className="h-4 w-4 text-muted-foreground" />,
       change: '+6%',
       trend: 'up' as const

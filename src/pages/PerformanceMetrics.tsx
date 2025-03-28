@@ -8,7 +8,12 @@ import TrendingInsightsCard from '@/components/Performance/TrendingInsightsCard'
 import { PageHeader } from '@/components/ui/page-header';
 import { LineChart } from 'lucide-react';
 import { useTeamMetricsData } from '@/services/SharedDataService';
-import { generateDemoSalesInsights, generateDemoCoachingInsights, generateDemoOpportunityInsights } from '@/services/DemoDataService';
+import { 
+  generateDemoSalesInsights, 
+  generateDemoCoachingInsights, 
+  generateDemoOpportunityInsights 
+} from '@/services/DemoDataService';
+import { MetricsFilters } from '@/types/metrics';
 
 /**
  * Performance Metrics Page
@@ -16,7 +21,12 @@ import { generateDemoSalesInsights, generateDemoCoachingInsights, generateDemoOp
  */
 const PerformanceMetrics = () => {
   const { filters } = useSharedFilters();
-  const { metrics, isLoading: metricsLoading } = useTeamMetricsData(filters);
+  const metricsFilters: MetricsFilters = {
+    dateRange: filters.dateRange,
+    repIds: filters.reps
+  };
+  
+  const { metrics, isLoading: metricsLoading } = useTeamMetricsData(metricsFilters);
   const [salesInsights, setSalesInsights] = useState<any[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,4 +1,6 @@
 
+import type { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
+
 /**
  * Formats duration from seconds to minutes and seconds string
  * @param seconds Duration in seconds
@@ -62,7 +64,7 @@ export const calculateSentimentPercentages = (
  * @param metrics Raw metrics data
  * @returns Formatted metrics with calculated values and formatted strings
  */
-export const formatMetricsForDisplay = (metrics: any) => {
+export const formatMetricsForDisplay = (metrics: RawMetricsRecord | null): FormattedMetrics | null => {
   if (!metrics) return null;
   
   // Calculate sentiment percentages
@@ -139,4 +141,52 @@ export const getSentimentColor = (sentiment: number): string => {
   if (sentiment >= 60) return '#22c55e'; // green
   if (sentiment <= 40) return '#ef4444'; // red
   return '#3b82f6'; // blue
+};
+
+/**
+ * Converts raw database metrics record to MetricsData format
+ * @param record Raw metrics record from database
+ * @returns Structured metrics data
+ */
+export const convertRawToMetricsData = (record: RawMetricsRecord | null): Partial<FormattedMetrics> => {
+  if (!record) return {};
+  
+  const sentimentTotal = 
+    (record.positive_sentiment_count || 0) +
+    (record.neutral_sentiment_count || 0) +
+    (record.negative_sentiment_count || 0);
+    
+  const positiveSentiment = sentimentTotal > 0
+    ? ((record.positive_sentiment_count || 0) / sentimentTotal) * 100
+    : 0;
+    
+  const negativeSentiment = sentimentTotal > 0
+    ? ((record.negative_sentiment_count || 0) / sentimentTotal) * 100
+    : 0;
+    
+  const neutralSentiment = sentimentTotal > 0
+    ? ((record.neutral_sentiment_count || 0) / sentimentTotal) * 100
+    : 0;
+    
+  return {
+    totalCalls: record.total_calls || 0,
+    avgDurationSeconds: record.avg_duration || 0,
+    avgDuration: formatDuration(record.avg_duration || 0),
+    avgDurationMinutes: formatDurationMinutes(record.avg_duration || 0),
+    totalDuration: record.total_duration || 0,
+    positiveCallsCount: record.positive_sentiment_count || 0,
+    negativeCallsCount: record.negative_sentiment_count || 0,
+    neutralCallsCount: record.neutral_sentiment_count || 0,
+    positiveSentimentPercent: Math.round(positiveSentiment),
+    negativeSentimentPercent: Math.round(negativeSentiment),
+    neutralSentimentPercent: Math.round(neutralSentiment),
+    avgSentiment: record.avg_sentiment || 0.5,
+    avgSentimentPercent: Math.round((record.avg_sentiment || 0.5) * 100),
+    callScore: record.performance_score || 0,
+    conversionRate: record.conversion_rate ? Math.round(record.conversion_rate * 100) : 0,
+    agentTalkRatio: Math.round(record.agent_talk_ratio || 50),
+    customerTalkRatio: Math.round(record.customer_talk_ratio || 50),
+    topKeywords: record.top_keywords || [],
+    reportDate: record.report_date || new Date().toISOString().split('T')[0]
+  };
 };
