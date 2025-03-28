@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -35,29 +34,15 @@ const AuthPage = () => {
     setIsSubmitting(true);
     
     try {
-      if (!email.trim() || !password.trim()) {
-        throw new Error('Email and password are required');
-      }
-      
       const { error } = await login(email, password);
       
       if (error) {
         setError(error.message);
-        toast.error('Login failed', {
-          description: error.message,
-        });
       } else {
-        toast.success('Login successful', {
-          description: 'Redirecting to dashboard...',
-        });
         navigate('/');
       }
     } catch (err: any) {
-      console.error('Login error:', err);
       setError(err.message || 'Failed to login');
-      toast.error('Login failed', {
-        description: err.message || 'An unexpected error occurred',
-      });
     } finally {
       setIsSubmitting(false);
     }
@@ -71,18 +56,6 @@ const AuthPage = () => {
     if (!name.trim()) {
       setError('Name is required');
       setIsSubmitting(false);
-      toast.error('Signup failed', {
-        description: 'Name is required',
-      });
-      return;
-    }
-    
-    if (!email.trim() || !password.trim()) {
-      setError('Email and password are required');
-      setIsSubmitting(false);
-      toast.error('Signup failed', {
-        description: 'Email and password are required',
-      });
       return;
     }
     
@@ -91,22 +64,12 @@ const AuthPage = () => {
       
       if (error) {
         setError(error.message);
-        toast.error('Signup failed', {
-          description: error.message,
-        });
       } else {
-        toast.success('Account created successfully', {
-          description: 'You can now login with your credentials',
-        });
         // Switch to login tab after successful signup
         setActiveTab('login');
       }
     } catch (err: any) {
-      console.error('Signup error:', err);
       setError(err.message || 'Failed to sign up');
-      toast.error('Signup failed', {
-        description: err.message || 'An unexpected error occurred',
-      });
     } finally {
       setIsSubmitting(false);
     }

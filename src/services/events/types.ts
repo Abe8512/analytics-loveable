@@ -12,19 +12,15 @@ export type EventType =
   | 'team-member-removed'
   | 'managed-users-updated'
   | 'call-updated'
-  | 'call-assigned'
   | 'recording-completed'
   | 'sentiment-updated'
   | 'connection-restored'
   | 'connection-lost'
   | 'call-uploaded'
-  | 'team-data-updated'
-  | 'TEAM_MEMBER_ADDED'
-  | 'TEAM_MEMBER_REMOVED'
-  | 'MANAGED_USERS_UPDATED'
-  | 'CALL_UPDATED'
-  | 'TEAM_DATA_UPDATED'
-  | 'CALL_ASSIGNED';
+  | 'TEAM_MEMBER_ADDED'      // Added for backward compatibility
+  | 'TEAM_MEMBER_REMOVED'    // Added for backward compatibility
+  | 'MANAGED_USERS_UPDATED'  // Added for backward compatibility
+  | 'CALL_UPDATED';          // Added for backward compatibility
 
 export interface EventPayload {
   [key: string]: any;
@@ -56,10 +52,8 @@ export interface EventsStore extends EventsState {
 
 // Export EVENT_TYPES constant for backward compatibility
 export const EVENT_TYPES = {
-  TEAM_MEMBER_ADDED: 'team-member-added' as EventType,
-  TEAM_MEMBER_REMOVED: 'team-member-removed' as EventType,
-  MANAGED_USERS_UPDATED: 'managed-users-updated' as EventType,
-  CALL_UPDATED: 'call-updated' as EventType,
-  CALL_ASSIGNED: 'call-assigned' as EventType,
-  TEAM_DATA_UPDATED: 'team-data-updated' as EventType
+  TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED' as EventType,
+  TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED' as EventType,
+  MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED' as EventType,
+  CALL_UPDATED: 'CALL_UPDATED' as EventType
 };

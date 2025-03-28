@@ -6,8 +6,6 @@ import { getSentimentScore } from "./AIService";
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from "@/integrations/supabase/client";
 import { teamService } from "./TeamService";
-import { dispatchEvent } from "./events";
-import { EventType } from "./events/types";
 
 export type UploadStatus = 'queued' | 'processing' | 'complete' | 'error';
 
@@ -30,33 +28,13 @@ export type BulkUploadProgressCallback = (
 export class BulkUploadProcessorService {
   private assignedUserId: string = '';
   private whisperService = useWhisperService();
-  private previousAssignedUserId: string = '';
-  private lastEventTimestamp: number = 0;
-  private readonly EVENT_THROTTLE_MS = 300; // Throttle events to once per 300ms
   
   constructor() {
     // Initialize service
   }
   
   setAssignedUserId(userId: string) {
-    // Skip if the ID is the same (no change)
-    if (this.assignedUserId === userId) {
-      return;
-    }
-    
-    // Store previous value for comparison
-    this.previousAssignedUserId = this.assignedUserId;
     this.assignedUserId = userId;
-    
-    console.log(`Setting assigned user ID: ${userId}`);
-    
-    // Throttle event dispatching to prevent rapid successive events
-    const now = Date.now();
-    if (userId && userId.trim() !== '' && now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
-      // Use only the kebab-case event name to be consistent
-      dispatchEvent("call-assigned", { assignedTo: userId });
-      this.lastEventTimestamp = now;
-    }
   }
   
   async processFile(
@@ -163,17 +141,14 @@ export class BulkUploadProcessorService {
         
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
-        // Throttle event dispatch
-        const now = Date.now();
-        if (now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
-          // Use the kebab-case event name consistently
-          dispatchEvent('call-updated', {
-            id: transcriptId,
-            assignedTo: this.assignedUserId,
-            repName: userName
-          });
-          this.lastEventTimestamp = now;
-        }
+        // Dispatch event for other components
+        const eventsStore = useEventsStore.getState();
+        eventsStore.dispatchEvent('call-uploaded', {
+          transcriptId,
+          fileName: file.name,
+          assignedTo: this.assignedUserId,
+          userName: userName
+        });
         
         return;
       } catch (error) {
@@ -219,16 +194,14 @@ export class BulkUploadProcessorService {
           
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
-          // Throttle event dispatch
-          const now = Date.now();
-          if (now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
-            dispatchEvent('call-updated', {
-              id: transcriptId,
-              assignedTo: this.assignedUserId,
-              repName: userName
-            });
-            this.lastEventTimestamp = now;
-          }
+          // Dispatch event for other components
+          const eventsStore = useEventsStore.getState();
+          eventsStore.dispatchEvent('call-uploaded', {
+            transcriptId,
+            fileName: file.name,
+            assignedTo: this.assignedUserId,
+            userName: userName
+          });
           
           return;
         } catch (fallbackError) {
@@ -255,16 +228,14 @@ export class BulkUploadProcessorService {
             
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
-            // Throttle event dispatch
-            const now = Date.now();
-            if (now - this.lastEventTimestamp > this.EVENT_THROTTLE_MS) {
-              dispatchEvent('call-updated', {
-                id: transcriptId,
-                assignedTo: this.assignedUserId,
-                repName: userName
-              });
-              this.lastEventTimestamp = now;
-            }
+            // Dispatch event for other components
+            const eventsStore = useEventsStore.getState();
+            eventsStore.dispatchEvent('call-uploaded', {
+              transcriptId,
+              fileName: file.name,
+              assignedTo: this.assignedUserId,
+              userName: userName
+            });
             
             return;
           } catch (finalError) {

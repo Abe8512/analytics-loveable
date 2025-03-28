@@ -20,8 +20,7 @@ const Team = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Use the hook from TeamService
-  const { teamMembers, isLoading, error, refreshTeamMembers } = teamService.useTeamMembers();
+  const { teamMembers, isLoading, refreshTeamMembers, error } = teamService.useTeamMembers();
 
   const handleAddMember = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,7 +196,7 @@ const Team = () => {
                       name: member.name,
                       email: member.email || '',
                       role: member.role || '',
-                      avatar: member.avatar_url || ''
+                      avatar: member.avatar_url || '' // Fixed: Use avatar_url instead of non-existent avatar property
                     }}
                     onDelete={() => handleRemoveMember(member.id)}
                   />
