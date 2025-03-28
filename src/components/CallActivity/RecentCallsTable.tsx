@@ -1,15 +1,16 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, WifiOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ContentLoader from "@/components/ui/ContentLoader";
 import { useCallTranscripts } from "@/services/CallTranscriptService";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import { teamService } from '@/services/TeamService';
+import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 
 interface Call {
   id: string;
@@ -41,41 +42,51 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
   const [calls, setCalls] = useState<Call[]>([]);
   const [teamMembersMap, setTeamMembersMap] = useState<Record<string, string>>({});
   const [retryCount, setRetryCount] = useState(0);
+  const { isConnected } = useConnectionStatus();
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   
-  // Fetch team members to map IDs to names
-  useEffect(() => {
-    const loadTeamMembers = async () => {
-      try {
-        const members = await teamService.getTeamMembers();
-        const memberMap: Record<string, string> = {};
-        members.forEach(member => {
-          if (member.id) {
-            memberMap[member.id] = member.name;
-          }
-          if (member.user_id) {
-            memberMap[member.user_id] = member.name;
-          }
-        });
-        setTeamMembersMap(memberMap);
-      } catch (error) {
-        console.error("Error loading team members:", error);
-      }
-    };
+  // Fetch team members to map IDs to names - with error handling
+  const loadTeamMembers = useCallback(async () => {
+    if (teamMembersLoading) return;
     
-    loadTeamMembers();
-  }, []);
+    try {
+      setTeamMembersLoading(true);
+      const members = await teamService.getTeamMembers();
+      const memberMap: Record<string, string> = {};
+      members.forEach(member => {
+        if (member.id) {
+          memberMap[member.id] = member.name;
+        }
+        if (member.user_id) {
+          memberMap[member.user_id] = member.name;
+        }
+      });
+      setTeamMembersMap(memberMap);
+    } catch (error) {
+      console.error("Error loading team members:", error);
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  }, [teamMembersLoading]);
   
-  // Refresh data to ensure we have the latest transcripts
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        await fetchTranscripts({ force: true });
-      } catch (err) {
-        console.error("Error fetching transcripts:", err);
-      }
-    };
-    loadData();
-  }, [fetchTranscripts]);
+    loadTeamMembers();
+  }, [loadTeamMembers]);
+  
+  // Refresh data only when connected
+  useEffect(() => {
+    if (isConnected) {
+      const loadData = async () => {
+        try {
+          await fetchTranscripts();
+        } catch (err) {
+          console.error("Error fetching transcripts:", err);
+        }
+      };
+      
+      loadData();
+    }
+  }, [fetchTranscripts, isConnected]);
   
   // Convert transcripts to call format - memoized to prevent unnecessary rerenders
   useEffect(() => {
@@ -120,6 +131,10 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
   };
 
   const handleRetry = async () => {
+    if (!isConnected) {
+      return; // Don't retry if offline
+    }
+    
     setRetryCount(prev => prev + 1);
     try {
       await fetchTranscripts({ force: true });
@@ -144,6 +159,15 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {!isConnected && (
+          <Alert variant="warning" className="mb-4">
+            <WifiOff className="h-4 w-4" />
+            <AlertDescription>
+              You are currently offline. Showing cached data.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
@@ -154,6 +178,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                 size="sm" 
                 className="ml-2" 
                 onClick={handleRetry}
+                disabled={!isConnected}
               >
                 Retry
               </Button>
@@ -233,7 +258,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                   <TableCell colSpan={isAdmin || isManager ? 7 : 6} className="text-center py-8">
                     <p className="text-muted-foreground">No calls match the current filters</p>
                     <p className="text-sm mt-1">Try adjusting your filters or date range</p>
-                    {retryCount > 0 && !error && (
+                    {retryCount > 0 && !error && isConnected && (
                       <Button 
                         variant="outline" 
                         size="sm" 

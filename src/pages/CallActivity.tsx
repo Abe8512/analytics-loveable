@@ -1,17 +1,23 @@
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { RecentCallsTable, SentimentAnalysisTable, TeamMembersTable } from "@/components/CallActivity";
-import { Download, UploadCloud, Users, Phone, LineChart } from "lucide-react";
+import { Download, UploadCloud, Users, Phone, LineChart, WifiOff } from "lucide-react";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 import BulkUploadModal from "@/components/BulkUpload/BulkUploadModal";
 import { useBulkUploadService } from "@/services/BulkUploadService";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 import { useEventListener } from "@/services/events/hooks";
+import ConnectionStatusIndicator from '@/components/ui/ConnectionStatusIndicator';
+import { useConnectionStatus } from '@/services/ConnectionMonitorService';
+import { toast } from "sonner";
+
+// Time between refreshes to prevent overloading
+const MIN_REFRESH_INTERVAL = 30000; // 30 seconds
 
 const CallActivity = () => {
   const { isDark } = useTheme();
@@ -21,23 +27,43 @@ const CallActivity = () => {
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string | null>(null);
   const { refreshTranscripts } = useBulkUploadService();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const lastRefreshTimeRef = useRef<number>(0);
+  const { isConnected } = useConnectionStatus();
   
-  // Listen for team or transcript events to refresh data
-  useEventListener('team-member-added', () => {
-    refreshAllData();
-  });
+  // Track connection state to show appropriate UI
+  const [wasDisconnected, setWasDisconnected] = useState<boolean>(false);
   
-  useEventListener('team-member-removed', () => {
-    refreshAllData();
-  });
+  // Listen for team or transcript events to refresh data, but only when connected
+  const handleDataUpdate = useCallback(() => {
+    if (!isConnected) {
+      console.log('Data update event received but offline - will refresh when reconnected');
+      setWasDisconnected(true);
+      return;
+    }
+    
+    const now = Date.now();
+    // Only refresh if it's been at least MIN_REFRESH_INTERVAL since the last refresh
+    if (now - lastRefreshTimeRef.current >= MIN_REFRESH_INTERVAL) {
+      refreshAllData();
+      lastRefreshTimeRef.current = now;
+    } else {
+      console.log(`Skipping refresh, last refresh was ${(now - lastRefreshTimeRef.current) / 1000}s ago`);
+    }
+  }, [isConnected]);
   
-  useEventListener('transcript-created', () => {
-    refreshAllData();
-  });
+  // Watch for connection changes to refresh data when reconnected
+  useEffect(() => {
+    if (isConnected && wasDisconnected) {
+      toast.info("Connection restored, refreshing data...");
+      refreshAllData();
+      setWasDisconnected(false);
+    }
+  }, [isConnected, wasDisconnected]);
   
-  useEventListener('bulk-upload-completed', () => {
-    refreshAllData();
-  });
+  useEventListener('team-member-added', handleDataUpdate);
+  useEventListener('team-member-removed', handleDataUpdate);
+  useEventListener('transcript-created', handleDataUpdate);
+  useEventListener('bulk-upload-completed', handleDataUpdate);
   
   // Handle tab changes
   const handleTabChange = useCallback((value: string) => {
@@ -56,31 +82,62 @@ const CallActivity = () => {
   
   const handleBulkUploadClose = useCallback(() => {
     setIsBulkUploadOpen(false);
-    refreshAllData();
-  }, []);
+    // Use a short timeout to prevent UI jank
+    setTimeout(() => {
+      if (isConnected) {
+        refreshAllData();
+      }
+    }, 500);
+  }, [isConnected]);
   
   const handleCallSelect = useCallback((callId: string) => {
     setSelectedCallId(callId);
-    console.log(`Selected call: ${callId}`);
   }, []);
   
   const handleTeamMemberSelect = useCallback((teamMemberId: string) => {
     setSelectedTeamMemberId(teamMemberId);
-    console.log(`Selected team member: ${teamMemberId}`);
   }, []);
 
   const refreshAllData = useCallback(() => {
+    if (!isConnected) {
+      toast.error("You're offline", {
+        description: "Can't refresh data while offline. Will try again when connection is restored.",
+        duration: 3000
+      });
+      setWasDisconnected(true);
+      return;
+    }
+    
     setIsRefreshing(true);
+    lastRefreshTimeRef.current = Date.now();
+    
     refreshTranscripts({ force: true })
+      .then(() => {
+        toast.success("Data refreshed", { duration: 2000 });
+      })
+      .catch(err => {
+        console.error("Error refreshing data:", err);
+        toast.error("Failed to refresh data", { 
+          description: "There was a problem refreshing the data. Please try again later." 
+        });
+      })
       .finally(() => {
         setIsRefreshing(false);
       });
-  }, [refreshTranscripts]);
+  }, [refreshTranscripts, isConnected]);
   
-  // Initial data load
+  // Initial data load - only once on component mount
   useEffect(() => {
-    refreshAllData();
-  }, [refreshAllData]);
+    if (isConnected) {
+      const initialLoadTimeout = setTimeout(() => {
+        refreshAllData();
+      }, 300); // Slight delay for UI to render first
+      
+      return () => clearTimeout(initialLoadTimeout);
+    } else {
+      setWasDisconnected(true);
+    }
+  }, []);
   
   // Memoize TabsContent to prevent re-renders
   const tabContent = useMemo(() => {
@@ -120,10 +177,17 @@ const CallActivity = () => {
         </div>
         
         <div className="flex items-center gap-3">
+          {!isConnected && (
+            <div className="flex items-center text-red-500 mr-2 text-sm font-medium">
+              <WifiOff className="h-4 w-4 mr-1.5" />
+              Offline Mode
+            </div>
+          )}
+          
           <Button 
             variant="outline" 
             className="hidden sm:flex items-center gap-2"
-            disabled={isRefreshing}
+            disabled={isRefreshing || !isConnected}
             onClick={refreshAllData}
           >
             {isRefreshing ? (
@@ -141,6 +205,8 @@ const CallActivity = () => {
             <UploadCloud className="h-4 w-4" />
             Upload Calls
           </Button>
+          
+          <ConnectionStatusIndicator position="inline" />
         </div>
       </div>
       
