@@ -6,17 +6,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Activity, RefreshCw, Wifi, WifiOff, Check, X, AlertTriangle } from 'lucide-react';
+import { useNetworkLatency } from '@/hooks/useNetworkLatency';
 
 const ConnectionDiagnostics: React.FC = () => {
   const { isConnected, checkConnection, lastChecked } = useConnectionStatus();
   const [isChecking, setIsChecking] = useState(false);
-  const [latency, setLatency] = useState(errorHandler.networkLatency);
+  const { networkLatency } = useNetworkLatency();
   
   const handleCheckConnection = async () => {
     setIsChecking(true);
     try {
       await checkConnection();
-      setLatency(errorHandler.networkLatency);
     } finally {
       setIsChecking(false);
     }
@@ -38,18 +38,18 @@ const ConnectionDiagnostics: React.FC = () => {
   
   const getLatencyColor = () => {
     if (!isConnected) return 'bg-gray-300';
-    if (latency < 150) return 'bg-green-500';
-    if (latency < 300) return 'bg-green-400';
-    if (latency < 500) return 'bg-yellow-400';
+    if (networkLatency < 150) return 'bg-green-500';
+    if (networkLatency < 300) return 'bg-green-400';
+    if (networkLatency < 500) return 'bg-yellow-400';
     return 'bg-red-500';
   };
   
   const getLatencyPercentage = () => {
     if (!isConnected) return 0;
-    if (latency === 0) return 0;
+    if (networkLatency === 0) return 0;
     
     // Scale from 0-1000ms to 0-100%
-    const percentage = Math.min(100, Math.max(0, 100 - (latency / 10)));
+    const percentage = Math.min(100, Math.max(0, 100 - (networkLatency / 10)));
     return percentage;
   };
 
@@ -83,7 +83,7 @@ const ConnectionDiagnostics: React.FC = () => {
             <span className="text-muted-foreground">Network Latency</span>
             <span className="flex items-center gap-1">
               <Activity className="h-3.5 w-3.5" />
-              {isConnected ? `${latency}ms` : "N/A"}
+              {isConnected ? `${networkLatency}ms` : "N/A"}
             </span>
           </div>
         </div>
@@ -116,7 +116,7 @@ const ConnectionDiagnostics: React.FC = () => {
             <div className="flex justify-between items-center py-1 border-b">
               <span>Data Synchronization</span>
               {isConnected ? 
-                (latency > 500 ? 
+                (networkLatency > 500 ? 
                   <AlertTriangle className="h-4 w-4 text-yellow-500" /> : 
                   <Check className="h-4 w-4 text-green-500" />
                 ) : 

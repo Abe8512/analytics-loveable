@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useConnectionStatus, CONNECTION_EVENTS } from '@/services/ConnectionMonitorService';
 import { Wifi, WifiOff } from 'lucide-react';
 import { useEventsStore } from '@/services/events';
+import { connectionUtils } from '@/utils/connectionUtils';
 
 /**
  * Component that monitors connection status and shows toast notifications

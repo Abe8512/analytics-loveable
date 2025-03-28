@@ -4,7 +4,6 @@ import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 import { Wifi, WifiOff, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { errorHandler } from '@/services/ErrorHandlingService';
 import { useNetworkLatency } from '@/hooks/useNetworkLatency';
 
 interface ConnectionStatusBadgeProps {

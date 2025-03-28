@@ -5,6 +5,7 @@ import { Bell, X, Check, AlertTriangle, Info } from 'lucide-react';
 import { EventType } from '@/services/events/types';
 import { useEventListener } from '@/services/events/hooks';
 import { cn } from '@/lib/utils';
+import { CONNECTION_EVENTS } from '@/services/ConnectionMonitorService';
 
 type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
@@ -34,23 +35,23 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = ({
 
   // Handle notification events
   useEventListener('bulk-upload-completed', (data) => {
-    addNotification('success', 'Bulk upload completed', `${data.fileCount} files processed`);
+    addNotification('success', 'Bulk upload completed', `${data.data?.fileCount || ''} files processed`);
   });
 
   useEventListener('call-uploaded', (data) => {
-    addNotification('success', 'Call uploaded', data.filename || 'New call available');
+    addNotification('success', 'Call uploaded', data.data?.filename || 'New call available');
   });
 
-  useEventListener('connection-lost', () => {
-    addNotification('error', 'Connection lost', 'Trying to reconnect...');
+  useEventListener(CONNECTION_EVENTS.LOST, () => {
+    addNotification('error', 'Connection lost', 'Working in offline mode');
   });
 
-  useEventListener('connection-restored', () => {
+  useEventListener(CONNECTION_EVENTS.RESTORED, () => {
     addNotification('success', 'Connection restored', 'You are back online');
   });
 
   useEventListener('sentiment-updated', (data) => {
-    addNotification('info', 'Sentiment analysis updated', data.filename || 'Call analysis completed');
+    addNotification('info', 'Sentiment analysis updated', data.data?.filename || 'Call analysis completed');
   });
 
   // Add notification with auto-remove after timeout
