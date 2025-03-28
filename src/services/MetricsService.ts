@@ -194,7 +194,7 @@ export const useMetricsData = (filters?: MetricsFilters) => {
     fetchData();
     
     // Subscribe to real-time updates
-    const subscription = MetricsService.subscribeToMetricsUpdates((updatedMetrics) => {
+    const subscription = MetricsService.subscribeToMetricsUpdates((updatedMetrics: RawMetricsRecord) => {
       console.log('Received real-time metrics update:', updatedMetrics);
       setRawData(updatedMetrics);
       setData(formatMetricsForDisplay(updatedMetrics));
