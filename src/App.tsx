@@ -69,7 +69,7 @@ function App() {
               <Toaster position="top-right" />
               
               <Routes>
-                {/* Auth routes */}
+                {/* Auth routes - make sure these come before protected routes */}
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
