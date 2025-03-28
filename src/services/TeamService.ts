@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { EventsService, EventType } from "@/services/EventsService";
+import { dispatchEvent, addEventListener, removeEventListener } from "@/services/events";
 import * as SharedDataService from "@/services/SharedDataService";
 import { errorHandler } from "./ErrorHandlingService";
 
@@ -84,8 +84,8 @@ class TeamService {
       refreshTeamMembers();
       
       // Set up event listeners
-      const removeAddedListener = EventsService.addEventListener('TEAM_MEMBER_ADDED' as EventType, refreshTeamMembers);
-      const removeRemovedListener = EventsService.addEventListener('TEAM_MEMBER_REMOVED' as EventType, refreshTeamMembers);
+      const removeAddedListener = addEventListener('TEAM_MEMBER_ADDED', refreshTeamMembers);
+      const removeRemovedListener = addEventListener('TEAM_MEMBER_REMOVED', refreshTeamMembers);
       
       // Clean up listeners
       return () => {
@@ -178,7 +178,7 @@ class TeamService {
         this.storeTeamMembers(storedMembers);
         
         // Dispatch event
-        EventsService.dispatchEvent("TEAM_MEMBER_ADDED" as EventType, completeTeamMember);
+        dispatchEvent("TEAM_MEMBER_ADDED", completeTeamMember);
         
         return completeTeamMember;
       }
@@ -191,7 +191,7 @@ class TeamService {
       this.storeTeamMembers(storedMembers);
       
       // Dispatch event
-      EventsService.dispatchEvent("TEAM_MEMBER_ADDED" as EventType, data);
+      dispatchEvent("TEAM_MEMBER_ADDED", data);
       
       return data;
     } catch (err) {
@@ -226,7 +226,7 @@ class TeamService {
       this.storeTeamMembers(storedMembers);
       
       // Dispatch event
-      EventsService.dispatchEvent("TEAM_MEMBER_REMOVED" as EventType, { id });
+      dispatchEvent("TEAM_MEMBER_REMOVED", { id });
       
     } catch (err) {
       console.error("Error in removeTeamMember:", err);

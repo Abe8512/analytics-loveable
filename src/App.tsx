@@ -21,6 +21,7 @@ import { createContext, useState, useEffect } from 'react';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Team from './pages/Team';
 
 // Define the ThemeContext type
 interface ThemeContextType {
@@ -123,6 +124,11 @@ function App() {
                 <Route path="/performance-metrics" element={
                   <ProtectedRoute>
                     <PerformanceMetrics />
+                  </ProtectedRoute>
+                } />
+                <Route path="/team" element={
+                  <ProtectedRoute>
+                    <Team />
                   </ProtectedRoute>
                 } />
               </Routes>
