@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { EventType, EventPayload, EventListener, EventsState, EventsStore, EventMap, EVENT_TYPES } from './types';
 
@@ -117,6 +116,11 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
         set({ listenerMap: new Map(listenerMap) });
       }
     }
+  },
+  
+  // Add subscribeToEvent as an alias for addEventListener for backward compatibility
+  subscribeToEvent: (type, callback) => {
+    return get().addEventListener(type, callback);
   }
 }));
 
@@ -126,6 +130,7 @@ export const removeEventListener = useEventsStore.getState().removeEventListener
 export const dispatchEvent = useEventsStore.getState().dispatchEvent;
 export const addListener = useEventsStore.getState().addListener;
 export const removeListener = useEventsStore.getState().removeListener;
+export const subscribeToEvent = useEventsStore.getState().subscribeToEvent;
 
 // Re-export the EVENT_TYPES constant
 export { EVENT_TYPES };

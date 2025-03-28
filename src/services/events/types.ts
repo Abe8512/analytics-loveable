@@ -1,4 +1,3 @@
-
 export type EventType = 
   | 'transcript-created'
   | 'transcript-updated'
@@ -37,9 +36,9 @@ export interface EventsState {
   addListener: (type: EventType, callback: (payload: EventPayload) => void) => string;
   removeListener: (id: string) => void;
   dispatchEvent: (type: EventType, payload?: EventPayload) => void;
+  subscribeToEvent?: (type: EventType, callback: (payload: EventPayload) => void) => () => void;
 }
 
-// Separating EventMap from EventsStore to fix typing issues
 export type EventMap = Map<EventType, Set<(payload: EventPayload) => void>>;
 
 export interface EventsStore extends EventsState {
@@ -50,10 +49,11 @@ export interface EventsStore extends EventsState {
   clearEventHistory: () => void;
 }
 
-// Export EVENT_TYPES constant for backward compatibility
 export const EVENT_TYPES = {
   TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED' as EventType,
   TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED' as EventType,
   MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED' as EventType,
-  CALL_UPDATED: 'CALL_UPDATED' as EventType
+  CALL_UPDATED: 'CALL_UPDATED' as EventType,
+  CONNECTION_RESTORED: 'connection-restored' as EventType,
+  CONNECTION_LOST: 'connection-lost' as EventType
 };

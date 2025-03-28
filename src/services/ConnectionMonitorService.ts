@@ -1,13 +1,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { checkSupabaseConnection, isConnected as checkSupabaseConnected } from '@/integrations/supabase/client';
-import { useEventsStore } from '@/services/events';
+import { useEventsStore, EVENT_TYPES } from '@/services/events';
 import { errorHandler } from './ErrorHandlingService';
 
 // Define consistent event names as constants
 export const CONNECTION_EVENTS = {
-  RESTORED: 'connection-restored',
-  LOST: 'connection-lost',
+  RESTORED: EVENT_TYPES.CONNECTION_RESTORED,
+  LOST: EVENT_TYPES.CONNECTION_LOST,
 }
 
 export const useConnectionStatus = () => {

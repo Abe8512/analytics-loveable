@@ -11,7 +11,7 @@ import { useEventsStore } from '@/services/events';
  */
 const ConnectionMonitor: React.FC = () => {
   const { isConnected } = useConnectionStatus();
-  const { subscribeToEvent } = useEventsStore();
+  const { addEventListener } = useEventsStore();
   
   // Track previous connection state to detect changes
   const prevConnectedRef = React.useRef<boolean | null>(null);
@@ -40,11 +40,11 @@ const ConnectionMonitor: React.FC = () => {
   
   useEffect(() => {
     // Subscribe to connection events from the event system
-    const unsubscribeRestore = subscribeToEvent(CONNECTION_EVENTS.RESTORED, () => {
+    const unsubscribeRestore = addEventListener(CONNECTION_EVENTS.RESTORED, () => {
       console.log('Connection restored event received');
     });
     
-    const unsubscribeLost = subscribeToEvent(CONNECTION_EVENTS.LOST, () => {
+    const unsubscribeLost = addEventListener(CONNECTION_EVENTS.LOST, () => {
       console.log('Connection lost event received');
     });
     
@@ -52,7 +52,7 @@ const ConnectionMonitor: React.FC = () => {
       unsubscribeRestore();
       unsubscribeLost();
     };
-  }, [subscribeToEvent]);
+  }, [addEventListener]);
   
   // This component doesn't render anything visible
   return null;
