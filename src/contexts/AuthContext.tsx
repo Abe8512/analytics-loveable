@@ -70,9 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       
       // Dispatch an event to notify other components that users have been refreshed
-      EventsService.dispatch('MANAGED_USERS_UPDATED', fetchedUsers);
+      EventsService.dispatchEvent('MANAGED_USERS_UPDATED', fetchedUsers);
       
-      return fetchedUsers;
+      return;
     } catch (err) {
       console.error("Error refreshing managed users:", err);
       toast.error("Failed to refresh team members");
@@ -98,12 +98,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       refreshManagedUsers();
     };
     
-    EventsService.subscribe('TEAM_MEMBER_ADDED', handleTeamMemberAdded);
-    EventsService.subscribe('TEAM_MEMBER_REMOVED', handleTeamMemberRemoved);
+    const teamMemberAddedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_ADDED', handleTeamMemberAdded);
+    const teamMemberRemovedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_REMOVED', handleTeamMemberRemoved);
     
     return () => {
-      EventsService.unsubscribe('TEAM_MEMBER_ADDED', handleTeamMemberAdded);
-      EventsService.unsubscribe('TEAM_MEMBER_REMOVED', handleTeamMemberRemoved);
+      teamMemberAddedUnsubscribe();
+      teamMemberRemovedUnsubscribe();
     };
   }, []);
 
