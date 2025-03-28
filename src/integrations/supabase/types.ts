@@ -53,57 +53,60 @@ export type Database = {
       }
       call_metrics_summary: {
         Row: {
-          agent_talk_ratio: number | null
-          avg_duration: number | null
-          avg_sentiment: number | null
-          conversion_rate: number | null
-          created_at: string | null
-          customer_talk_ratio: number | null
           id: string
-          negative_sentiment_count: number | null
-          neutral_sentiment_count: number | null
-          performance_score: number | null
-          positive_sentiment_count: number | null
-          report_date: string | null
-          top_keywords: string[] | null
+          date: string
           total_calls: number | null
           total_duration: number | null
+          avg_duration: number | null
+          positive_sentiment_count: number | null
+          negative_sentiment_count: number | null
+          neutral_sentiment_count: number | null
+          agent_talk_ratio: number | null
+          customer_talk_ratio: number | null
+          objection_handling_score: number | null
+          trial_close_effectiveness: number | null
+          sentiment_recovery_rate: number | null
+          empathy_score: number | null
+          overall_call_quality_score: number | null
+          created_at: string | null
           updated_at: string | null
         }
         Insert: {
-          agent_talk_ratio?: number | null
-          avg_duration?: number | null
-          avg_sentiment?: number | null
-          conversion_rate?: number | null
-          created_at?: string | null
-          customer_talk_ratio?: number | null
           id?: string
-          negative_sentiment_count?: number | null
-          neutral_sentiment_count?: number | null
-          performance_score?: number | null
-          positive_sentiment_count?: number | null
-          report_date?: string | null
-          top_keywords?: string[] | null
+          date: string
           total_calls?: number | null
           total_duration?: number | null
+          avg_duration?: number | null
+          positive_sentiment_count?: number | null
+          negative_sentiment_count?: number | null
+          neutral_sentiment_count?: number | null
+          agent_talk_ratio?: number | null
+          customer_talk_ratio?: number | null
+          objection_handling_score?: number | null
+          trial_close_effectiveness?: number | null
+          sentiment_recovery_rate?: number | null
+          empathy_score?: number | null
+          overall_call_quality_score?: number | null
+          created_at?: string | null
           updated_at?: string | null
         }
         Update: {
-          agent_talk_ratio?: number | null
-          avg_duration?: number | null
-          avg_sentiment?: number | null
-          conversion_rate?: number | null
-          created_at?: string | null
-          customer_talk_ratio?: number | null
           id?: string
-          negative_sentiment_count?: number | null
-          neutral_sentiment_count?: number | null
-          performance_score?: number | null
-          positive_sentiment_count?: number | null
-          report_date?: string | null
-          top_keywords?: string[] | null
+          date?: string
           total_calls?: number | null
           total_duration?: number | null
+          avg_duration?: number | null
+          positive_sentiment_count?: number | null
+          negative_sentiment_count?: number | null
+          neutral_sentiment_count?: number | null
+          agent_talk_ratio?: number | null
+          customer_talk_ratio?: number | null
+          objection_handling_score?: number | null
+          trial_close_effectiveness?: number | null
+          sentiment_recovery_rate?: number | null
+          empathy_score?: number | null
+          overall_call_quality_score?: number | null
+          created_at?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -260,6 +263,13 @@ export type Database = {
           talk_ratio_customer: number | null
           transcription_text: string | null
           user_id: string | null
+          objection_handling_score: number | null
+          trial_close_effectiveness: number | null
+          price_sensitivity_score: number | null
+          sentiment_recovery_score: number | null
+          empathy_score: number | null
+          competitor_handling_score: number | null
+          overall_quality_score: number | null
         }
         Insert: {
           created_at?: string | null
@@ -277,6 +287,13 @@ export type Database = {
           talk_ratio_customer?: number | null
           transcription_text?: string | null
           user_id?: string | null
+          objection_handling_score?: number | null
+          trial_close_effectiveness?: number | null
+          price_sensitivity_score?: number | null
+          sentiment_recovery_score?: number | null
+          empathy_score?: number | null
+          competitor_handling_score?: number | null
+          overall_quality_score?: number | null
         }
         Update: {
           created_at?: string | null
@@ -294,6 +311,13 @@ export type Database = {
           talk_ratio_customer?: number | null
           transcription_text?: string | null
           user_id?: string | null
+          objection_handling_score?: number | null
+          trial_close_effectiveness?: number | null
+          price_sensitivity_score?: number | null
+          sentiment_recovery_score?: number | null
+          empathy_score?: number | null
+          competitor_handling_score?: number | null
+          overall_quality_score?: number | null
         }
         Relationships: []
       }
@@ -332,6 +356,246 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      objection_tracking: {
+        Row: {
+          id: string
+          call_id: string
+          objection_text: string | null
+          response_text: string | null
+          timestamp: number | null
+          was_handled: boolean | null
+          objection_type: string | null
+          time_to_response: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          call_id: string
+          objection_text?: string | null
+          response_text?: string | null
+          timestamp?: number | null
+          was_handled?: boolean | null
+          objection_type?: string | null
+          time_to_response?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          call_id?: string
+          objection_text?: string | null
+          response_text?: string | null
+          timestamp?: number | null
+          was_handled?: boolean | null
+          objection_type?: string | null
+          time_to_response?: number | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objection_tracking_call_id_fkey"
+            columns: ["call_id"]
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      trial_closes: {
+        Row: {
+          id: string
+          call_id: string
+          close_text: string | null
+          prospect_response: string | null
+          sentiment_score: number | null
+          was_successful: boolean | null
+          timestamp: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          call_id: string
+          close_text?: string | null
+          prospect_response?: string | null
+          sentiment_score?: number | null
+          was_successful?: boolean | null
+          timestamp?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          call_id?: string
+          close_text?: string | null
+          prospect_response?: string | null
+          sentiment_score?: number | null
+          was_successful?: boolean | null
+          timestamp?: number | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trial_closes_call_id_fkey"
+            columns: ["call_id"]
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      price_sensitivity: {
+        Row: {
+          id: string
+          call_id: string
+          price_mention_text: string | null
+          response_text: string | null
+          sentiment_score: number | null
+          timestamp: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          call_id: string
+          price_mention_text?: string | null
+          response_text?: string | null
+          sentiment_score?: number | null
+          timestamp?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          call_id?: string
+          price_mention_text?: string | null
+          response_text?: string | null
+          sentiment_score?: number | null
+          timestamp?: number | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_sensitivity_call_id_fkey"
+            columns: ["call_id"]
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      sentiment_transitions: {
+        Row: {
+          id: string
+          call_id: string
+          from_sentiment: string | null
+          to_sentiment: string | null
+          transition_time: number | null
+          recovery_time: number | null
+          recovery_success: boolean | null
+          transition_text: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          call_id: string
+          from_sentiment?: string | null
+          to_sentiment?: string | null
+          transition_time?: number | null
+          recovery_time?: number | null
+          recovery_success?: boolean | null
+          transition_text?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          call_id?: string
+          from_sentiment?: string | null
+          to_sentiment?: string | null
+          transition_time?: number | null
+          recovery_time?: number | null
+          recovery_success?: boolean | null
+          transition_text?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentiment_transitions_call_id_fkey"
+            columns: ["call_id"]
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      empathy_markers: {
+        Row: {
+          id: string
+          call_id: string
+          empathy_text: string | null
+          empathy_type: string | null
+          timestamp: number | null
+          sentiment_context: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          call_id: string
+          empathy_text?: string | null
+          empathy_type?: string | null
+          timestamp?: number | null
+          sentiment_context?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          call_id?: string
+          empathy_text?: string | null
+          empathy_type?: string | null
+          timestamp?: number | null
+          sentiment_context?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "empathy_markers_call_id_fkey"
+            columns: ["call_id"]
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      competitor_mentions: {
+        Row: {
+          id: string
+          call_id: string
+          competitor_name: string | null
+          mention_context: string | null
+          was_countered: boolean | null
+          counter_argument: string | null
+          timestamp: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          call_id: string
+          competitor_name?: string | null
+          mention_context?: string | null
+          was_countered?: boolean | null
+          counter_argument?: string | null
+          timestamp?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          call_id?: string
+          competitor_name?: string | null
+          mention_context?: string | null
+          was_countered?: boolean | null
+          counter_argument?: string | null
+          timestamp?: number | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_mentions_call_id_fkey"
+            columns: ["call_id"]
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       profiles: {
         Row: {
@@ -937,6 +1201,52 @@ export type Database = {
         Returns: undefined
       }
       validate_database_fixes: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      calculate_objection_handling_metrics: {
+        Args: {
+          call_id: string
+        }
+        Returns: number
+      }
+      calculate_trial_close_effectiveness: {
+        Args: {
+          call_id: string
+        }
+        Returns: number
+      }
+      calculate_sentiment_recovery_metrics: {
+        Args: {
+          call_id: string
+        }
+        Returns: number
+      }
+      calculate_empathy_metrics: {
+        Args: {
+          call_id: string
+        }
+        Returns: number
+      }
+      calculate_competitor_handling_score: {
+        Args: {
+          call_id: string
+        }
+        Returns: number
+      }
+      calculate_call_quality_score: {
+        Args: {
+          call_id: string
+        }
+        Returns: number
+      }
+      update_call_metrics_summary: {
+        Args: {
+          summary_date: string
+        }
+        Returns: undefined
+      }
+      update_metrics_on_call_change: {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
