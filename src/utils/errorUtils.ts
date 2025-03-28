@@ -30,6 +30,15 @@ export const getErrorMessage = (error: unknown): string => {
 };
 
 /**
+ * Formats an error for display, ensuring a consistent error message regardless of error type
+ * This is an alias of getErrorMessage for backward compatibility
+ * 
+ * @param error - The error object or string
+ * @returns A user-friendly error message string
+ */
+export const formatError = getErrorMessage;
+
+/**
  * Logs an error with consistent formatting
  * 
  * @param error - The error object
