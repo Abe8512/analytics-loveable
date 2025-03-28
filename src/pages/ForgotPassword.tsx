@@ -1,4 +1,13 @@
 
+/**
+ * Forgot Password Page
+ * 
+ * Allows users to request a password reset by entering their email address.
+ * Displays confirmation when the reset email has been sent.
+ * Handles form validation and error display.
+ * 
+ * @module pages/ForgotPassword
+ */
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,19 +22,27 @@ import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 import { validateForgotPasswordForm } from '@/utils/formValidation';
 import { useAuth } from '@/contexts/AuthContext';
 
+/**
+ * ForgotPassword Component
+ * 
+ * Renders a form for requesting a password reset and displays confirmation
+ * when the reset email has been sent.
+ */
 const ForgotPassword = () => {
+  // State
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [formReady, setFormReady] = useState(false);
   
+  // Hooks
   const { resetPassword, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const { isConnected } = useConnectionStatus();
   const navigate = useNavigate();
   
-  // Set form ready state
+  // Set form ready state based on email field
   useEffect(() => {
     setFormReady(email.trim() !== '');
     
@@ -46,6 +63,12 @@ const ForgotPassword = () => {
     }
   }, [isAuthenticated, navigate, toast]);
   
+  /**
+   * Handles form submission for password reset
+   * Validates email, checks connection, and calls resetPassword
+   * 
+   * @param e - Form submission event
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -87,6 +110,10 @@ const ForgotPassword = () => {
     }
   };
   
+  /**
+   * Allows user to try a different email after submission
+   * Resets form state
+   */
   const tryDifferentEmail = () => {
     setEmail('');
     setIsSubmitted(false);

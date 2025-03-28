@@ -1,10 +1,18 @@
 
 /**
- * Form validation utility functions
+ * Form Validation Utilities
+ * 
+ * A collection of utility functions for validating form inputs across the application.
+ * Includes email, password, name validation and comprehensive form validators.
+ * 
+ * @module utils/formValidation
  */
 
 /**
- * Email validation using regex pattern
+ * Validates email format using regex pattern
+ * 
+ * @param email - The email address to validate
+ * @returns Boolean indicating if the email is valid
  */
 export const isValidEmail = (email: string): boolean => {
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -12,8 +20,11 @@ export const isValidEmail = (email: string): boolean => {
 };
 
 /**
- * Password strength validation
- * Returns an object with result and message
+ * Validates password strength
+ * Checks for length, uppercase, lowercase, and at least one number or special character
+ * 
+ * @param password - The password to validate
+ * @returns Object with validation result and message
  */
 export const validatePassword = (password: string): { isValid: boolean; message: string } => {
   if (!password) {
@@ -41,22 +52,31 @@ export const validatePassword = (password: string): { isValid: boolean; message:
 };
 
 /**
- * Validate that two passwords match
+ * Checks if two passwords match
+ * 
+ * @param password - The original password
+ * @param confirmPassword - The confirmation password
+ * @returns Boolean indicating if passwords match
  */
 export const doPasswordsMatch = (password: string, confirmPassword: string): boolean => {
   return password === confirmPassword;
 };
 
 /**
- * Name validation
+ * Validates a name field is not empty
+ * 
+ * @param name - The name to validate
+ * @returns Boolean indicating if the name is valid
  */
 export const isValidName = (name: string): boolean => {
   return name.trim().length > 0;
 };
 
 /**
- * Generic form field validator
- * Used for required fields
+ * Generic validator for required fields
+ * 
+ * @param value - The field value to check
+ * @returns Boolean indicating if the field is empty
  */
 export const isFieldEmpty = (value: string): boolean => {
   return value.trim().length === 0;
@@ -64,6 +84,11 @@ export const isFieldEmpty = (value: string): boolean => {
 
 /**
  * Comprehensive login form validation
+ * Checks email format and required fields
+ * 
+ * @param email - The email address
+ * @param password - The password
+ * @returns Validation result object with isValid flag and error message
  */
 export const validateLoginForm = (email: string, password: string): { isValid: boolean; message: string | null } => {
   if (isFieldEmpty(email)) {
@@ -83,6 +108,13 @@ export const validateLoginForm = (email: string, password: string): { isValid: b
 
 /**
  * Comprehensive signup form validation
+ * Checks name, email, password strength, and password match
+ * 
+ * @param name - The user's name
+ * @param email - The email address
+ * @param password - The password
+ * @param confirmPassword - The confirmation password
+ * @returns Validation result object with isValid flag and error message
  */
 export const validateSignupForm = (
   name: string, 
@@ -116,6 +148,10 @@ export const validateSignupForm = (
 
 /**
  * Forgot password form validation
+ * Checks email format
+ * 
+ * @param email - The email address
+ * @returns Validation result object with isValid flag and error message
  */
 export const validateForgotPasswordForm = (email: string): { isValid: boolean; message: string | null } => {
   if (isFieldEmpty(email)) {
