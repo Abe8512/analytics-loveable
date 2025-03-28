@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { generateDemoCallMetricsSummary, generateDemoRepMetrics } from '@/services/DemoDataService';
+import { generateDemoCallMetrics, generateDemoRepMetricsData } from '@/services/DemoDataService';
 
 /**
  * Checks if metrics data is available in the database
@@ -49,12 +48,12 @@ export const getMetricsData = async (days = 7): Promise<any[]> => {
     if (error) {
       console.error('Error fetching metrics data:', error);
       console.log('Falling back to demo data');
-      return generateDemoCallMetricsSummary(days);
+      return generateDemoCallMetrics();
     }
     
     if (!data || data.length === 0) {
       console.log('No metrics data found, using demo data');
-      return generateDemoCallMetricsSummary(days);
+      return generateDemoCallMetrics();
     }
     
     console.log(`Successfully retrieved ${data.length} metrics records`);
@@ -62,7 +61,7 @@ export const getMetricsData = async (days = 7): Promise<any[]> => {
   } catch (err) {
     console.error('Exception in getMetricsData:', err);
     console.log('Falling back to demo data');
-    return generateDemoCallMetricsSummary(days);
+    return generateDemoCallMetrics();
   }
 };
 
@@ -83,12 +82,12 @@ export const getRepMetricsData = async (count = 5): Promise<any[]> => {
     if (error) {
       console.error('Error fetching rep metrics data:', error);
       console.log('Falling back to demo rep data');
-      return generateDemoRepMetrics(count);
+      return generateDemoRepMetricsData(count);
     }
     
     if (!data || data.length === 0) {
       console.log('No rep metrics data found, using demo data');
-      return generateDemoRepMetrics(count);
+      return generateDemoRepMetricsData(count);
     }
     
     console.log(`Successfully retrieved ${data.length} rep metrics records`);
@@ -96,7 +95,7 @@ export const getRepMetricsData = async (count = 5): Promise<any[]> => {
   } catch (err) {
     console.error('Exception in getRepMetricsData:', err);
     console.log('Falling back to demo rep data');
-    return generateDemoRepMetrics(count);
+    return generateDemoRepMetricsData(count);
   }
 };
 
