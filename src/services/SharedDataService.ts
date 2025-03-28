@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { TeamMember } from "./TeamService";
 import { dispatchEvent } from "@/services/events";
@@ -111,7 +112,7 @@ export const getTeamMemberName = (id: string): string => {
   return id.startsWith('demo-') ? `Demo User ${id.replace('demo-', '')}` : `User ${id.substring(0, 5)}`;
 };
 
-// useSharedTeamMetrics hook
+// Define and export useSharedTeamMetrics hook
 export const useSharedTeamMetrics = (filters?: any) => {
   const [metrics, setMetrics] = useState<TeamMetricsData>({
     totalCalls: 0,
@@ -165,7 +166,7 @@ export const useSharedTeamMetrics = (filters?: any) => {
 
     fetchMetrics();
 
-    // Set up listeners for data updates - using a consistent string
+    // Set up listeners for data updates
     const unsubscribe = addEventListener("TEAM_DATA_UPDATED", fetchMetrics);
 
     return () => {
@@ -176,5 +177,5 @@ export const useSharedTeamMetrics = (filters?: any) => {
   return { metrics, isLoading, error };
 };
 
-// Export the hook directly by correct name
+// Export the hook with the correct name
 export const useTeamMetricsData = useSharedTeamMetrics;

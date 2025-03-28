@@ -30,23 +30,23 @@ export type BulkUploadProgressCallback = (
 export class BulkUploadProcessorService {
   private assignedUserId: string = '';
   private whisperService = useWhisperService();
-  private hasDispatchedAssignEvent = false;
-  private processingFile = false;
+  private previousAssignedUserId: string = '';
   
   constructor() {
     // Initialize service
   }
   
   setAssignedUserId(userId: string) {
-    // Only dispatch events if the ID has actually changed and we're not currently processing
+    // Only dispatch events if the ID has actually changed
     if (this.assignedUserId !== userId) {
+      this.previousAssignedUserId = this.assignedUserId;
       this.assignedUserId = userId;
       
-      if (!this.processingFile) {
-        console.log(`Setting assigned user ID: ${userId}`);
-        
-        // Dispatch events only once
-        dispatchEvent("call-assigned", { assignedTo: userId });
+      console.log(`Setting assigned user ID: ${userId}`);
+      
+      // Only dispatch once per unique user ID
+      if (userId && userId.trim() !== '') {
+        // Use only one consistent event type to prevent loops
         dispatchEvent("CALL_ASSIGNED", { assignedTo: userId });
       }
     }
@@ -57,9 +57,6 @@ export class BulkUploadProcessorService {
     progressCallback: BulkUploadProgressCallback
   ): Promise<void> {
     try {
-      // Set the flag to indicate we're processing a file
-      this.processingFile = true;
-      
       // Update status to processing
       progressCallback('processing', 10);
       
@@ -159,17 +156,8 @@ export class BulkUploadProcessorService {
         
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
-        // Dispatch only one event with all the necessary information
-        const eventsStore = useEventsStore.getState();
-        eventsStore.dispatchEvent('call-uploaded', {
-          transcriptId,
-          fileName: file.name,
-          assignedTo: this.assignedUserId,
-          userName: userName
-        });
-        
-        // Dispatch a single call-updated event - using string literals to ensure no type errors
-        dispatchEvent('call-updated', {
+        // Use a single, consistent event type to prevent duplicate events
+        dispatchEvent('CALL_UPDATED', {
           id: transcriptId,
           assignedTo: this.assignedUserId,
           repName: userName
@@ -219,17 +207,8 @@ export class BulkUploadProcessorService {
           
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
-          // Dispatch only one event with all the necessary information
-          const eventsStore = useEventsStore.getState();
-          eventsStore.dispatchEvent('call-uploaded', {
-            transcriptId,
-            fileName: file.name,
-            assignedTo: this.assignedUserId,
-            userName: userName
-          });
-          
-          // Dispatch a single call-updated event - using string literals to ensure no type errors
-          dispatchEvent('call-updated', {
+          // Use a single, consistent event type
+          dispatchEvent('CALL_UPDATED', {
             id: transcriptId,
             assignedTo: this.assignedUserId,
             repName: userName
@@ -260,17 +239,8 @@ export class BulkUploadProcessorService {
             
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
-            // Dispatch only one event with all the necessary information
-            const eventsStore = useEventsStore.getState();
-            eventsStore.dispatchEvent('call-uploaded', {
-              transcriptId,
-              fileName: file.name,
-              assignedTo: this.assignedUserId,
-              userName: userName
-            });
-            
-            // Dispatch a single call-updated event - using string literals to ensure no type errors
-            dispatchEvent('call-updated', {
+            // Use a single, consistent event type
+            dispatchEvent('CALL_UPDATED', {
               id: transcriptId,
               assignedTo: this.assignedUserId,
               repName: userName
@@ -295,9 +265,6 @@ export class BulkUploadProcessorService {
         undefined, 
         error instanceof Error ? error.message : 'Unknown error processing file'
       );
-    } finally {
-      // Always reset the processing flag when done
-      this.processingFile = false;
     }
   }
 }
