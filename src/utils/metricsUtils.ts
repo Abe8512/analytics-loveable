@@ -33,7 +33,7 @@ export const checkMetricsAvailability = async (): Promise<boolean> => {
 /**
  * Gets metrics data from the database
  * @param {number} days Number of days to retrieve
- * @returns {Promise<any[]>} Metrics data array
+ * @returns {Promise<RawMetricsRecord[]>} Metrics data array
  */
 export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
   try {
