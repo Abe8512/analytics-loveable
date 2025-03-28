@@ -7,10 +7,7 @@ import {
   UserCheck, BarChart2, 
   TrendingUp 
 } from 'lucide-react';
-import { useMetrics } from '@/components/metrics/RealTimeMetricsProvider';
 import { formatDurationMinutes } from '@/utils/metricsFormatters';
-import { MetricsData } from '@/types/metrics';
-import { generateDemoMetricsData } from '@/services/DemoDataService';
 
 interface MetricCardProps {
   title: string;
@@ -61,8 +58,16 @@ const MetricCard: React.FC<MetricCardProps> = ({
   </Card>
 );
 
+interface DashboardStats {
+  totalCalls: number;
+  avgDuration: number;
+  positiveSentiment: number;
+  callScore: number;
+  conversionRate: number;
+}
+
 interface PerformanceMetricsProps {
-  metricsData?: Partial<MetricsData>;
+  dashboardStats: DashboardStats;
   isLoading?: boolean;
 }
 
@@ -71,69 +76,20 @@ interface PerformanceMetricsProps {
  * Displays key performance indicators in a responsive grid
  */
 const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ 
-  metricsData, 
-  isLoading: propsLoading = false 
+  dashboardStats, 
+  isLoading = false 
 }) => {
-  const [localMetrics, setLocalMetrics] = useState<Partial<MetricsData>>({
-    totalCalls: 0,
-    avgDuration: 0,
-    positiveSentiment: 0,
-    callScore: 0,
-    conversionRate: 0
-  });
-  const [isLoading, setIsLoading] = useState(propsLoading);
-  
-  const { metrics: globalMetrics, isUpdating: globalLoading } = useMetrics();
-  
-  // Get metrics from the global provider or props
-  const updateMetricsFromProvider = useCallback(() => {
-    if (metricsData) {
-      console.log('Using metrics from props:', metricsData);
-      setLocalMetrics(metricsData);
-      setIsLoading(propsLoading);
-    } else if (!globalLoading && globalMetrics) {
-      console.log('Using metrics from provider:', globalMetrics);
-      
-      // Check if we need to fall back to demo data
-      if (globalMetrics.isUsingDemoData || 
-          (globalMetrics.totalCalls === 0 && !globalMetrics.isLoading)) {
-        console.log('Using demo metrics data as fallback');
-        const demoData = generateDemoMetricsData();
-        setLocalMetrics({
-          totalCalls: demoData.totalCalls,
-          avgDuration: demoData.avgDuration,
-          positiveSentiment: demoData.positiveSentiment,
-          callScore: demoData.callScore,
-          conversionRate: demoData.conversionRate
-        });
-      } else {
-        setLocalMetrics({
-          totalCalls: globalMetrics.totalCalls,
-          avgDuration: globalMetrics.avgDuration,
-          positiveSentiment: globalMetrics.positiveSentiment,
-          callScore: globalMetrics.callScore,
-          conversionRate: globalMetrics.conversionRate
-        });
-      }
-      setIsLoading(globalMetrics.isLoading);
-    }
-  }, [metricsData, propsLoading, globalMetrics, globalLoading]);
-  
-  useEffect(() => {
-    updateMetricsFromProvider();
-  }, [updateMetricsFromProvider]);
-  
   const metricCards = [
     {
       title: 'Total Calls',
-      value: localMetrics.totalCalls || 0,
+      value: dashboardStats.totalCalls || 0,
       icon: <Phone className="h-4 w-4 text-muted-foreground" />,
       change: '+12%',
       trend: 'up' as const
     },
     {
       title: 'Avg Duration',
-      value: formatDurationMinutes(localMetrics.avgDuration || 0),
+      value: formatDurationMinutes(dashboardStats.avgDuration || 0),
       unit: 'min',
       icon: <Clock className="h-4 w-4 text-muted-foreground" />,
       change: '-5%',
@@ -141,7 +97,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Positive Sentiment',
-      value: Math.round(localMetrics.positiveSentiment || 0),
+      value: Math.round(dashboardStats.positiveSentiment || 0),
       unit: '%',
       icon: <UserCheck className="h-4 w-4 text-muted-foreground" />,
       change: '+8%',
@@ -149,14 +105,14 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
     },
     {
       title: 'Call Score',
-      value: Math.round(localMetrics.callScore || 0),
+      value: Math.round(dashboardStats.callScore || 0),
       icon: <BarChart2 className="h-4 w-4 text-muted-foreground" />,
       change: '+6%',
       trend: 'up' as const
     },
     {
       title: 'Conversion Rate',
-      value: localMetrics.conversionRate || 0,
+      value: Math.round(dashboardStats.conversionRate || 0),
       unit: '%',
       icon: <TrendingUp className="h-4 w-4 text-muted-foreground" />,
       change: '+3%',

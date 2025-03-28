@@ -20,6 +20,7 @@ import PerformanceMetrics from './pages/PerformanceMetrics';
 import { SharedFilterProvider } from './contexts/SharedFilterContext';
 import { createContext, useState, useEffect } from 'react';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import { RealTimeMetricsProvider } from './components/metrics/RealTimeMetricsProvider';
 
 // Define the ThemeContext type
 interface ThemeContextType {
@@ -66,76 +67,78 @@ function App() {
         <AuthProvider>
           <QueryProvider>
             <SharedFilterProvider>
-              {/* ConnectionMonitor for offline detection and notifications */}
-              <ConnectionMonitor />
-              
-              {/* Sonner Toast provider */}
-              <Toaster position="top-right" />
-              
-              <Routes>
-                {/* Auth routes */}
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
+              <RealTimeMetricsProvider>
+                {/* ConnectionMonitor for offline detection and notifications */}
+                <ConnectionMonitor />
                 
-                {/* Redirect /login and /signup to /auth for consistency */}
-                <Route path="/login" element={<Navigate to="/auth" replace />} />
-                <Route path="/signup" element={<Navigate to="/auth" replace />} />
+                {/* Sonner Toast provider */}
+                <Toaster position="top-right" />
                 
-                {/* Protected routes */}
-                <Route path="/" element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } />
-                <Route path="/settings" element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                } />
-                <Route path="/call/:id" element={
-                  <ProtectedRoute>
-                    <CallPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/ai-coaching" element={
-                  <ProtectedRoute>
-                    <AICoaching />
-                  </ProtectedRoute>
-                } />
-                <Route path="/transcribe" element={
-                  <ProtectedRoute>
-                    <Transcribe />
-                  </ProtectedRoute>
-                } />
-                <Route path="/analytics" element={
-                  <ProtectedRoute>
-                    <Analytics />
-                  </ProtectedRoute>
-                } />
-                <Route path="/transcripts" element={
-                  <ProtectedRoute>
-                    <Transcripts />
-                  </ProtectedRoute>
-                } />
-                <Route path="/call-activity" element={
-                  <ProtectedRoute>
-                    <CallActivity />
-                  </ProtectedRoute>
-                } />
-                <Route path="/performance" element={
-                  <ProtectedRoute>
-                    <Performance />
-                  </ProtectedRoute>
-                } />
-                <Route path="/performance-metrics" element={
-                  <ProtectedRoute>
-                    <PerformanceMetrics />
-                  </ProtectedRoute>
-                } />
-                
-                {/* Catch all route - redirect to login */}
-                <Route path="*" element={<Navigate to="/auth" replace />} />
-              </Routes>
+                <Routes>
+                  {/* Auth routes */}
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  
+                  {/* Redirect /login and /signup to /auth for consistency */}
+                  <Route path="/login" element={<Navigate to="/auth" replace />} />
+                  <Route path="/signup" element={<Navigate to="/auth" replace />} />
+                  
+                  {/* Protected routes */}
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/settings" element={
+                    <ProtectedRoute>
+                      <Settings />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/call/:id" element={
+                    <ProtectedRoute>
+                      <CallPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/ai-coaching" element={
+                    <ProtectedRoute>
+                      <AICoaching />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/transcribe" element={
+                    <ProtectedRoute>
+                      <Transcribe />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/analytics" element={
+                    <ProtectedRoute>
+                      <Analytics />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/transcripts" element={
+                    <ProtectedRoute>
+                      <Transcripts />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/call-activity" element={
+                    <ProtectedRoute>
+                      <CallActivity />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/performance" element={
+                    <ProtectedRoute>
+                      <Performance />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/performance-metrics" element={
+                    <ProtectedRoute>
+                      <PerformanceMetrics />
+                    </ProtectedRoute>
+                  } />
+                  
+                  {/* Catch all route - redirect to login */}
+                  <Route path="*" element={<Navigate to="/auth" replace />} />
+                </Routes>
+              </RealTimeMetricsProvider>
             </SharedFilterProvider>
           </QueryProvider>
         </AuthProvider>

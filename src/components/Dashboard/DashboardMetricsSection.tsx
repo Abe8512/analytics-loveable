@@ -5,19 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import PerformanceMetrics from './PerformanceMetrics';
-import { MetricsData } from '@/types/metrics';
+import { useMetrics } from '@/contexts/MetricsContext';
+import { extractDashboardKPIs } from '@/utils/metricsProcessor';
 
-interface DashboardMetricsSectionProps {
-  dashboardStats: Partial<MetricsData>;
-  isLoading: boolean;
-  refreshData: () => void;
-}
-
-const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({
-  dashboardStats,
-  isLoading,
-  refreshData
-}) => {
+const DashboardMetricsSection: React.FC = () => {
+  const { metricsData, isLoading, refresh } = useMetrics();
+  
+  // Extract the necessary metrics for the dashboard
+  const dashboardStats = extractDashboardKPIs(metricsData);
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -31,7 +27,7 @@ const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={refreshData}
+            onClick={refresh}
             disabled={isLoading}
             className="flex items-center gap-1"
           >
@@ -48,7 +44,7 @@ const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({
       </div>
       
       <PerformanceMetrics 
-        metricsData={dashboardStats}
+        dashboardStats={dashboardStats}
         isLoading={isLoading}
       />
     </motion.div>
