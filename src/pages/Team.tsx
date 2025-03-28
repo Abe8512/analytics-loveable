@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,10 +19,38 @@ const Team = () => {
   const [newMemberRole, setNewMemberRole] = useState('');
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  const { teamMembers, isLoading, refreshTeamMembers, error } = teamService.useTeamMembers();
+  const refreshTeamMembers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const members = await teamService.getTeamMembers();
+      setTeamMembers(members);
+      setError(null);
+    } catch (err) {
+      console.error("Error loading team members:", err);
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+  
+  useEffect(() => {
+    refreshTeamMembers();
+    
+    // Set up event listeners for team member changes
+    const addedListener = window.addEventListener('team-member-added', refreshTeamMembers);
+    const removedListener = window.addEventListener('team-member-removed', refreshTeamMembers);
+    
+    return () => {
+      window.removeEventListener('team-member-added', refreshTeamMembers);
+      window.removeEventListener('team-member-removed', refreshTeamMembers);
+    };
+  }, [refreshTeamMembers]);
 
-  const handleAddMember = useCallback(async (e: React.FormEvent) => {
+  const handleAddMember = useCallback(async (e) => {
     e.preventDefault();
     
     if (!newMemberName.trim()) {
@@ -54,6 +82,9 @@ const Team = () => {
       setNewMemberEmail('');
       setNewMemberRole('');
       
+      // Refresh team members
+      refreshTeamMembers();
+      
     } catch (error) {
       console.error("Error adding team member:", error);
       toast({
@@ -64,15 +95,16 @@ const Team = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [newMemberName, newMemberEmail, newMemberRole, toast]);
+  }, [newMemberName, newMemberEmail, newMemberRole, toast, refreshTeamMembers]);
   
-  const handleRemoveMember = useCallback(async (id: string) => {
+  const handleRemoveMember = useCallback(async (id) => {
     try {
       await teamService.removeTeamMember(id);
       toast({
         title: "Success",
         description: "Team member removed",
       });
+      refreshTeamMembers();
     } catch (error) {
       console.error("Error removing team member:", error);
       toast({
@@ -81,7 +113,7 @@ const Team = () => {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [toast, refreshTeamMembers]);
   
   return (
     <ProtectedRoute>
@@ -196,7 +228,7 @@ const Team = () => {
                       name: member.name,
                       email: member.email || '',
                       role: member.role || '',
-                      avatar: member.avatar_url || '' // Fixed: Use avatar_url instead of non-existent avatar property
+                      avatar: member.avatar_url || ''
                     }}
                     onDelete={() => handleRemoveMember(member.id)}
                   />
