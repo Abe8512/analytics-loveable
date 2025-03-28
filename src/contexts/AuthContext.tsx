@@ -8,7 +8,7 @@
  * 
  * @module contexts/AuthContext
  */
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthClient, UserProfile, AuthResult } from "@/hooks/useAuthClient";
 import { User, Session } from "@supabase/supabase-js";
@@ -99,59 +99,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   /**
    * Refreshes the list of managed users from the team service
    * Dispatches an event to notify other components when users are refreshed
+   * Optimized to prevent unnecessary refreshes and race conditions
    */
-  const refreshManagedUsers = async () => {
+  const refreshManagedUsers = useCallback(async () => {
     if (!authClient.isAuthenticated || isRefreshingUsers) return;
     
     setIsRefreshingUsers(true);
     try {
       const fetchedUsers = await teamService.getTeamMembers();
-      setManagedUsers(fetchedUsers);
+      setManagedUsers(prevUsers => {
+        // Only update if the data has actually changed
+        const hasChanged = JSON.stringify(prevUsers) !== JSON.stringify(fetchedUsers);
+        if (hasChanged) {
+          // Dispatch an event to notify other components that users have been refreshed
+          EventsService.dispatchEvent('MANAGED_USERS_UPDATED', fetchedUsers);
+          return fetchedUsers;
+        }
+        return prevUsers;
+      });
       
       if (fetchedUsers.length > 0 && !selectedUser) {
         setSelectedUser(fetchedUsers[0]);
       }
-      
-      // Dispatch an event to notify other components that users have been refreshed
-      EventsService.dispatchEvent('MANAGED_USERS_UPDATED', fetchedUsers);
-      
     } catch (err) {
       console.error("Error refreshing managed users:", err);
-      toast.error("Failed to refresh team members");
+      toast.error("Failed to refresh team members", {
+        description: "Please try again later or contact support if the issue persists."
+      });
     } finally {
       setIsRefreshingUsers(false);
     }
-  };
+  }, [authClient.isAuthenticated, isRefreshingUsers, selectedUser]);
 
   // Initial fetch of managed users when authenticated
   useEffect(() => {
     if (authClient.isAuthenticated && !isRefreshingUsers) {
       refreshManagedUsers();
     }
-  }, [authClient.isAuthenticated]);
+  }, [authClient.isAuthenticated, isRefreshingUsers, refreshManagedUsers]);
 
   // Listen for team member events
   useEffect(() => {
-    const handleTeamMemberAdded = () => {
+    const handleTeamEvent = () => {
       refreshManagedUsers();
     };
     
-    const handleTeamMemberRemoved = () => {
-      refreshManagedUsers();
-    };
-    
-    const teamMemberAddedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_ADDED', handleTeamMemberAdded);
-    const teamMemberRemovedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_REMOVED', handleTeamMemberRemoved);
+    const teamMemberAddedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_ADDED', handleTeamEvent);
+    const teamMemberRemovedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_REMOVED', handleTeamEvent);
     
     return () => {
       teamMemberAddedUnsubscribe();
       teamMemberRemovedUnsubscribe();
     };
-  }, []);
+  }, [refreshManagedUsers]);
 
   /**
    * Enhanced logout with navigation and cleanup
    * Clears selected user, managed users, and navigates to auth page
+   * Error handling improved for consistent user experience
    */
   const handleLogout = async (): Promise<void> => {
     try {
@@ -160,9 +165,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setManagedUsers([]);
       navigate("/auth");
       toast.success("You have been successfully logged out");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Logout error:", error);
-      toast.error("Error during logout");
+      toast.error("Error during logout", {
+        description: error?.message || "An unexpected error occurred"
+      });
+      // Even if there's an error, we should clear the local state
+      setSelectedUser(null);
+      setManagedUsers([]);
+      navigate("/auth");
     }
   };
 
@@ -170,9 +181,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
    * Gets the current list of managed users
    * @returns {any[]} Array of managed users
    */
-  const getManagedUsers = () => {
+  const getManagedUsers = useCallback(() => {
     return managedUsers;
-  };
+  }, [managedUsers]);
 
   // Combine all values and functions into the context value
   const contextValue: AuthContextProps = {

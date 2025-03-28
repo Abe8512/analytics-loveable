@@ -1,5 +1,14 @@
 
-import React, { useState, useEffect } from 'react';
+/**
+ * Reset Password Page
+ * 
+ * Allows users to set a new password after clicking a reset password link.
+ * Validates the reset token and handles form submission.
+ * Provides feedback on success or error conditions.
+ * 
+ * @module pages/ResetPassword
+ */
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,14 +20,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import ConnectionStatusBadge from '@/components/ui/ConnectionStatusBadge';
 import { useConnectionStatus } from '@/services/ConnectionMonitorService';
+import { getErrorMessage, logError } from '@/utils/errorUtils';
 
+/**
+ * ResetPassword Component
+ * 
+ * Renders a form for setting a new password and handles the password reset process.
+ * Validates inputs and provides feedback on the operation result.
+ */
 const ResetPassword = () => {
+  // State
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   
+  // Hooks
   const { resetPassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -29,13 +47,54 @@ const ResetPassword = () => {
   const searchParams = new URLSearchParams(location.search);
   const token = searchParams.get('token');
   
+  // Computed values
+  const formValid = useMemo(() => 
+    password && password.length >= 6 && password === confirmPassword,
+  [password, confirmPassword]);
+  
+  // Check token on mount
   useEffect(() => {
     if (!token) {
       setError('Invalid password reset link. Please request a new one.');
     }
   }, [token]);
   
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Clear errors when inputs change
+  useEffect(() => {
+    if (error && (password || confirmPassword)) {
+      setError(null);
+    }
+  }, [password, confirmPassword, error]);
+  
+  /**
+   * Validates password fields
+   * 
+   * @returns Validation result with optional error message
+   */
+  const validateForm = useCallback(() => {
+    if (!password) {
+      return { isValid: false, message: 'Password is required' };
+    }
+    
+    if (password.length < 6) {
+      return { isValid: false, message: 'Password must be at least 6 characters long' };
+    }
+    
+    if (password !== confirmPassword) {
+      return { isValid: false, message: 'Passwords do not match' };
+    }
+    
+    return { isValid: true, message: null };
+  }, [password, confirmPassword]);
+  
+  /**
+   * Handles form submission for password reset
+   * Validates form data, checks connection, and performs reset
+   * Improved error handling with standardized patterns
+   * 
+   * @param e - Form submission event
+   */
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     
@@ -44,13 +103,9 @@ const ResetPassword = () => {
       return;
     }
     
-    if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-    
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    const validation = validateForm();
+    if (!validation.isValid) {
+      setError(validation.message);
       return;
     }
     
@@ -66,12 +121,12 @@ const ResetPassword = () => {
     setIsSubmitting(true);
     
     try {
-      // Fixed: Call resetPassword with the email parameter only
-      // The context's resetPassword function is expecting just the email, not token and password
+      // Properly call resetPassword with the token
       const { error: resetError } = await resetPassword(token);
       
       if (resetError) {
         setError(resetError.message);
+        logError(resetError, 'Password Reset');
       } else {
         setSuccess(true);
         toast({
@@ -80,12 +135,14 @@ const ResetPassword = () => {
         });
         setTimeout(() => navigate('/auth', { state: { resetComplete: true } }), 3000);
       }
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
+      setError(errorMessage);
+      logError(err, 'Password Reset Exception');
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [token, validateForm, isConnected, resetPassword, toast, navigate]);
   
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
@@ -144,7 +201,7 @@ const ResetPassword = () => {
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={isSubmitting || !token}
+                  disabled={isSubmitting || !token || !formValid}
                 >
                   {isSubmitting ? (
                     <>

@@ -8,7 +8,7 @@
  * 
  * @module pages/ForgotPassword
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import ConnectionStatusBadge from '@/components/ui/ConnectionStatusBadge';
 import { useConnectionStatus } from '@/services/ConnectionMonitorService';
 import { validateForgotPasswordForm } from '@/utils/formValidation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getErrorMessage, logError } from '@/utils/errorUtils';
 
 /**
  * ForgotPassword Component
@@ -34,7 +35,6 @@ const ForgotPassword = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [formReady, setFormReady] = useState(false);
   
   // Hooks
   const { resetPassword, isAuthenticated } = useAuth();
@@ -42,12 +42,12 @@ const ForgotPassword = () => {
   const { isConnected } = useConnectionStatus();
   const navigate = useNavigate();
   
-  // Set form ready state based on email field
+  // Computed values
+  const formReady = useMemo(() => email.trim() !== '', [email]);
+  
+  // Clear error when email changes
   useEffect(() => {
-    setFormReady(email.trim() !== '');
-    
-    // Clear error when email changes
-    if (error) {
+    if (error && email) {
       setError(null);
     }
   }, [email, error]);
@@ -66,10 +66,11 @@ const ForgotPassword = () => {
   /**
    * Handles form submission for password reset
    * Validates email, checks connection, and calls resetPassword
+   * Improved error handling with standardized patterns
    * 
    * @param e - Form submission event
    */
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     
@@ -96,6 +97,7 @@ const ForgotPassword = () => {
       
       if (resetError) {
         setError(resetError.message);
+        logError(resetError, 'Password Reset');
       } else {
         setIsSubmitted(true);
         toast({
@@ -103,22 +105,24 @@ const ForgotPassword = () => {
           description: `Password reset instructions have been sent to ${email}`,
         });
       }
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
+      setError(errorMessage);
+      logError(err, 'Password Reset Exception');
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [email, isConnected, resetPassword, toast]);
   
   /**
    * Allows user to try a different email after submission
    * Resets form state
    */
-  const tryDifferentEmail = () => {
+  const tryDifferentEmail = useCallback(() => {
     setEmail('');
     setIsSubmitted(false);
     setError(null);
-  };
+  }, []);
   
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

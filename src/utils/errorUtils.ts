@@ -1,66 +1,70 @@
 
 /**
- * Formats an error into a consistent string representation
- * @param err The error to format
- * @returns Formatted error message
+ * Error Utilities
+ * 
+ * A collection of utility functions for handling errors consistently across the application.
+ * 
+ * @module utils/errorUtils
  */
-export const formatError = (err: unknown): string => {
-  if (err instanceof Error) {
-    return err.message;
+
+/**
+ * Gets a user-friendly error message from various error types
+ * 
+ * @param error - The error object or string
+ * @returns A user-friendly error message string
+ */
+export const getErrorMessage = (error: unknown): string => {
+  if (typeof error === 'string') {
+    return error;
   }
   
-  if (typeof err === 'string') {
-    return err;
+  if (error instanceof Error) {
+    return error.message;
   }
   
-  if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
-    return err.message;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
   }
   
-  return 'An unknown error occurred';
+  return 'An unexpected error occurred';
 };
 
 /**
- * Determines if an error is a server-side error
- * @param err The error to check
- * @returns Whether the error is server-side
+ * Logs an error with consistent formatting
+ * 
+ * @param error - The error object
+ * @param context - Optional context information about where the error occurred
  */
-export const isServerError = (err: unknown): boolean => {
-  if (err instanceof Error) {
-    // Check if error represents a 500-level status code
-    return /5\d\d/.test(err.message) || err.message.includes('server');
-  }
+export const logError = (error: unknown, context?: string): void => {
+  const errorMessage = getErrorMessage(error);
+  const contextMessage = context ? ` [${context}]` : '';
   
-  if (typeof err === 'string') {
-    return /5\d\d/.test(err) || err.includes('server');
-  }
+  console.error(`Error${contextMessage}:`, error);
   
-  return false;
+  // Additional logging logic could be added here
+  // e.g., sending errors to a monitoring service
 };
 
 /**
- * Determines if an error is a network error
- * @param err The error to check
- * @returns Whether the error is network-related
+ * Safely executes an async function with error handling
+ * 
+ * @param fn - The async function to execute
+ * @param errorHandler - Optional custom error handler
+ * @returns The result of the async function or null if an error occurred
  */
-export const isNetworkError = (err: unknown): boolean => {
-  if (err instanceof Error) {
-    return (
-      err.message.includes('network') ||
-      err.message.includes('offline') ||
-      err.message.includes('connection') ||
-      err.message.includes('Internet')
-    );
+export const safeAsync = async <T>(
+  fn: () => Promise<T>,
+  errorHandler?: (error: unknown) => void
+): Promise<{ data: T | null; error: unknown }> => {
+  try {
+    const data = await fn();
+    return { data, error: null };
+  } catch (error) {
+    if (errorHandler) {
+      errorHandler(error);
+    } else {
+      logError(error);
+    }
+    return { data: null, error };
   }
-  
-  if (typeof err === 'string') {
-    return (
-      err.includes('network') ||
-      err.includes('offline') ||
-      err.includes('connection') ||
-      err.includes('Internet')
-    );
-  }
-  
-  return false;
 };
