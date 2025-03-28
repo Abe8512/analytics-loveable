@@ -1,15 +1,30 @@
-
+import { useState, useEffect } from 'react';
 import { TeamMember } from "./TeamService";
 import { dispatchEvent } from "@/services/events";
+import { supabase } from "@/integrations/supabase/client";
+import { useEventsStore, addEventListener } from './events/store';
+import { EventType } from "./events/types";
+
+// Define TeamMetricsData type that was missing
+export interface TeamMetricsData {
+  totalCalls?: number;
+  avgSentiment?: number;
+  avgTalkRatio?: {
+    agent: number;
+    customer: number;
+  };
+  topKeywords?: string[];
+  performanceScore?: number;
+}
+
+// Session storage key for managed users
+const MANAGED_USERS_KEY = 'managedUsers';
 
 interface ManagedUser {
   id: string;
   name?: string;
   email?: string;
 }
-
-// Session storage key for managed users
-const MANAGED_USERS_KEY = 'managedUsers';
 
 // Get managed users from session storage or fallback
 export const getManagedUsers = (): ManagedUser[] => {
@@ -94,4 +109,74 @@ export const getTeamMemberName = (id: string): string => {
   }
   
   return id.startsWith('demo-') ? `Demo User ${id.replace('demo-', '')}` : `User ${id.substring(0, 5)}`;
+};
+
+// useSharedTeamMetrics hook
+export const useSharedTeamMetrics = (filters?: any) => {
+  const [metrics, setMetrics] = useState<TeamMetricsData>({
+    totalCalls: 0,
+    avgSentiment: 0.68,
+    avgTalkRatio: {
+      agent: 55,
+      customer: 45
+    },
+    topKeywords: ['pricing', 'features', 'support'],
+    performanceScore: 82
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    // Function to fetch metrics data
+    const fetchMetrics = async () => {
+      setIsLoading(true);
+      try {
+        // Attempt to fetch from Supabase
+        const { data, error } = await supabase
+          .from('call_metrics_summary')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          // Map database data to our TeamMetricsData interface
+          setMetrics({
+            totalCalls: data[0].total_calls || 0,
+            avgSentiment: data[0].avg_sentiment || 0.68,
+            avgTalkRatio: {
+              agent: data[0].agent_talk_ratio || 55,
+              customer: data[0].customer_talk_ratio || 45
+            },
+            topKeywords: data[0].top_keywords || ['pricing', 'features', 'support'],
+            performanceScore: data[0].performance_score || 82
+          });
+        }
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching team metrics:", err);
+        setError(err as Error);
+        // Keep using the default metrics on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMetrics();
+
+    // Set up listeners for data updates
+    const unsubscribe = addEventListener("TEAM_DATA_UPDATED" as EventType, fetchMetrics);
+
+    return () => {
+      unsubscribe();
+    };
+  }, [filters]);
+
+  return { metrics, isLoading, error };
+};
+
+// useTeamMetricsData hook (for PerformanceMetrics page)
+export const useTeamMetricsData = (filters?: any) => {
+  return useSharedTeamMetrics(filters);
 };

@@ -1,4 +1,3 @@
-
 import { useWhisperService } from "./WhisperService";
 import { useEventsStore } from "./events";
 import { errorHandler } from "./ErrorHandlingService";
@@ -7,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { supabase } from "@/integrations/supabase/client";
 import { teamService } from "./TeamService";
 import { dispatchEvent } from "./events";
+import { EventType } from "./events/types";
 
 export type UploadStatus = 'queued' | 'processing' | 'complete' | 'error';
 
@@ -38,7 +38,7 @@ export class BulkUploadProcessorService {
     this.assignedUserId = userId;
     
     // Notify other components about the assignment update
-    dispatchEvent("CALL_ASSIGNED", { assignedTo: userId });
+    dispatchEvent("call-updated" as EventType, { assignedTo: userId });
   }
   
   async processFile(
