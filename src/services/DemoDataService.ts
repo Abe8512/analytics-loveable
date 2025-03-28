@@ -1,237 +1,280 @@
 
 /**
- * Service for generating demo data when real data is not available
- * Centralizes all demo data generation to avoid duplication
+ * Demo Data Service
+ * 
+ * Central repository for all demo/mock data used throughout the application.
+ * This ensures consistency in demo data across all components and services.
  */
 
+import { 
+  MetricsData, 
+  initialMetricsData, 
+  CallOutcome, 
+  CallMetric, 
+  CallQualityMetric, 
+  TopKeyword,
+  TeamMetricsData,
+  RepMetricsData
+} from '@/types/metrics';
+import { addDays, subDays, format } from 'date-fns';
+
 /**
- * Generates demo call metrics summary data
- * @param days Number of days to generate data for
- * @returns Array of demo metrics data
+ * Generate demo metrics data with realistic values
+ * @returns Complete metrics data object with demo values
  */
-export const generateDemoCallMetricsSummary = (days = 7): any[] => {
-  const result = [];
-  const today = new Date();
+export const generateDemoMetricsData = (): MetricsData => {
+  const demoData: MetricsData = {
+    ...initialMetricsData,
+    totalCalls: 127,
+    avgDuration: 415, // in seconds
+    positiveSentiment: 62,
+    negativeSentiment: 13,
+    neutralSentiment: 25,
+    avgSentiment: 0.68,
+    callScore: 78,
+    conversionRate: 23,
+    agentTalkRatio: 56,
+    customerTalkRatio: 44,
+    topKeywords: ['pricing', 'features', 'competitors', 'timeline', 'support'],
+    lastUpdated: new Date(),
+    reportDate: new Date().toISOString().split('T')[0],
+    isLoading: false,
+    isUsingDemoData: true,
+    lastError: null
+  };
   
-  for (let i = 0; i < days; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    // Base values that decrease slightly as we go back in time
-    const baseTotalCalls = 42 - i;
-    const basePositive = 28 - Math.floor(i / 2);
-    const baseNeutral = 10;
-    const baseNegative = 4 + Math.floor(i / 3);
-    
-    result.push({
-      id: `demo-${i}`,
-      report_date: dateStr,
-      total_calls: baseTotalCalls,
-      total_duration: baseTotalCalls * 300,
-      avg_duration: 300 + (i * 20),
-      positive_sentiment_count: basePositive,
-      neutral_sentiment_count: baseNeutral,
-      negative_sentiment_count: baseNegative,
-      avg_sentiment: 0.65 - (i * 0.02),
-      agent_talk_ratio: 45 + (i * 0.5),
-      customer_talk_ratio: 55 - (i * 0.5),
-      performance_score: 75 - (i * 2),
-      conversion_rate: (0.25 - (i * 0.01)),
-      top_keywords: ['pricing', 'features', 'support', 'timeline', 'integration'],
-      updated_at: new Date().toISOString()
-    });
-  }
-  
-  return result;
+  return demoData;
 };
 
 /**
- * Generates demo rep metrics data
- * @param count Number of reps to generate data for
- * @returns Array of demo rep metrics data
+ * Generate demo team metrics data
+ * @returns Team-level metrics data
  */
-export const generateDemoRepMetrics = (count = 5): any[] => {
-  const repNames = ['John Smith', 'Sarah Davis', 'Michael Chen', 'Emma Wilson', 'David Rodriguez', 
-                    'Olivia Martinez', 'James Johnson', 'Sofia Garcia', 'Robert Taylor'];
-  const result = [];
-  
-  for (let i = 0; i < count; i++) {
-    // Create some variation in the metrics
-    const callVolume = 30 + Math.floor(Math.random() * 50);
-    const sentimentScore = 0.4 + (Math.random() * 0.4); // 0.4 to 0.8
-    const successRate = 50 + Math.floor(Math.random() * 40); // 50 to 90
-    
-    result.push({
-      id: `demo-rep-${i}`,
-      rep_id: `demo-${i}`,
-      rep_name: repNames[i % repNames.length],
-      call_volume: callVolume,
-      sentiment_score: sentimentScore,
-      success_rate: successRate,
-      top_keywords: ['price', 'features', 'timeline', 'support', 'integration'].slice(0, 3 + (i % 3)),
-      updated_at: new Date().toISOString()
-    });
-  }
-  
-  return result;
-};
-
-/**
- * Generates demo analytics data
- * @returns Object with demo analytics metrics
- */
-export const generateDemoAnalyticsData = () => {
+export const generateDemoTeamMetricsData = (): TeamMetricsData => {
   return {
-    totalCalls: '324',
-    avgDuration: 5, // minutes
-    conversionRate: '28%',
-    sentimentScore: '76%',
-    positiveCallsPercent: 65,
-    neutralCallsPercent: 23,
-    negativeCallsPercent: 12,
-    talkRatioAgent: 43,
-    talkRatioCustomer: 57,
-    topKeywords: ['pricing', 'feature', 'timeline', 'support', 'integration'],
-    performanceScore: 76
+    performanceScore: 82,
+    totalCalls: 487,
+    conversionRate: 0.24,
+    avgSentiment: 0.71,
+    topKeywords: ['pricing', 'features', 'integration', 'support', 'timeline'],
+    avgTalkRatio: {
+      agent: 58,
+      customer: 42
+    }
   };
 };
 
 /**
- * Generates demo sales insights data
- * @returns Array of demo sales insights
+ * Generate demo rep metrics data for a list of team members
+ * @param count Number of rep metrics to generate
+ * @returns Array of representative performance metrics
  */
-export const generateDemoSalesInsights = () => {
+export const generateDemoRepMetricsData = (count: number = 5): RepMetricsData[] => {
+  const names = [
+    'John Smith', 
+    'Sarah Johnson', 
+    'Michael Chen', 
+    'Emily Davis',
+    'David Wilson',
+    'Jessica Brown',
+    'Robert Miller',
+    'Amanda Garcia'
+  ];
+  
+  return Array.from({ length: Math.min(count, names.length) }, (_, i) => ({
+    id: (i + 1).toString(),
+    name: names[i],
+    callVolume: Math.floor(Math.random() * 100) + 30,
+    successRate: Math.floor(Math.random() * 40) + 20,
+    sentiment: (Math.random() * 0.5) + 0.4,
+    insights: [
+      'Strongest in product knowledge demos',
+      'Should focus on objection handling',
+      'Good rapport building with clients'
+    ]
+  }));
+};
+
+/**
+ * Generate demo call outcome statistics
+ * @returns Array of call outcome statistics
+ */
+export const generateDemoCallOutcomes = (): CallOutcome[] => {
   return [
-    {
-      id: '1',
-      title: 'Conversion Rate',
-      value: '42%',
-      change: 8,
-      isPositive: true,
-      tooltip: 'Percentage of calls resulting in a successful sale'
-    },
-    {
-      id: '2',
-      title: 'Avg. Call Duration',
-      value: '12.5 min',
-      change: -3,
-      isPositive: true,
-      tooltip: 'Average length of sales calls - shorter calls can indicate improved efficiency'
-    },
-    {
-      id: '3',
-      title: 'Daily Calls',
-      value: '48',
-      change: 15,
-      isPositive: true,
-      tooltip: 'Number of calls made per day'
-    },
-    {
-      id: '4',
-      title: 'Sentiment Score',
-      value: '76%',
-      change: 5,
-      isPositive: true,
-      tooltip: 'Average sentiment score across all calls'
-    },
-    {
-      id: '5',
-      title: 'Response Time',
-      value: '4.2 hrs',
-      change: -12,
-      isPositive: true,
-      tooltip: 'Average time to respond to customer inquiries'
-    },
-    {
-      id: '6',
-      title: 'Talk Ratio',
-      value: '38%',
-      change: -5,
-      isPositive: true,
-      tooltip: 'Percentage of time sales reps spend talking vs. listening'
-    }
+    { outcome: 'Closed Won', count: 37, percentage: 29 },
+    { outcome: 'Next Steps', count: 45, percentage: 35 },
+    { outcome: 'Qualified', count: 22, percentage: 17 },
+    { outcome: 'No Interest', count: 24, percentage: 19 }
   ];
 };
 
 /**
- * Generates demo coaching insights data
- * @returns Array of demo coaching insights
+ * Generate demo call metrics with trend indicators
+ * @returns Array of call metrics with trend information
  */
-export const generateDemoCoachingInsights = () => {
+export const generateDemoCallMetrics = (): CallMetric[] => {
   return [
-    {
-      id: 'c1',
-      title: 'Objection Handling',
-      value: '65%',
-      change: -8,
-      isPositive: false,
-      tooltip: 'Success rate in overcoming customer objections'
-    },
-    {
-      id: 'c2',
-      title: 'Feature Knowledge',
-      value: '82%',
-      change: 5,
-      isPositive: true,
-      tooltip: 'Accuracy of product feature explanations'
-    },
-    {
-      id: 'c3',
-      title: 'Call Confidence',
-      value: '71%',
-      change: 12,
-      isPositive: true,
-      tooltip: 'Confidence level detected in voice analysis'
-    },
-    {
-      id: 'c4',
-      title: 'Follow-up Rate',
-      value: '58%',
-      change: -3,
-      isPositive: false,
-      tooltip: 'Percentage of calls with proper follow-up'
-    }
+    { name: 'Avg Call Duration', value: 6.9, change: 5, status: 'increase' },
+    { name: 'Talk Ratio', value: 56, change: 2, status: 'increase' },
+    { name: 'Engagement Score', value: 78, change: 8, status: 'increase' },
+    { name: 'Objection Rate', value: 2.3, change: 12, status: 'decrease' }
   ];
 };
 
 /**
- * Generates demo opportunity insights data
- * @returns Array of demo opportunity insights
+ * Generate demo call quality metrics
+ * @returns Array of call quality metrics
  */
-export const generateDemoOpportunityInsights = () => {
+export const generateDemoCallQualityMetrics = (): CallQualityMetric[] => {
+  return [
+    { name: 'Discovery Questions', score: 8, maxScore: 10, category: 'good' },
+    { name: 'Value Articulation', score: 7, maxScore: 10, category: 'good' },
+    { name: 'Objection Handling', score: 5, maxScore: 10, category: 'average' },
+    { name: 'Closing Techniques', score: 9, maxScore: 10, category: 'excellent' }
+  ];
+};
+
+/**
+ * Generate demo trending keywords with sentiment analysis
+ * @returns Array of trending keywords with metadata
+ */
+export const generateDemoTrendingKeywords = (): TopKeyword[] => {
+  return [
+    { keyword: 'pricing', count: 58, trend: 'up', category: 'sales' },
+    { keyword: 'features', count: 42, trend: 'up', category: 'product' },
+    { keyword: 'competition', count: 36, trend: 'down', category: 'market' },
+    { keyword: 'timeline', count: 29, trend: 'stable', category: 'implementation' },
+    { keyword: 'support', count: 25, trend: 'up', category: 'customer success' }
+  ];
+};
+
+/**
+ * Generate demo sales insights with detailed analysis points
+ * @returns Array of sales insights
+ */
+export const generateDemoSalesInsights = (): any[] => {
   return [
     {
-      id: 'o1',
-      title: 'Pricing Discussions',
-      value: '62%',
-      change: 15,
-      isPositive: true,
-      tooltip: 'Percentage of calls with successful pricing discussions'
+      title: 'Increased Discovery Questions',
+      description: 'Reps who ask 5+ discovery questions have 40% higher close rates',
+      trend: 'up',
+      value: '+40%',
+      category: 'discovery'
     },
     {
-      id: 'o2',
+      title: 'Pricing Objections Rising',
+      description: 'Pricing mentioned as primary objection in 32% of lost deals',
+      trend: 'down',
+      value: '32%',
+      category: 'objections'
+    },
+    {
       title: 'Competitor Mentions',
-      value: '24',
-      change: -5,
-      isPositive: true,
-      tooltip: 'Number of competitor mentions in calls'
+      description: 'CompetitorX mentioned in 28% of calls, up from 18% last quarter',
+      trend: 'down',
+      value: '+10%',
+      category: 'competition'
     },
     {
-      id: 'o3',
-      title: 'Upsell Attempts',
-      value: '43%',
-      change: 7,
-      isPositive: true,
-      tooltip: 'Percentage of calls with upsell attempts'
+      title: 'Product Demo Effectiveness',
+      description: 'Calls with demos are 35% more likely to advance to next stage',
+      trend: 'up',
+      value: '35%',
+      category: 'demos'
     },
-    {
-      id: 'o4',
-      title: 'Demo Requests',
-      value: '38',
-      change: 22,
-      isPositive: true,
-      tooltip: 'Number of requests for product demonstrations'
-    }
   ];
+};
+
+/**
+ * Generate demo coaching insights for team development
+ * @returns Array of coaching insights
+ */
+export const generateDemoCoachingInsights = (): any[] => {
+  return [
+    {
+      title: 'Objection Handling',
+      description: 'Reps struggle most with pricing and timeline objections',
+      recommendation: 'Run a training workshop on pricing discussions',
+      impact: 'high'
+    },
+    {
+      title: 'Talk Ratio Imbalance',
+      description: 'Reps are speaking 68% of the time in discovery calls',
+      recommendation: 'Coach on asking more open-ended questions',
+      impact: 'medium'
+    },
+    {
+      title: 'Value Articulation',
+      description: 'Only 46% of calls explicitly connect features to customer needs',
+      recommendation: 'Develop a value articulation framework for each persona',
+      impact: 'high'
+    },
+  ];
+};
+
+/**
+ * Generate demo sales opportunity insights
+ * @returns Array of sales opportunity insights
+ */
+export const generateDemoOpportunityInsights = (): any[] => {
+  return [
+    {
+      title: 'Enterprise Segment Growth',
+      description: 'Enterprise deals have 38% higher ASP than mid-market',
+      action: 'Allocate more SDR resources to enterprise prospecting',
+      impact: 'high'
+    },
+    {
+      title: 'Multi-year Contract Conversion',
+      description: 'Multi-year mentions convert 25% better than single-year discussions',
+      action: 'Update talk tracks to include multi-year options earlier',
+      impact: 'medium'
+    },
+    {
+      title: 'Product Integration Questions',
+      description: 'Integration questions appear in 42% of advanced-stage calls',
+      action: 'Create integration-focused demo assets for sales team',
+      impact: 'high'
+    },
+  ];
+};
+
+/**
+ * Generate historically consistent demo data for the specified date range
+ * @param startDate Start date for the range
+ * @param endDate End date for the range
+ * @returns Array of date-based metric entries
+ */
+export const generateHistoricalDemoData = (startDate: Date, endDate: Date): any[] => {
+  const dayCount = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const result = [];
+  
+  const baseMetrics = {
+    calls: 12,
+    conversionRate: 22,
+    sentiment: 68,
+    duration: 415
+  };
+  
+  // Generate daily metrics with realistic variations
+  for (let i = 0; i <= dayCount; i++) {
+    const currentDate = addDays(startDate, i);
+    const formattedDate = format(currentDate, 'yyyy-MM-dd');
+    
+    // Create variations based on day of week (weekends lower)
+    const dayFactor = currentDate.getDay() === 0 || currentDate.getDay() === 6 ? 0.4 : 1;
+    
+    // Add small random variations to create realistic data
+    const randomFactor = 0.8 + Math.random() * 0.4;
+    
+    result.push({
+      date: formattedDate,
+      calls: Math.round(baseMetrics.calls * dayFactor * randomFactor),
+      conversionRate: baseMetrics.conversionRate * dayFactor * randomFactor,
+      sentiment: baseMetrics.sentiment * (0.9 + Math.random() * 0.2),
+      duration: Math.round(baseMetrics.duration * (0.9 + Math.random() * 0.2))
+    });
+  }
+  
+  return result;
 };

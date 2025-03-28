@@ -10,6 +10,7 @@ import {
 import { useMetrics } from '@/components/metrics/RealTimeMetricsProvider';
 import { formatDurationMinutes } from '@/utils/metricsFormatters';
 import { MetricsData } from '@/types/metrics';
+import { generateDemoMetricsData } from '@/services/DemoDataService';
 
 interface MetricCardProps {
   title: string;
@@ -90,15 +91,30 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
       console.log('Using metrics from props:', metricsData);
       setLocalMetrics(metricsData);
       setIsLoading(propsLoading);
-    } else if (!globalLoading) {
+    } else if (!globalLoading && globalMetrics) {
       console.log('Using metrics from provider:', globalMetrics);
-      setLocalMetrics({
-        totalCalls: globalMetrics.totalCalls,
-        avgDuration: globalMetrics.avgDuration,
-        positiveSentiment: globalMetrics.positiveSentiment,
-        callScore: globalMetrics.callScore,
-        conversionRate: globalMetrics.conversionRate
-      });
+      
+      // Check if we need to fall back to demo data
+      if (globalMetrics.isUsingDemoData || 
+          (globalMetrics.totalCalls === 0 && !globalMetrics.isLoading)) {
+        console.log('Using demo metrics data as fallback');
+        const demoData = generateDemoMetricsData();
+        setLocalMetrics({
+          totalCalls: demoData.totalCalls,
+          avgDuration: demoData.avgDuration,
+          positiveSentiment: demoData.positiveSentiment,
+          callScore: demoData.callScore,
+          conversionRate: demoData.conversionRate
+        });
+      } else {
+        setLocalMetrics({
+          totalCalls: globalMetrics.totalCalls,
+          avgDuration: globalMetrics.avgDuration,
+          positiveSentiment: globalMetrics.positiveSentiment,
+          callScore: globalMetrics.callScore,
+          conversionRate: globalMetrics.conversionRate
+        });
+      }
       setIsLoading(globalMetrics.isLoading);
     }
   }, [metricsData, propsLoading, globalMetrics, globalLoading]);

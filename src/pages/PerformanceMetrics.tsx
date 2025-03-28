@@ -23,7 +23,7 @@ const PerformanceMetrics = () => {
   const { filters } = useSharedFilters();
   const metricsFilters: MetricsFilters = {
     dateRange: filters.dateRange,
-    repIds: filters.reps
+    repIds: filters.repIds // Use repIds from DataFilters which now matches the type definition
   };
   
   const { metrics, isLoading: metricsLoading } = useTeamMetricsData(metricsFilters);
