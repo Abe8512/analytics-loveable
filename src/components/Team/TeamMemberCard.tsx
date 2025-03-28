@@ -28,6 +28,8 @@ const TeamMemberCard: React.FC<TeamMemberProps> = ({ member, onDelete }) => {
 
   const handleDelete = () => {
     // First notify any listening components that this member is being removed
+    // Use string literal rather than type casting
+    dispatchEvent('team-member-removed', { id: member.id });
     dispatchEvent('TEAM_MEMBER_REMOVED', { id: member.id });
     
     // Then call the parent component's delete handler

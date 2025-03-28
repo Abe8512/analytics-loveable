@@ -31,33 +31,25 @@ export class BulkUploadProcessorService {
   private assignedUserId: string = '';
   private whisperService = useWhisperService();
   private hasDispatchedAssignEvent = false;
+  private processingFile = false;
   
   constructor() {
     // Initialize service
   }
   
   setAssignedUserId(userId: string) {
-    // Only dispatch events if the ID has actually changed
+    // Only dispatch events if the ID has actually changed and we're not currently processing
     if (this.assignedUserId !== userId) {
       this.assignedUserId = userId;
       
-      // Prevent duplicate event dispatches
-      if (!this.hasDispatchedAssignEvent) {
+      if (!this.processingFile) {
         console.log(`Setting assigned user ID: ${userId}`);
         
-        // Use the correct event types that are defined in types.ts
-        dispatchEvent("call-assigned" as EventType, { assignedTo: userId });
-        
-        // Also dispatch the legacy event format for backward compatibility
-        dispatchEvent("CALL_ASSIGNED" as EventType, { assignedTo: userId });
-        
-        this.hasDispatchedAssignEvent = true;
+        // Dispatch events only once
+        dispatchEvent("call-assigned", { assignedTo: userId });
+        dispatchEvent("CALL_ASSIGNED", { assignedTo: userId });
       }
     }
-  }
-  
-  resetAssignEventFlag() {
-    this.hasDispatchedAssignEvent = false;
   }
   
   async processFile(
@@ -65,6 +57,9 @@ export class BulkUploadProcessorService {
     progressCallback: BulkUploadProgressCallback
   ): Promise<void> {
     try {
+      // Set the flag to indicate we're processing a file
+      this.processingFile = true;
+      
       // Update status to processing
       progressCallback('processing', 10);
       
@@ -173,15 +168,12 @@ export class BulkUploadProcessorService {
           userName: userName
         });
         
-        // Dispatch a single call-updated event
-        dispatchEvent('call-updated' as EventType, {
+        // Dispatch a single call-updated event - using string literals to ensure no type errors
+        dispatchEvent('call-updated', {
           id: transcriptId,
           assignedTo: this.assignedUserId,
           repName: userName
         });
-        
-        // Reset after successful processing
-        this.resetAssignEventFlag();
         
         return;
       } catch (error) {
@@ -236,15 +228,12 @@ export class BulkUploadProcessorService {
             userName: userName
           });
           
-          // Dispatch a single call-updated event
-          dispatchEvent('call-updated' as EventType, {
+          // Dispatch a single call-updated event - using string literals to ensure no type errors
+          dispatchEvent('call-updated', {
             id: transcriptId,
             assignedTo: this.assignedUserId,
             repName: userName
           });
-          
-          // Reset after successful processing
-          this.resetAssignEventFlag();
           
           return;
         } catch (fallbackError) {
@@ -280,15 +269,12 @@ export class BulkUploadProcessorService {
               userName: userName
             });
             
-            // Dispatch a single call-updated event
-            dispatchEvent('call-updated' as EventType, {
+            // Dispatch a single call-updated event - using string literals to ensure no type errors
+            dispatchEvent('call-updated', {
               id: transcriptId,
               assignedTo: this.assignedUserId,
               repName: userName
             });
-            
-            // Reset after successful processing
-            this.resetAssignEventFlag();
             
             return;
           } catch (finalError) {
@@ -297,9 +283,6 @@ export class BulkUploadProcessorService {
               finalError instanceof Error ? 
               `Database error: ${finalError.message}` : 
               'Unknown database error');
-            
-            // Reset even after failure
-            this.resetAssignEventFlag();
           }
         }
       }
@@ -312,9 +295,9 @@ export class BulkUploadProcessorService {
         undefined, 
         error instanceof Error ? error.message : 'Unknown error processing file'
       );
-      
-      // Reset after error
-      this.resetAssignEventFlag();
+    } finally {
+      // Always reset the processing flag when done
+      this.processingFile = false;
     }
   }
 }

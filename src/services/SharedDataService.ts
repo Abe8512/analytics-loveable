@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { TeamMember } from "./TeamService";
 import { dispatchEvent } from "@/services/events";
@@ -166,8 +165,8 @@ export const useSharedTeamMetrics = (filters?: any) => {
 
     fetchMetrics();
 
-    // Set up listeners for data updates
-    const unsubscribe = addEventListener("TEAM_DATA_UPDATED" as EventType, fetchMetrics);
+    // Set up listeners for data updates - using a consistent string
+    const unsubscribe = addEventListener("TEAM_DATA_UPDATED", fetchMetrics);
 
     return () => {
       unsubscribe();
@@ -177,7 +176,5 @@ export const useSharedTeamMetrics = (filters?: any) => {
   return { metrics, isLoading, error };
 };
 
-// Export useTeamMetricsData hook as a function to fix React hooks rules
-export const useTeamMetricsData = (filters?: any) => {
-  return useSharedTeamMetrics(filters);
-};
+// Export the hook directly by correct name
+export const useTeamMetricsData = useSharedTeamMetrics;
