@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import ContentLoader from "@/components/ui/ContentLoader";
 import { useCallTranscripts } from "@/services/CallTranscriptService";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
+import { teamService } from '@/services/TeamService';
 
 interface Call {
   id: string;
@@ -37,6 +38,30 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
   const { filters } = useSharedFilters();
   const { transcripts, loading, fetchTranscripts } = useCallTranscripts();
   const [calls, setCalls] = useState<Call[]>([]);
+  const [teamMembersMap, setTeamMembersMap] = useState<Record<string, string>>({});
+  
+  // Fetch team members to map IDs to names
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      try {
+        const members = await teamService.getTeamMembers();
+        const memberMap: Record<string, string> = {};
+        members.forEach(member => {
+          if (member.id) {
+            memberMap[member.id] = member.name;
+          }
+          if (member.user_id) {
+            memberMap[member.user_id] = member.name;
+          }
+        });
+        setTeamMembersMap(memberMap);
+      } catch (error) {
+        console.error("Error loading team members:", error);
+      }
+    };
+    
+    loadTeamMembers();
+  }, []);
   
   // Refresh data to ensure we have the latest transcripts
   useEffect(() => {
@@ -49,20 +74,27 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
   // Convert transcripts to call format - memoized to prevent unnecessary rerenders
   useEffect(() => {
     if (transcripts && Array.isArray(transcripts)) {
-      const formattedCalls = transcripts.map(transcript => ({
-        id: transcript.id,
-        date: transcript.created_at || new Date().toISOString(),
-        userName: transcript.user_name || 'Unknown Rep',
-        customerName: transcript.customer_name || 'Unknown Customer',
-        duration: transcript.duration || 0,
-        outcome: transcript.metadata?.outcome || 'Pending Analysis',
-        sentiment: transcript.sentiment === 'positive' ? 0.8 : 
-                  transcript.sentiment === 'negative' ? 0.3 : 0.6,
-        nextSteps: transcript.metadata?.next_steps || 'Follow up required'
-      }));
+      const formattedCalls = transcripts.map(transcript => {
+        // Try to get team member name from our map if user_id is available
+        const userName = transcript.user_id && teamMembersMap[transcript.user_id] 
+          ? teamMembersMap[transcript.user_id]
+          : transcript.user_name || transcript.assigned_to || 'Unknown Rep';
+            
+        return {
+          id: transcript.id,
+          date: transcript.created_at || new Date().toISOString(),
+          userName,
+          customerName: transcript.customer_name || 'Unknown Customer',
+          duration: transcript.duration || 0,
+          outcome: transcript.metadata?.outcome || 'Pending Analysis',
+          sentiment: transcript.sentiment === 'positive' ? 0.8 : 
+                    transcript.sentiment === 'negative' ? 0.3 : 0.6,
+          nextSteps: transcript.metadata?.next_steps || 'Follow up required'
+        };
+      });
       setCalls(formattedCalls);
     }
-  }, [transcripts]);
+  }, [transcripts, teamMembersMap]);
 
   // Format date in a consistent way
   const formatDate = (dateString: string) => {
@@ -138,7 +170,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
-                        <div className="w-full bg-gray-200 rounded-full h-2 mr-2">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
                           <div 
                             className={`h-2 rounded-full transition-all duration-500 ${
                               call.sentiment > 0.7 ? 'bg-green-500' : 

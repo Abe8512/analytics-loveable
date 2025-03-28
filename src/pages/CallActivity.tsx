@@ -11,6 +11,7 @@ import BulkUploadModal from "@/components/BulkUpload/BulkUploadModal";
 import { useBulkUploadService } from "@/services/BulkUploadService";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
+import { useEventListener } from "@/services/events/hooks";
 
 const CallActivity = () => {
   const { isDark } = useTheme();
@@ -20,6 +21,23 @@ const CallActivity = () => {
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string | null>(null);
   const { refreshTranscripts } = useBulkUploadService();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Listen for team or transcript events to refresh data
+  useEventListener('team-member-added', () => {
+    refreshAllData();
+  });
+  
+  useEventListener('team-member-removed', () => {
+    refreshAllData();
+  });
+  
+  useEventListener('transcript-created', () => {
+    refreshAllData();
+  });
+  
+  useEventListener('bulk-upload-completed', () => {
+    refreshAllData();
+  });
   
   // Handle tab changes
   const handleTabChange = useCallback((value: string) => {
@@ -38,12 +56,8 @@ const CallActivity = () => {
   
   const handleBulkUploadClose = useCallback(() => {
     setIsBulkUploadOpen(false);
-    setIsRefreshing(true);
-    refreshTranscripts({ force: true })
-      .finally(() => {
-        setIsRefreshing(false);
-      });
-  }, [refreshTranscripts]);
+    refreshAllData();
+  }, []);
   
   const handleCallSelect = useCallback((callId: string) => {
     setSelectedCallId(callId);
@@ -62,6 +76,11 @@ const CallActivity = () => {
         setIsRefreshing(false);
       });
   }, [refreshTranscripts]);
+  
+  // Initial data load
+  useEffect(() => {
+    refreshAllData();
+  }, [refreshAllData]);
   
   // Memoize TabsContent to prevent re-renders
   const tabContent = useMemo(() => {
