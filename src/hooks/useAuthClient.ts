@@ -182,13 +182,25 @@ export const useAuthClient = () => {
     }
   };
 
-  const resetPassword = async (token: string): Promise<AuthResult> => {
+  const resetPassword = async (email: string): Promise<AuthResult> => {
     try {
-      console.log("Resetting password with token:", token);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/reset-password',
+      });
       
+      if (error) {
+        console.error("Password reset error:", error);
+        toast.error("Password reset failed", { description: error.message });
+        return { error };
+      }
+      
+      toast.success("Password reset email sent", { 
+        description: "Check your email for a password reset link." 
+      });
       return { error: null };
     } catch (error: any) {
       console.error("Password reset exception:", error);
+      toast.error("Password reset failed", { description: error.message });
       return { error };
     }
   };

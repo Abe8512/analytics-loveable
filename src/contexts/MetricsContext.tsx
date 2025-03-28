@@ -8,7 +8,7 @@ import { formatMetricsForDisplay } from '@/utils/metricsUtils';
 // Default formatted metrics data structure
 const defaultFormattedMetrics: FormattedMetrics = {
   totalCalls: 0,
-  avgDuration: "0:00", // Changed from number to string to match FormattedMetrics type
+  avgDuration: "0:00", // Correct type: string instead of number
   avgDurationSeconds: 0,
   avgDurationMinutes: 0,
   totalDuration: 0,

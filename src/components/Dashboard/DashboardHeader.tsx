@@ -7,14 +7,14 @@ interface DashboardHeaderProps {
   onBulkUploadOpen: () => void;
   refreshData: () => void;
   isDashboardScreen?: boolean;
-  isRefreshing?: boolean;  // Added isRefreshing as an optional prop
+  isRefreshing?: boolean;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onBulkUploadOpen,
   refreshData,
   isDashboardScreen = false,
-  isRefreshing = false  // Default to false if not provided
+  isRefreshing = false
 }) => {
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
