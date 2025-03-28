@@ -6,6 +6,7 @@ import Settings from './pages/Settings';
 import CallPage from './pages/CallPage';
 import Auth from './pages/Auth';
 import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { AuthProvider } from './contexts/AuthContext';
 import { QueryProvider } from './contexts/QueryContext';
 import AICoaching from './pages/AICoaching';
@@ -78,6 +79,7 @@ function App() {
                   {/* Auth routes */}
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   
                   {/* Redirect /login and /signup to /auth for consistency */}
                   <Route path="/login" element={<Navigate to="/auth" replace />} />

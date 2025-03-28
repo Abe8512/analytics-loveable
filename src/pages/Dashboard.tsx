@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+
+import React, { useState, useCallback } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import DashboardHeader from '../components/Dashboard/DashboardHeader';
 import { toast } from 'sonner';
@@ -6,7 +7,6 @@ import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
 import { useBulkUploadService } from '@/services/BulkUploadService';
 import { getOpenAIKey } from '@/services/WhisperService';
 import { useCallTranscripts } from '@/services/CallTranscriptService';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { fixCallSentiments } from '@/utils/fixCallSentiments';
 import DashboardMetricsSection from '@/components/Dashboard/DashboardMetricsSection';
@@ -16,176 +16,10 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
-  const [dashboardStats, setDashboardStats] = useState({
-    totalCalls: 0,
-    avgDuration: 0,
-    positiveSentiment: 0,
-    callScore: 0,
-    conversionRate: 0
-  });
   
   const bulkUploadService = useBulkUploadService();
   const { transcripts, fetchTranscripts } = useCallTranscripts();
   const { toast: toastNotification } = useToast();
-  
-  // Fetch dashboard statistics
-  useEffect(() => {
-    const calculateDashboardStats = async () => {
-      try {
-        if (transcripts && transcripts.length > 0) {
-          // Calculate stats from actual transcripts
-          const totalCalls = transcripts.length;
-          
-          const totalDuration = transcripts.reduce((sum, t) => sum + (t.duration || 0), 0);
-          const avgDuration = totalCalls > 0 ? totalDuration / totalCalls : 0;
-          
-          const positiveCount = transcripts.filter(t => t.sentiment === 'positive').length;
-          const positiveSentiment = totalCalls > 0 ? (positiveCount / totalCalls) * 100 : 0;
-          
-          const totalScore = transcripts.reduce((sum, t) => sum + (t.call_score || 0), 0);
-          const callScore = totalCalls > 0 ? totalScore / totalCalls : 0;
-          
-          // Default for demo since we don't track conversions yet
-          const conversionRate = 28;
-          
-          setDashboardStats({
-            totalCalls,
-            avgDuration,
-            positiveSentiment,
-            callScore,
-            conversionRate
-          });
-          
-          // Check if most calls have neutral sentiment and need fixing
-          const neutralCount = transcripts.filter(t => t.sentiment === 'neutral' || !t.sentiment).length;
-          const neutralPercentage = neutralCount / totalCalls;
-          
-          // If more than 70% of calls are neutral, show a notification to fix sentiments
-          if (neutralPercentage > 0.7 && !isUpdating) {
-            toast("Neutral sentiment detected", {
-              description: "Most calls have neutral sentiment. Consider fixing the sentiments for better analysis.",
-              action: {
-                label: "Fix Now",
-                onClick: handleFixSentiments
-              }
-            });
-          }
-          
-          // Try to update call_metrics_summary
-          try {
-            // Calculate additional metrics for the summary
-            const negativeCount = transcripts.filter(t => t.sentiment === 'negative').length;
-            const neutralCount = transcripts.filter(t => t.sentiment === 'neutral' || !t.sentiment).length;
-            
-            // Get agent and customer talk ratios from metadata
-            let agentTalkRatio = 50;
-            let customerTalkRatio = 50;
-            
-            const transcriptsWithMetadata = transcripts.filter(t => 
-              t.metadata && t.metadata.speakerRatio && 
-              t.metadata.speakerRatio.agent && 
-              t.metadata.speakerRatio.customer
-            );
-            
-            if (transcriptsWithMetadata.length > 0) {
-              const totalAgentRatio = transcriptsWithMetadata.reduce(
-                (sum, t) => sum + t.metadata.speakerRatio.agent, 0
-              );
-              const totalCustomerRatio = transcriptsWithMetadata.reduce(
-                (sum, t) => sum + t.metadata.speakerRatio.customer, 0
-              );
-              
-              agentTalkRatio = (totalAgentRatio / transcriptsWithMetadata.length) * 100;
-              customerTalkRatio = (totalCustomerRatio / transcriptsWithMetadata.length) * 100;
-            }
-            
-            // Extract top keywords from transcripts
-            const keywordsMap = new Map();
-            transcripts.forEach(t => {
-              if (t.keywords && Array.isArray(t.keywords)) {
-                t.keywords.forEach(keyword => {
-                  keywordsMap.set(keyword, (keywordsMap.get(keyword) || 0) + 1);
-                });
-              }
-            });
-            
-            // Get top 5 keywords
-            const topKeywords = Array.from(keywordsMap.entries())
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 5)
-              .map(([keyword]) => keyword);
-            
-            // Update the metrics summary
-            const reportDate = new Date().toISOString().split('T')[0];
-            
-            const { data: existingData, error: checkError } = await supabase
-              .from('call_metrics_summary')
-              .select('id')
-              .eq('report_date', reportDate)
-              .limit(1);
-              
-            if (checkError) {
-              console.error('Error checking for existing metrics:', checkError);
-            }
-            
-            // Either update or insert based on whether we have an existing entry
-            if (existingData && existingData.length > 0) {
-              const { error: updateError } = await supabase
-                .from('call_metrics_summary')
-                .update({
-                  total_calls: totalCalls,
-                  avg_duration: avgDuration,
-                  positive_sentiment_count: positiveCount,
-                  negative_sentiment_count: negativeCount,
-                  neutral_sentiment_count: neutralCount,
-                  performance_score: Math.round(callScore),
-                  conversion_rate: conversionRate / 100,
-                  total_duration: totalDuration,
-                  avg_sentiment: callScore / 100,
-                  agent_talk_ratio: agentTalkRatio,
-                  customer_talk_ratio: customerTalkRatio,
-                  top_keywords: topKeywords,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', existingData[0].id);
-                
-              if (updateError) {
-                console.error('Error updating metrics summary:', updateError);
-              }
-            } else {
-              const { error: insertError } = await supabase
-                .from('call_metrics_summary')
-                .insert({
-                  report_date: reportDate,
-                  total_calls: totalCalls,
-                  avg_duration: avgDuration,
-                  positive_sentiment_count: positiveCount,
-                  negative_sentiment_count: negativeCount,
-                  neutral_sentiment_count: neutralCount,
-                  performance_score: Math.round(callScore),
-                  conversion_rate: conversionRate / 100,
-                  total_duration: totalDuration,
-                  avg_sentiment: callScore / 100,
-                  agent_talk_ratio: agentTalkRatio,
-                  customer_talk_ratio: customerTalkRatio,
-                  top_keywords: topKeywords
-                });
-                
-              if (insertError) {
-                console.error('Error inserting metrics summary:', insertError);
-              }
-            }
-          } catch (err) {
-            console.error('Error in metrics upsert:', err);
-          }
-        }
-      } catch (error) {
-        console.error('Error calculating dashboard stats:', error);
-      }
-    };
-    
-    calculateDashboardStats();
-  }, [transcripts, isUpdating]);
   
   const handleFixSentiments = async () => {
     setIsUpdating(true);
@@ -287,12 +121,8 @@ const Dashboard = () => {
           onClose={handleBulkUploadClose} 
         />
         
-        {/* Metrics Section */}
-        <DashboardMetricsSection 
-          dashboardStats={dashboardStats}
-          isLoading={isLoading}
-          refreshData={refreshData}
-        />
+        {/* Metrics Section - now uses the central metrics context */}
+        <DashboardMetricsSection />
         
         {/* Content Section */}
         <DashboardContentSection isLoading={isLoading} />
