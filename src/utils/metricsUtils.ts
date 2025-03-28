@@ -2,7 +2,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { generateDemoCallMetrics, generateDemoRepMetricsData } from '@/services/DemoDataService';
 import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
-import { createDemoMetricsData, formatMetricsForDisplay as formatMetrics } from './metricsProcessor';
 
 /**
  * Checks if metrics data is available in the database
@@ -107,4 +106,53 @@ export const getRepMetricsData = async (count = 5) => {
  * @param {RawMetricsRecord} metrics Raw metrics data
  * @returns {FormattedMetrics | null} Formatted metrics
  */
-export const formatMetricsForDisplay = formatMetrics;
+export const formatMetricsForDisplay = (metrics: RawMetricsRecord): FormattedMetrics | null => {
+  if (!metrics) return null;
+  
+  // Format duration from seconds to minutes and seconds
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+  
+  // Calculate sentiment percentages
+  const totalSentiment = 
+    (metrics.positive_sentiment_count || 0) + 
+    (metrics.neutral_sentiment_count || 0) + 
+    (metrics.negative_sentiment_count || 0);
+    
+  const positiveSentimentPercent = totalSentiment > 0 
+    ? Math.round((metrics.positive_sentiment_count || 0) / totalSentiment * 100) 
+    : 33;
+    
+  const negativeSentimentPercent = totalSentiment > 0 
+    ? Math.round((metrics.negative_sentiment_count || 0) / totalSentiment * 100) 
+    : 33;
+    
+  const neutralSentimentPercent = totalSentiment > 0 
+    ? Math.round((metrics.neutral_sentiment_count || 0) / totalSentiment * 100) 
+    : 34;
+  
+  return {
+    totalCalls: metrics.total_calls || 0,
+    avgDuration: formatDuration(metrics.avg_duration || 0),
+    avgDurationSeconds: metrics.avg_duration || 0,
+    avgDurationMinutes: Math.round((metrics.avg_duration || 0) / 60),
+    totalDuration: metrics.total_duration || 0,
+    positiveCallsCount: metrics.positive_sentiment_count || 0,
+    negativeCallsCount: metrics.negative_sentiment_count || 0,
+    neutralCallsCount: metrics.neutral_sentiment_count || 0,
+    positiveSentimentPercent,
+    negativeSentimentPercent,
+    neutralSentimentPercent,
+    avgSentiment: metrics.avg_sentiment || 0.5,
+    avgSentimentPercent: Math.round((metrics.avg_sentiment || 0.5) * 100),
+    callScore: metrics.performance_score || 70,
+    conversionRate: metrics.conversion_rate ? Math.round(metrics.conversion_rate * 100) : 0,
+    agentTalkRatio: Math.round(metrics.agent_talk_ratio || 50),
+    customerTalkRatio: Math.round(metrics.customer_talk_ratio || 50),
+    topKeywords: metrics.top_keywords || [],
+    reportDate: metrics.report_date || new Date().toISOString().split('T')[0]
+  };
+};
