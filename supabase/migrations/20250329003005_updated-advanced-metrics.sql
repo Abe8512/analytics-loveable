@@ -1,5 +1,194 @@
--- Add functions for advanced metrics calculations
--- Loveable Analytics - 2024-03-28
+-- Loveable Analytics - Advanced Metrics Migration
+-- This migration adds tables and functions for the advanced call metrics analysis
+
+-------------
+-- TABLES
+-------------
+
+-- Create call_metrics_summary table if it doesn't exist
+CREATE TABLE IF NOT EXISTS public.call_metrics_summary (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  date DATE NOT NULL,
+  total_calls INTEGER DEFAULT 0,
+  total_duration INTEGER DEFAULT 0,
+  avg_duration INTEGER DEFAULT 0,
+  positive_sentiment_count INTEGER DEFAULT 0,
+  negative_sentiment_count INTEGER DEFAULT 0,
+  neutral_sentiment_count INTEGER DEFAULT 0,
+  agent_talk_ratio DECIMAL DEFAULT 0,
+  customer_talk_ratio DECIMAL DEFAULT 0,
+  objection_handling_score DECIMAL DEFAULT 0,
+  trial_close_effectiveness DECIMAL DEFAULT 0,
+  sentiment_recovery_rate DECIMAL DEFAULT 0,
+  empathy_score DECIMAL DEFAULT 0,
+  overall_call_quality_score DECIMAL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.call_metrics_summary ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for call_metrics_summary
+CREATE POLICY "Enable read access for all users" ON public.call_metrics_summary
+  FOR SELECT USING (true);
+
+-- Add index for date column for faster queries
+CREATE INDEX IF NOT EXISTS call_metrics_summary_date_idx ON public.call_metrics_summary (date);
+
+-- Create objection_tracking table
+CREATE TABLE IF NOT EXISTS public.objection_tracking (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id UUID NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  objection_text TEXT,
+  response_text TEXT,
+  timestamp INTEGER,
+  was_handled BOOLEAN DEFAULT false,
+  objection_type TEXT,
+  time_to_response INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.objection_tracking ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for objection_tracking
+CREATE POLICY "Enable read access for all users" ON public.objection_tracking
+  FOR SELECT USING (true);
+
+-- Create index for call_id for faster queries
+CREATE INDEX IF NOT EXISTS objection_tracking_call_id_idx ON public.objection_tracking (call_id);
+
+-- Create trial_closes table
+CREATE TABLE IF NOT EXISTS public.trial_closes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id UUID NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  close_text TEXT,
+  prospect_response TEXT,
+  sentiment_score DECIMAL,
+  was_successful BOOLEAN DEFAULT false,
+  timestamp INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.trial_closes ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for trial_closes
+CREATE POLICY "Enable read access for all users" ON public.trial_closes
+  FOR SELECT USING (true);
+
+-- Create index for call_id for faster queries
+CREATE INDEX IF NOT EXISTS trial_closes_call_id_idx ON public.trial_closes (call_id);
+
+-- Create price_sensitivity table
+CREATE TABLE IF NOT EXISTS public.price_sensitivity (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id UUID NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  price_mention_text TEXT,
+  response_text TEXT,
+  sentiment_score DECIMAL,
+  timestamp INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.price_sensitivity ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for price_sensitivity
+CREATE POLICY "Enable read access for all users" ON public.price_sensitivity
+  FOR SELECT USING (true);
+
+-- Create index for call_id for faster queries
+CREATE INDEX IF NOT EXISTS price_sensitivity_call_id_idx ON public.price_sensitivity (call_id);
+
+-- Create sentiment_transitions table
+CREATE TABLE IF NOT EXISTS public.sentiment_transitions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id UUID NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  from_sentiment TEXT,
+  to_sentiment TEXT,
+  transition_time INTEGER,
+  recovery_time INTEGER,
+  recovery_success BOOLEAN DEFAULT false,
+  transition_text TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.sentiment_transitions ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for sentiment_transitions
+CREATE POLICY "Enable read access for all users" ON public.sentiment_transitions
+  FOR SELECT USING (true);
+
+-- Create index for call_id for faster queries
+CREATE INDEX IF NOT EXISTS sentiment_transitions_call_id_idx ON public.sentiment_transitions (call_id);
+
+-- Create empathy_markers table
+CREATE TABLE IF NOT EXISTS public.empathy_markers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id UUID NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  empathy_text TEXT,
+  empathy_type TEXT,
+  timestamp INTEGER,
+  sentiment_context TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.empathy_markers ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for empathy_markers
+CREATE POLICY "Enable read access for all users" ON public.empathy_markers
+  FOR SELECT USING (true);
+
+-- Create index for call_id for faster queries
+CREATE INDEX IF NOT EXISTS empathy_markers_call_id_idx ON public.empathy_markers (call_id);
+
+-- Create competitor_mentions table
+CREATE TABLE IF NOT EXISTS public.competitor_mentions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id UUID NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  competitor_name TEXT,
+  mention_context TEXT,
+  was_countered BOOLEAN DEFAULT false,
+  counter_argument TEXT,
+  timestamp INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.competitor_mentions ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for competitor_mentions
+CREATE POLICY "Enable read access for all users" ON public.competitor_mentions
+  FOR SELECT USING (true);
+
+-- Create index for call_id for faster queries
+CREATE INDEX IF NOT EXISTS competitor_mentions_call_id_idx ON public.competitor_mentions (call_id);
+
+-- Add new columns to calls table for tracking metrics
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS objection_handling_score DECIMAL DEFAULT 0;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS trial_close_effectiveness DECIMAL DEFAULT 0;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS price_sensitivity_score DECIMAL DEFAULT 0;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS sentiment_recovery_score DECIMAL DEFAULT 0;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS empathy_score DECIMAL DEFAULT 0;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS competitor_handling_score DECIMAL DEFAULT 0;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS overall_quality_score DECIMAL DEFAULT 0;
+
+-- Enable realtime for all new tables
+ALTER PUBLICATION supabase_realtime ADD TABLE public.call_metrics_summary;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.objection_tracking;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.trial_closes;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.price_sensitivity;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.sentiment_transitions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.empathy_markers;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.competitor_mentions;
+
+-------------
+-- FUNCTIONS
+-------------
 
 -- Function to calculate objection handling metrics
 CREATE OR REPLACE FUNCTION calculate_objection_handling_metrics(call_id UUID)
@@ -248,30 +437,30 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION update_call_metrics_summary(summary_date DATE)
 RETURNS VOID AS $$
 DECLARE
-  total_calls INTEGER;
-  total_duration INTEGER;
-  avg_duration_val INTEGER;
-  positive_count INTEGER;
-  negative_count INTEGER;
-  neutral_count INTEGER;
-  avg_agent_talk_ratio DECIMAL;
-  avg_customer_talk_ratio DECIMAL;
-  avg_objection_score DECIMAL;
-  avg_trial_close_score DECIMAL;
-  avg_sentiment_recovery DECIMAL;
-  avg_empathy DECIMAL;
-  avg_quality_score DECIMAL;
+  total_calls INT;
+  total_duration INT;
+  avg_duration INT;
+  positive_count INT;
+  negative_count INT;
+  neutral_count INT;
+  agent_talk_ratio DECIMAL;
+  customer_talk_ratio DECIMAL;
+  objection_score DECIMAL;
+  trial_close_score DECIMAL;
+  sentiment_score DECIMAL;
+  empathy_score DECIMAL;
+  quality_score DECIMAL;
 BEGIN
-  -- Calculate metrics for the given date
+  -- Calculate aggregates from calls for the given date
   SELECT 
-    COUNT(*),
-    SUM(duration),
-    AVG(duration)::INTEGER,
-    COUNT(*) FILTER (WHERE sentiment_customer >= 0.7),
-    COUNT(*) FILTER (WHERE sentiment_customer <= 0.3),
-    COUNT(*) FILTER (WHERE sentiment_customer > 0.3 AND sentiment_customer < 0.7),
+    COUNT(*), 
+    COALESCE(SUM(duration), 0),
+    CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(duration), 0) / COUNT(*) ELSE 0 END,
+    COUNT(*) FILTER (WHERE sentiment_customer > 0.6),
+    COUNT(*) FILTER (WHERE sentiment_customer < 0.4),
+    COUNT(*) FILTER (WHERE sentiment_customer BETWEEN 0.4 AND 0.6),
     AVG(talk_ratio_agent),
-    AVG(talk_ratio_customer),
+    AVG(1 - talk_ratio_agent),
     AVG(objection_handling_score),
     AVG(trial_close_effectiveness),
     AVG(sentiment_recovery_score),
@@ -280,19 +469,24 @@ BEGIN
   INTO
     total_calls,
     total_duration,
-    avg_duration_val,
+    avg_duration,
     positive_count,
     negative_count,
     neutral_count,
-    avg_agent_talk_ratio,
-    avg_customer_talk_ratio,
-    avg_objection_score,
-    avg_trial_close_score,
-    avg_sentiment_recovery,
-    avg_empathy,
-    avg_quality_score
+    agent_talk_ratio,
+    customer_talk_ratio,
+    objection_score,
+    trial_close_score,
+    sentiment_score,
+    empathy_score,
+    quality_score
   FROM public.calls
   WHERE DATE(created_at) = summary_date;
+
+  -- Ensure we got some data
+  IF total_calls IS NULL THEN
+    total_calls := 0;
+  END IF;
   
   -- Insert or update summary record
   INSERT INTO public.call_metrics_summary (
@@ -310,27 +504,26 @@ BEGIN
     sentiment_recovery_rate,
     empathy_score,
     overall_call_quality_score,
-    created_at,
     updated_at
   ) VALUES (
     summary_date,
-    COALESCE(total_calls, 0),
-    COALESCE(total_duration, 0),
-    COALESCE(avg_duration_val, 0),
-    COALESCE(positive_count, 0),
-    COALESCE(negative_count, 0),
-    COALESCE(neutral_count, 0),
-    COALESCE(avg_agent_talk_ratio, 0),
-    COALESCE(avg_customer_talk_ratio, 0),
-    COALESCE(avg_objection_score, 0),
-    COALESCE(avg_trial_close_score, 0),
-    COALESCE(avg_sentiment_recovery, 0),
-    COALESCE(avg_empathy, 0),
-    COALESCE(avg_quality_score, 0),
-    now(),
+    total_calls,
+    total_duration,
+    avg_duration,
+    positive_count,
+    negative_count,
+    neutral_count,
+    agent_talk_ratio,
+    customer_talk_ratio,
+    objection_score,
+    trial_close_score,
+    sentiment_score,
+    empathy_score,
+    quality_score,
     now()
   )
-  ON CONFLICT (date) DO UPDATE SET
+  ON CONFLICT (date)
+  DO UPDATE SET
     total_calls = EXCLUDED.total_calls,
     total_duration = EXCLUDED.total_duration,
     avg_duration = EXCLUDED.avg_duration,
@@ -344,36 +537,35 @@ BEGIN
     sentiment_recovery_rate = EXCLUDED.sentiment_recovery_rate,
     empathy_score = EXCLUDED.empathy_score,
     overall_call_quality_score = EXCLUDED.overall_call_quality_score,
-    updated_at = now();
+    updated_at = EXCLUDED.updated_at;
 END;
 $$ LANGUAGE plpgsql;
 
--- Add a trigger to update metrics when a call is added or updated
+-- Trigger function to update metrics whenever a call is added or updated
 CREATE OR REPLACE FUNCTION update_metrics_on_call_change()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Calculate scores for the call
+  -- Call the metrics calculation function for the relevant call
   PERFORM calculate_call_quality_score(NEW.id);
   
-  -- Update the daily summary
+  -- Update the metrics summary for the call's date
   PERFORM update_call_metrics_summary(DATE(NEW.created_at));
   
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create the trigger
-DROP TRIGGER IF EXISTS call_metrics_update_trigger ON public.calls;
+-- Create a trigger on the calls table
 CREATE TRIGGER call_metrics_update_trigger
 AFTER INSERT OR UPDATE ON public.calls
 FOR EACH ROW EXECUTE PROCEDURE update_metrics_on_call_change();
 
--- Grant execute permissions for functions
-GRANT EXECUTE ON FUNCTION calculate_objection_handling_metrics TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION calculate_trial_close_effectiveness TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION calculate_sentiment_recovery_metrics TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION calculate_empathy_metrics TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION calculate_competitor_handling_score TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION calculate_call_quality_score TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION update_call_metrics_summary TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION update_metrics_on_call_change TO anon, authenticated; 
+-- Grant execute permissions for the functions
+GRANT EXECUTE ON FUNCTION calculate_objection_handling_metrics(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION calculate_trial_close_effectiveness(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION calculate_sentiment_recovery_metrics(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION calculate_empathy_metrics(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION calculate_competitor_handling_score(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION calculate_call_quality_score(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION update_call_metrics_summary(DATE) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION update_metrics_on_call_change() TO anon, authenticated;
