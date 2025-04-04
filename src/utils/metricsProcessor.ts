@@ -123,7 +123,7 @@ export const processMetricsData = (
  * Extracts key performance indicators from metrics data
  * for use in dashboard displays
  */
-export const extractDashboardKPIs = (metrics: FormattedMetrics) => {
+export const extractDashboardKPIs = (metrics: FormattedMetrics | null) => {
   if (!metrics) {
     // Return default values if metrics is null or undefined
     return {

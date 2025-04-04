@@ -105,8 +105,8 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
       
       // Apply rep filter if provided
       if (filters?.repIds && filters.repIds.length > 0) {
-        // If we had a rep_id column in the metrics table, we would filter by it
-        // For now, we're assuming the metrics are aggregated for all reps
+        // Prepare for filtering by rep ID in the calls table if needed as a fallback
+        console.log('Using rep filters:', filters.repIds);
       }
       
       const { data: metricsData, error: fetchError } = await query.limit(1);
@@ -131,7 +131,59 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
           lastUpdated: now
         });
       } else {
-        console.log('No metrics data found, using demo data');
+        console.log('No metrics data found, checking calls table directly');
+        
+        // Try to get data directly from calls table as a fallback
+        try {
+          let callsQuery = supabase
+            .from('calls')
+            .select('*')
+            .order('created_at', { ascending: false });
+            
+          if (filters?.repIds && filters.repIds.length > 0) {
+            callsQuery = callsQuery.in('user_id', filters.repIds);
+          }
+          
+          const { data: callsData, error: callsError } = await callsQuery.limit(20);
+          
+          if (!callsError && callsData && callsData.length > 0) {
+            console.log('Found raw calls data, calculating metrics manually');
+            
+            // Calculate simple metrics from calls data
+            const rawMetrics: RawMetricsRecord = {
+              total_calls: callsData.length,
+              avg_duration: callsData.reduce((sum, call) => sum + (call.duration || 0), 0) / callsData.length,
+              positive_sentiment_count: callsData.filter(call => (call.sentiment_agent || 0) > 0.66).length,
+              negative_sentiment_count: callsData.filter(call => (call.sentiment_agent || 0) < 0.33).length,
+              neutral_sentiment_count: callsData.filter(call => {
+                const sentiment = call.sentiment_agent || 0.5;
+                return sentiment >= 0.33 && sentiment <= 0.66;
+              }).length,
+              avg_sentiment: callsData.reduce((sum, call) => sum + (call.sentiment_agent || 0.5), 0) / callsData.length,
+              agent_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_agent || 50), 0) / callsData.length,
+              customer_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_customer || 50), 0) / callsData.length,
+              report_date: new Date().toISOString().split('T')[0]
+            };
+            
+            setData(rawMetrics);
+            setLastUpdated(now);
+            setIsUsingDemoData(false);
+            
+            // Update cache
+            metricsCache.set(cacheKey, {
+              data: rawMetrics,
+              timestamp: Date.now(),
+              lastUpdated: now
+            });
+            
+            return;
+          }
+        } catch (callsError) {
+          console.error('Error fetching from calls table:', callsError);
+          // Continue to fallback to demo data
+        }
+        
+        console.log('No metrics or calls data found, using demo data');
         // Use demo data if no metrics found
         const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
         setData(demoData);
@@ -191,12 +243,27 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
         console.log('Metrics subscription status:', status);
       });
       
-    // Clean up the subscription
+    // Also subscribe to call_transcripts changes to catch Whisper transcriptions
+    const transcriptChannel = supabase
+      .channel('transcript-changes')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'call_transcripts' },
+        payload => {
+          console.log('New transcript detected, refreshing metrics:', payload);
+          // Force refresh metrics when a new transcript is added
+          fetchMetrics(true);
+        })
+      .subscribe((status) => {
+        console.log('Transcript subscription status:', status);
+      });
+    
+    // Clean up the subscriptions
     return () => {
       console.log('Cleaning up metrics subscription');
       supabase.removeChannel(channel);
+      supabase.removeChannel(transcriptChannel);
     };
-  }, [cacheKey, shouldSubscribe]);
+  }, [cacheKey, shouldSubscribe, fetchMetrics]);
   
   // Initial data fetch
   useEffect(() => {

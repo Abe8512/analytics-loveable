@@ -10,20 +10,44 @@ import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
 export const checkMetricsAvailability = async (): Promise<boolean> => {
   try {
     console.log('Checking for metrics data availability...');
-    const { data, error } = await supabase
+    
+    // Try call_metrics_summary first
+    const { data: metricsData, error: metricsError } = await supabase
       .from('call_metrics_summary')
       .select('count(*)', { count: 'exact' })
       .limit(1);
       
-    if (error) {
-      console.error('Error checking metrics availability:', error);
-      return false;
+    if (!metricsError && metricsData && (data as any)?.count > 0) {
+      console.log(`Found ${(metricsData as any)?.count} metrics records`);
+      return true;
     }
     
-    // Use count if available, otherwise check if data array has length
-    const count = (data as any)?.count ?? (Array.isArray(data) ? data.length : 0);
-    console.log(`Found ${count} metrics records`);
-    return count > 0;
+    // If no metrics summary, check if there are calls directly
+    const { data: callsData, error: callsError } = await supabase
+      .from('calls')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
+      
+    if (!callsError && callsData) {
+      const callCount = (callsData as any)?.count ?? 0;
+      console.log(`Found ${callCount} call records`);
+      return callCount > 0;
+    }
+    
+    // If no calls data, check if there are transcripts from Whisper
+    const { data: transcriptData, error: transcriptError } = await supabase
+      .from('call_transcripts')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
+      
+    if (!transcriptError && transcriptData) {
+      const transcriptCount = (transcriptData as any)?.count ?? 0;
+      console.log(`Found ${transcriptCount} transcript records`);
+      return transcriptCount > 0;
+    }
+    
+    console.log('No metrics data found in any table');
+    return false;
   } catch (err) {
     console.error('Exception in checkMetricsAvailability:', err);
     return false;
@@ -49,8 +73,69 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
       
     if (error) {
       console.error('Error fetching metrics data:', error);
-      console.log('Falling back to demo data');
-      return generateDemoCallMetrics() as RawMetricsRecord[];
+      console.log('Trying to generate metrics data from calls table...');
+      
+      // Try to calculate metrics directly from calls table
+      const { data: callsData, error: callsError } = await supabase
+        .from('calls')
+        .select('*')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false });
+        
+      if (callsError || !callsData || callsData.length === 0) {
+        console.log('No calls data found, trying transcripts...');
+        
+        // Try to use transcript data from Whisper
+        const { data: transcriptData, error: transcriptError } = await supabase
+          .from('call_transcripts')
+          .select('*')
+          .gte('created_at', startDate.toISOString())
+          .order('created_at', { ascending: false });
+          
+        if (transcriptError || !transcriptData || transcriptData.length === 0) {
+          console.log('No transcript data found, using demo data');
+          return generateDemoCallMetrics() as RawMetricsRecord[];
+        }
+        
+        // Convert transcript data to metrics format
+        console.log(`Converting ${transcriptData.length} transcripts to metrics`);
+        const metrics: RawMetricsRecord = {
+          report_date: new Date().toISOString().split('T')[0],
+          total_calls: transcriptData.length,
+          avg_duration: transcriptData.reduce((sum, t) => sum + (t.duration || 0), 0) / transcriptData.length,
+          positive_sentiment_count: transcriptData.filter(t => t.sentiment === 'positive').length,
+          negative_sentiment_count: transcriptData.filter(t => t.sentiment === 'negative').length,
+          neutral_sentiment_count: transcriptData.filter(t => t.sentiment === 'neutral').length,
+          avg_sentiment: transcriptData.reduce((sum, t) => {
+            let sentimentValue = 0.5; // Default neutral
+            if (t.sentiment === 'positive') sentimentValue = 0.8;
+            if (t.sentiment === 'negative') sentimentValue = 0.2;
+            return sum + sentimentValue;
+          }, 0) / transcriptData.length,
+          performance_score: transcriptData.reduce((sum, t) => sum + (t.call_score || 50), 0) / transcriptData.length
+        };
+        
+        return [metrics];
+      }
+      
+      // Calculate metrics from calls data
+      console.log(`Converting ${callsData.length} calls to metrics`);
+      const metrics: RawMetricsRecord = {
+        report_date: new Date().toISOString().split('T')[0],
+        total_calls: callsData.length,
+        avg_duration: callsData.reduce((sum, call) => sum + (call.duration || 0), 0) / callsData.length,
+        positive_sentiment_count: callsData.filter(call => (call.sentiment_agent || 0) > 0.66).length,
+        negative_sentiment_count: callsData.filter(call => (call.sentiment_agent || 0) < 0.33).length,
+        neutral_sentiment_count: callsData.filter(call => {
+          const sentiment = call.sentiment_agent || 0.5;
+          return sentiment >= 0.33 && sentiment <= 0.66;
+        }).length,
+        avg_sentiment: callsData.reduce((sum, call) => sum + (call.sentiment_agent || 0.5), 0) / callsData.length,
+        agent_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_agent || 50), 0) / callsData.length,
+        customer_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_customer || 50), 0) / callsData.length
+      };
+      
+      return [metrics];
     }
     
     if (!data || data.length === 0) {
