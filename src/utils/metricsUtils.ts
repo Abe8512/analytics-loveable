@@ -17,7 +17,7 @@ export const checkMetricsAvailability = async (): Promise<boolean> => {
       .select('count(*)', { count: 'exact' })
       .limit(1);
       
-    if (!metricsError && metricsData && (data as any)?.count > 0) {
+    if (!metricsError && metricsData && (metricsData as any)?.count > 0) {
       console.log(`Found ${(metricsData as any)?.count} metrics records`);
       return true;
     }
