@@ -110,13 +110,13 @@ export const formatMetricsForDisplay = (metrics: RawMetricsRecord): FormattedMet
   if (!metrics) return null;
   
   // Format duration from seconds to minutes and seconds
-  const formatDuration = (seconds: number) => {
+  const formatDuration = (seconds: number = 0) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
   
-  // Calculate sentiment percentages
+  // Calculate sentiment percentages safely
   const totalSentiment = 
     (metrics.positive_sentiment_count || 0) + 
     (metrics.neutral_sentiment_count || 0) + 
@@ -130,13 +130,14 @@ export const formatMetricsForDisplay = (metrics: RawMetricsRecord): FormattedMet
     ? Math.round((metrics.negative_sentiment_count || 0) / totalSentiment * 100) 
     : 33;
     
+  // Ensure the total is exactly 100%
   const neutralSentimentPercent = totalSentiment > 0 
-    ? Math.round((metrics.neutral_sentiment_count || 0) / totalSentiment * 100) 
+    ? 100 - positiveSentimentPercent - negativeSentimentPercent
     : 34;
   
   return {
     totalCalls: metrics.total_calls || 0,
-    avgDuration: formatDuration(metrics.avg_duration || 0),
+    avgDuration: formatDuration(metrics.avg_duration),
     avgDurationSeconds: metrics.avg_duration || 0,
     avgDurationMinutes: Math.round((metrics.avg_duration || 0) / 60),
     totalDuration: metrics.total_duration || 0,

@@ -187,10 +187,13 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
             lastUpdated: now
           });
         })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Metrics subscription status:', status);
+      });
       
     // Clean up the subscription
     return () => {
+      console.log('Cleaning up metrics subscription');
       supabase.removeChannel(channel);
     };
   }, [cacheKey, shouldSubscribe]);

@@ -1,3 +1,4 @@
+
 import { formatMetricsForDisplay } from './metricsUtils';
 import { 
   MetricsData, 
@@ -60,7 +61,7 @@ export const processMetricsData = (
     } else if (hasError || !rawData) {
       // If we have an error or no data, use demo data
       console.log('Using demo metrics data due to missing or invalid data');
-      const demoData = generateDemoCallMetrics() as RawMetricsRecord;
+      const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
       formattedMetrics = formatMetricsForDisplay(demoData);
       
       if (formattedMetrics) {
@@ -89,7 +90,7 @@ export const processMetricsData = (
     console.error('Error processing metrics data:', error);
     
     // Fallback to demo data in case of error
-    const demoData = generateDemoCallMetrics() as RawMetricsRecord;
+    const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
     formattedMetrics = formatMetricsForDisplay(demoData);
     
     if (formattedMetrics) {
@@ -103,6 +104,9 @@ export const processMetricsData = (
         avgSentiment: formattedMetrics.avgSentiment,
         callScore: formattedMetrics.callScore,
         conversionRate: formattedMetrics.conversionRate,
+        agentTalkRatio: formattedMetrics.agentTalkRatio,
+        customerTalkRatio: formattedMetrics.customerTalkRatio,
+        topKeywords: formattedMetrics.topKeywords,
         lastUpdated: new Date(),
         isLoading: false,
         isUsingDemoData: true,
@@ -118,14 +122,24 @@ export const processMetricsData = (
 /**
  * Extracts key performance indicators from metrics data
  * for use in dashboard displays
- * Updated to accept FormattedMetrics instead of MetricsData
  */
 export const extractDashboardKPIs = (metrics: FormattedMetrics) => {
+  if (!metrics) {
+    // Return default values if metrics is null or undefined
+    return {
+      totalCalls: 0,
+      avgDuration: 0,
+      positiveSentiment: 0,
+      callScore: 0,
+      conversionRate: 0
+    };
+  }
+  
   return {
-    totalCalls: metrics.totalCalls,
-    avgDuration: metrics.avgDurationMinutes,
-    positiveSentiment: metrics.positiveSentimentPercent,
-    callScore: metrics.callScore,
-    conversionRate: metrics.conversionRate
+    totalCalls: metrics.totalCalls || 0,
+    avgDuration: metrics.avgDurationMinutes || 0,
+    positiveSentiment: metrics.positiveSentimentPercent || 0,
+    callScore: metrics.callScore || 0,
+    conversionRate: metrics.conversionRate || 0
   };
 };
