@@ -44,18 +44,7 @@ class TeamService {
     }
   }
 
-  async addTeamMember(teamMember: Partial<TeamMember>): Promise<TeamMember> {
-    // Ensure the required fields are present
-    if (!teamMember.name) {
-      throw new Error('Team member name is required');
-    }
-    if (!teamMember.email) {
-      throw new Error('Team member email is required');
-    }
-    if (!teamMember.user_id) {
-      throw new Error('Team member user_id is required');
-    }
-    
+  async addTeamMember(teamMember: Partial<TeamMember> & { name: string; email: string; user_id: string }): Promise<TeamMember> {
     try {
       const { data, error } = await supabase
         .from('team_members')

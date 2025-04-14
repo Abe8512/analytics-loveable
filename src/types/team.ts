@@ -8,3 +8,12 @@ export interface BulkUploadFilter {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
 }
+
+export interface TeamPerformanceMetric {
+  id: string;
+  name: string;
+  value: number;
+  change: number;
+  trend: 'up' | 'down' | 'neutral';
+  performance: 'good' | 'average' | 'poor';
+}

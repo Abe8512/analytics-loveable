@@ -1,191 +1,109 @@
 
-import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
-import { dispatchEvent } from '@/services/events/store';
-import { EventType } from '@/services/events/types';
-import { BulkUploadFile, BulkUploadTranscript, BulkUploadFilter, UploadState } from '@/types/bulkUpload';
+import { v4 as uuidv4 } from 'uuid';
+import { BulkUploadFilter } from '@/types/bulkUpload';
 
-class BulkUploadService {
-  private _files: BulkUploadFile[] = [];
-  private _isProcessing = false;
-  private _uploadHistory: any[] = [];
-  private _hasLoadedHistory = false;
-  private _progress = 0;
-  private _uploadState: UploadState = 'idle';
-  private _transcripts: BulkUploadTranscript[] = [];
-  private _assignedUserId: string = '';
-
-  get files() {
-    return this._files;
-  }
-
-  get isProcessing() {
-    return this._isProcessing;
-  }
-
-  get uploadHistory() {
-    return this._uploadHistory;
-  }
-
-  get hasLoadedHistory() {
-    return this._hasLoadedHistory;
-  }
-
-  get progress() {
-    return this._progress;
-  }
-
-  get uploadState() {
-    return this._uploadState;
-  }
-
-  get transcripts() {
-    return this._transcripts;
-  }
-
-  setAssignedUserId(userId: string) {
-    this._assignedUserId = userId;
-  }
-
-  addFiles(files: File[]) {
-    const newFiles = files.map(file => ({
-      id: uuidv4(),
-      file,
-      progress: 0,
-      status: 'queued' as const,
-    }));
+/**
+ * BulkUploadService handles the uploading and processing of batch call transcripts
+ */
+export class BulkUploadService {
+  /**
+   * Uploads a file to the storage bucket
+   * @param file The file to upload
+   * @returns The path to the file in the storage bucket
+   */
+  static async uploadFile(file: File): Promise<string> {
+    const filename = `${uuidv4()}-${file.name}`;
+    const { error } = await supabase.storage
+      .from('call-recordings')
+      .upload(filename, file);
     
-    this._files = [...this._files, ...newFiles];
-    return newFiles;
-  }
-
-  setProgress(fileId: string, progress: number, status?: string, transcriptId?: string, error?: string) {
-    this._files = this._files.map(file => {
-      if (file.id === fileId) {
-        return {
-          ...file,
-          progress,
-          status: status as any || file.status,
-          transcriptId,
-          error
-        };
-      }
-      return file;
-    });
-    
-    // Update overall progress
-    const totalProgress = this._files.reduce((acc, file) => acc + file.progress, 0);
-    this._progress = totalProgress / this._files.length;
-  }
-
-  async processQueue() {
-    if (this._isProcessing || this._files.length === 0) {
-      return;
+    if (error) {
+      console.error('Error uploading file:', error);
+      throw error;
     }
     
-    this._isProcessing = true;
-    this._uploadState = 'uploading';
-    dispatchEvent('bulk-upload-started' as EventType);
-    
-    // Process files in sequence
-    for (const file of this._files) {
-      if (file.status === 'queued') {
-        try {
-          // Update file status to uploading
-          this.setProgress(file.id, 10, 'uploading');
-          
-          // Simulate upload process
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          this.setProgress(file.id, 50, 'processing');
-          
-          // Simulate processing
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // Complete the file
-          const transcriptId = uuidv4();
-          this.setProgress(file.id, 100, 'complete', transcriptId);
-          
-          // Dispatch event for this file
-          dispatchEvent('bulk-upload-progress' as EventType, {
-            file: file.file.name,
-            progress: 100,
-            status: 'complete',
-            transcriptId
-          });
-        } catch (error: any) {
-          console.error("Error processing file:", error);
-          this.setProgress(file.id, 0, 'error', undefined, error.message);
-          
-          // Dispatch error event
-          dispatchEvent('bulk-upload-progress' as EventType, {
-            file: file.file.name,
-            progress: 0,
-            status: 'error',
-            error: error.message
-          });
+    return filename;
+  }
+  
+  /**
+   * Gets a list of transcriptions from the database
+   * @param filters Optional filters for the query
+   * @returns Array of transcriptions
+   */
+  static async getTranscriptions(filters?: BulkUploadFilter) {
+    try {
+      let query = supabase
+        .from('call_transcripts')
+        .select('*');
+      
+      // Apply filters
+      if (filters) {
+        // Apply limit and offset if provided
+        if (filters.limit) {
+          query = query.limit(filters.limit);
+        }
+        
+        if (filters.offset) {
+          query = query.range(
+            filters.offset, 
+            filters.offset + (filters.limit || 10) - 1
+          );
+        }
+        
+        // Apply sorting
+        if (filters.sortBy) {
+          const order = filters.sortDirection || 'desc';
+          query = query.order(filters.sortBy, { ascending: order === 'asc' });
+        } else {
+          // Default sort by created_at
+          query = query.order('created_at', { ascending: false });
         }
       }
-    }
-    
-    // Check if all files are complete
-    const allComplete = this._files.every(file => 
-      file.status === 'complete' || file.status === 'error'
-    );
-    
-    if (allComplete) {
-      this._uploadState = 'complete';
-      dispatchEvent('bulk-upload-completed' as EventType, {
-        timestamp: Date.now()
-      });
-    }
-    
-    this._isProcessing = false;
-  }
-  
-  async refreshTranscripts(filters?: BulkUploadFilter): Promise<BulkUploadTranscript[]> {
-    try {
-      // Here would be the actual code to fetch from Supabase
-      // For now, let's use some mock data
-      this._transcripts = Array(5).fill(null).map((_, i) => ({
-        id: uuidv4(),
-        filename: `call_recording_${i + 1}.mp3`,
-        text: `This is a transcript for call ${i + 1}`,
-        created_at: new Date().toISOString(),
-        duration: Math.floor(Math.random() * 600) + 60, // 1-10 minutes
-        sentiment: Math.random() > 0.5 ? 'positive' : 'negative',
-        keywords: ['pricing', 'feature', 'support']
-      }));
       
-      return this._transcripts;
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching transcriptions:', error);
+        throw error;
+      }
+      
+      return data || [];
     } catch (error) {
-      console.error("Error refreshing transcripts:", error);
-      return [];
+      console.error('Error in getTranscriptions:', error);
+      throw error;
     }
   }
-
-  start() {
-    // Reset progress and state
-    this._progress = 0;
-    this._uploadState = 'idle';
-  }
-
-  complete() {
-    // Clean up after upload
-    this._files = [];
-    this._progress = 0;
-    this._uploadState = 'idle';
-  }
   
-  setFileCount(count: number) {
-    // Used to update file count for pagination
-    console.log(`Setting file count to ${count}`);
+  /**
+   * Processes a file for transcription
+   * @param file The file to process
+   * @param filters Optional processing filters
+   */
+  static async processFile(file: File, filters?: BulkUploadFilter): Promise<void> {
+    try {
+      // Upload the file to storage
+      const filePath = await this.uploadFile(file);
+      
+      // Call the transcription service
+      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+        body: { 
+          filePath,
+          force: filters?.force || false
+        }
+      });
+      
+      if (error) {
+        console.error('Error invoking transcribe function:', error);
+        throw error;
+      }
+      
+      console.log('Transcription response:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('Error processing file:', error);
+      throw error;
+    }
   }
 }
-
-// Export a singleton instance
-export const bulkUploadService = new BulkUploadService();
-
-// Export a hook for components to use
-export const useBulkUploadService = () => {
-  return bulkUploadService;
-};

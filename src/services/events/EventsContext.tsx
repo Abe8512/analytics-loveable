@@ -1,12 +1,27 @@
 
 import React, { createContext, useContext, useState } from 'react';
 import { EventsService } from '@/services/EventsService';
-import { EventType, EventPayload, EventsState } from '@/services/events/types';
+import { EventType, EventPayload } from '@/services/events/types';
+
+interface EventListener {
+  id: string;
+  type: EventType;
+  callback: (payload: EventPayload) => void;
+  unsubscribe: () => void;
+}
+
+interface EventsState {
+  listeners: EventListener[];
+  addListener: (type: EventType, callback: (payload: EventPayload) => void) => () => void;
+  removeListener: (unsubscribeFn: () => void) => void;
+  dispatchEvent: (type: EventType, payload?: EventPayload) => void;
+  subscribeToEvent: (type: EventType, callback: (payload: EventPayload) => void) => () => void;
+}
 
 const EventsContext = createContext<EventsState | undefined>(undefined);
 
 export function EventsProvider({ children }: { children: React.ReactNode }) {
-  const [listeners, setListeners] = useState<{ id: string; unsubscribe: () => void }[]>([]);
+  const [listeners, setListeners] = useState<EventListener[]>([]);
 
   // Add listener and return the unsubscribe function
   const addListener = (type: EventType, callback: (payload: EventPayload) => void) => {
@@ -17,7 +32,13 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     const id = Math.random().toString(36).substring(2, 9);
     
     // Store the mapping between ID and unsubscribe function
-    const listenerInfo = { id, unsubscribe };
+    const listenerInfo: EventListener = { 
+      id, 
+      type,
+      callback,
+      unsubscribe 
+    };
+    
     setListeners(prev => [...prev, listenerInfo]);
     
     // Return the unsubscribe function

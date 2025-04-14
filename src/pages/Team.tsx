@@ -12,7 +12,7 @@ import { TeamMember } from '@/types/teamTypes';
 import { teamService } from '@/services/TeamService';
 import { useToast } from '@/hooks/use-toast';
 import { TeamMembersList } from '@/components/Team/TeamMembersList';
-import { TeamTranscriptActivity } from '@/components/Team/TeamTranscriptActivity';
+import TeamTranscriptActivity from '@/components/Team/TeamTranscriptActivity';
 import { useEventListener } from '@/services/events/hooks';
 
 const Team = () => {
@@ -67,7 +67,9 @@ const Team = () => {
     setIsLoading(true);
     try {
       const newMember = await teamService.addTeamMember({
-        ...formData,
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
         user_id: `user-${Date.now()}` // Generate a temporary ID
       });
       
