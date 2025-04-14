@@ -1,16 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { useSharedFilters } from '@/contexts/SharedFilterContext';
 import KeyMetricsTable from '@/components/Performance/KeyMetricsTable';
 import TrendingInsightsCard from '@/components/Performance/TrendingInsightsCard';
+import TeamPerformanceMetricsCard from '@/components/Performance/TeamPerformanceMetricsCard';
 import { PageHeader } from '@/components/ui/page-header';
 import { LineChart, RefreshCcw } from 'lucide-react';
 import { useMetrics } from '@/contexts/MetricsContext';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TeamProvider } from '@/contexts/TeamContext';
 
 /**
  * Performance Metrics Page
@@ -81,7 +83,7 @@ const PerformanceMetrics = () => {
   };
 
   // React to filter changes
-  React.useEffect(() => {
+  useEffect(() => {
     fetchSalesInsights();
   }, [filters]);
   
@@ -144,65 +146,70 @@ const PerformanceMetrics = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <PageHeader 
-            title="Performance Analytics"
-            subtitle="Comprehensive sales performance metrics and insights"
-            icon={<LineChart className="h-6 w-6" />}
-          />
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRefresh}
-            disabled={metricsLoading || isRefreshing}
-            className="flex items-center gap-1"
-          >
-            <RefreshCcw className={`h-4 w-4 ${metricsLoading || isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
-          </Button>
-        </div>
+      <TeamProvider>
+        <div className="space-y-8 max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <PageHeader 
+              title="Performance Analytics"
+              subtitle="Comprehensive sales performance metrics and insights"
+              icon={<LineChart className="h-6 w-6" />}
+            />
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={metricsLoading || isRefreshing}
+              className="flex items-center gap-1"
+            >
+              <RefreshCcw className={`h-4 w-4 ${metricsLoading || isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+            </Button>
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {metricsLoading ? (
-            <Card className="p-6">
-              <Skeleton className="h-8 w-48 mb-4" />
-              <div className="space-y-2">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </div>
-            </Card>
-          ) : (
-            <KeyMetricsTable dateRange={filters.dateRange} />
-          )}
-          
-          <TrendingInsightsCard
-            title="Sales Performance Insights"
-            description="Key metrics trends over the selected period"
-            insights={salesInsights}
-            isLoading={isLoadingInsights}
-            error={insightsError}
-          />
-        </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {metricsLoading ? (
+              <Card className="p-6">
+                <Skeleton className="h-8 w-48 mb-4" />
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              </Card>
+            ) : (
+              <KeyMetricsTable dateRange={filters.dateRange} />
+            )}
+            
+            <TrendingInsightsCard
+              title="Sales Performance Insights"
+              description="Key metrics trends over the selected period"
+              insights={salesInsights}
+              isLoading={isLoadingInsights}
+              error={insightsError}
+            />
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <TrendingInsightsCard
-            title="Coaching Opportunities"
-            description="Areas for improvement and coaching"
-            insights={coachingInsights}
-            className="h-full"
-          />
-          
-          <TrendingInsightsCard
-            title="Sales Opportunities"
-            description="Potential areas to focus on"
-            insights={opportunityInsights}
-            className="h-full"
-          />
+          {/* Team Performance Metrics Card */}
+          <TeamPerformanceMetricsCard />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <TrendingInsightsCard
+              title="Coaching Opportunities"
+              description="Areas for improvement and coaching"
+              insights={coachingInsights}
+              className="h-full"
+            />
+            
+            <TrendingInsightsCard
+              title="Sales Opportunities"
+              description="Potential areas to focus on"
+              insights={opportunityInsights}
+              className="h-full"
+            />
+          </div>
         </div>
-      </div>
+      </TeamProvider>
     </DashboardLayout>
   );
 };

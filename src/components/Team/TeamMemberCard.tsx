@@ -4,15 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
-
-export interface TeamMember {
-  id: string;
-  name: string;
-  email?: string;
-  role?: string;
-  avatar?: string;
-  avatar_url?: string; // Add this for compatibility with different prop formats
-}
+import { TeamMember } from '@/types/teamTypes';
 
 export interface TeamMemberCardProps {
   member: TeamMember;

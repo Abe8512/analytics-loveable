@@ -1,13 +1,12 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
 import { Phone, User, UserCheck, Clock } from 'lucide-react';
-import { teamService } from '@/services/TeamService';
-import { useEventListener } from '@/services/events/hooks';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface TeamMembersTableProps {
   selectedUserId?: string | null;
@@ -20,53 +19,8 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
   onTeamMemberSelect,
   limit 
 }) => {
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const { teamMembers, isLoading, error } = useTeamMembers(limit);
   
-  const fetchTeamMembers = useCallback(async () => {
-    if (isLoading === false) setIsLoading(true);
-    try {
-      const members = await teamService.getTeamMembers();
-      // Apply limit if specified
-      const limitedMembers = limit ? members.slice(0, limit) : members;
-      setTeamMembers(limitedMembers);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load team members');
-      toast({
-        title: "Error",
-        description: "Failed to load team members",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [limit, toast]);
-  
-  useEffect(() => {
-    fetchTeamMembers();
-  }, [fetchTeamMembers]);
-  
-  // Listen for team member events to refresh the table
-  useEventListener('TEAM_MEMBER_ADDED', () => {
-    fetchTeamMembers();
-  });
-  
-  useEventListener('TEAM_MEMBER_REMOVED', () => {
-    fetchTeamMembers();
-  });
-
-  // Also listen for newer event naming convention
-  useEventListener('team-member-added', () => {
-    fetchTeamMembers();
-  });
-  
-  useEventListener('team-member-removed', () => {
-    fetchTeamMembers();
-  });
-
   const handleRowClick = useCallback((memberId: string) => {
     if (onTeamMemberSelect) {
       onTeamMemberSelect(memberId);
@@ -87,10 +41,11 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
         <CardHeader>
           <CardTitle>Team Members</CardTitle>
         </CardHeader>
-        <CardContent className="p-4">
-          <div className="text-center py-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-neon-purple mx-auto mb-2"></div>
-            <p>Loading team members...</p>
+        <CardContent className="p-0">
+          <div className="space-y-2 p-4">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -104,7 +59,10 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
           <CardTitle>Team Members</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="text-center py-4 text-red-500">Error: {error}</div>
+          <div className="text-center py-4 text-red-500">
+            <p>Error loading team members</p>
+            <p className="text-sm mt-2">{error.message}</p>
+          </div>
         </CardContent>
       </Card>
     );
