@@ -1,6 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EventsService, EventType } from "@/services/EventsService";
 import * as SharedDataService from "@/services/SharedDataService";
@@ -19,6 +18,11 @@ export interface TeamMember {
 // Class to manage team members
 class TeamService {
   private static instance: TeamService;
+  private fetchPromise: Promise<TeamMember[]> | null = null;
+  private lastFetchTime: number = 0;
+  private cachedMembers: TeamMember[] | null = null;
+  private fetchInProgress: boolean = false;
+  private CACHE_TTL = 60000; // 1 minute cache
   
   // Demo data to use when no team members are found
   private demoTeamMembers: TeamMember[] = [
@@ -61,20 +65,28 @@ class TeamService {
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<Error | null>(null);
+    const mountedRef = useRef(true);
     
     const refreshTeamMembers = async () => {
+      if (!mountedRef.current) return;
       setIsLoading(true);
       try {
         const members = await this.getTeamMembers();
-        setTeamMembers(members);
-        // After refreshing, also sync with SharedDataService
-        SharedDataService.syncManagedUsersWithTeamMembers(members);
-        setError(null);
+        if (mountedRef.current) {
+          setTeamMembers(members);
+          // After refreshing, also sync with SharedDataService
+          SharedDataService.syncManagedUsersWithTeamMembers(members);
+          setError(null);
+        }
       } catch (err) {
         console.error("Error refreshing team members:", err);
-        setError(err as Error);
+        if (mountedRef.current) {
+          setError(err as Error);
+        }
       } finally {
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
     
@@ -87,8 +99,9 @@ class TeamService {
       const removeAddedListener = EventsService.addEventListener('TEAM_MEMBER_ADDED' as EventType, refreshTeamMembers);
       const removeRemovedListener = EventsService.addEventListener('TEAM_MEMBER_REMOVED' as EventType, refreshTeamMembers);
       
-      // Clean up listeners
+      // Clean up listeners and set mounted ref
       return () => {
+        mountedRef.current = false;
         removeAddedListener();
         removeRemovedListener();
       };
@@ -97,8 +110,35 @@ class TeamService {
     return { teamMembers, isLoading, error, refreshTeamMembers };
   };
   
-  // Get all team members
+  // Get all team members with improved caching
   public async getTeamMembers(): Promise<TeamMember[]> {
+    // Return cached members if available and not expired
+    const now = Date.now();
+    if (this.cachedMembers && (now - this.lastFetchTime < this.CACHE_TTL)) {
+      return this.cachedMembers;
+    }
+    
+    // If fetch is already in progress, return the existing promise
+    if (this.fetchInProgress && this.fetchPromise) {
+      return this.fetchPromise;
+    }
+    
+    // Otherwise, start a new fetch
+    this.fetchInProgress = true;
+    this.fetchPromise = this._fetchTeamMembers();
+    
+    try {
+      const members = await this.fetchPromise;
+      this.cachedMembers = members;
+      this.lastFetchTime = Date.now();
+      return members;
+    } finally {
+      this.fetchInProgress = false;
+    }
+  }
+  
+  // Private method to actually fetch team members
+  private async _fetchTeamMembers(): Promise<TeamMember[]> {
     try {
       // Try to get team members from Supabase
       const { data, error } = await supabase
@@ -177,6 +217,9 @@ class TeamService {
         storedMembers.push(completeTeamMember);
         this.storeTeamMembers(storedMembers);
         
+        // Invalidate cache
+        this.cachedMembers = null;
+        
         // Dispatch event
         EventsService.dispatchEvent("TEAM_MEMBER_ADDED" as EventType, completeTeamMember);
         
@@ -189,6 +232,9 @@ class TeamService {
       const storedMembers = this.getStoredTeamMembers();
       storedMembers.push(data);
       this.storeTeamMembers(storedMembers);
+      
+      // Invalidate cache
+      this.cachedMembers = null;
       
       // Dispatch event
       EventsService.dispatchEvent("TEAM_MEMBER_ADDED" as EventType, data);
@@ -224,6 +270,9 @@ class TeamService {
       let storedMembers = this.getStoredTeamMembers();
       storedMembers = storedMembers.filter(member => member.id !== id);
       this.storeTeamMembers(storedMembers);
+      
+      // Invalidate cache
+      this.cachedMembers = null;
       
       // Dispatch event
       EventsService.dispatchEvent("TEAM_MEMBER_REMOVED" as EventType, { id });

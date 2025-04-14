@@ -338,6 +338,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           display_name: string | null
+          email: string | null
           first_name: string | null
           id: string
           last_name: string | null
@@ -348,6 +349,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
+          email?: string | null
           first_name?: string | null
           id: string
           last_name?: string | null
@@ -358,6 +360,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
@@ -561,6 +564,30 @@ export type Database = {
         }
         Relationships: []
       }
+      teams: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       temp_call_metrics_backup: {
         Row: {
           avg_duration: number | null
@@ -661,9 +688,7 @@ export type Database = {
         Returns: undefined
       }
       add_table_to_realtime_publication: {
-        Args: {
-          table_name: string
-        }
+        Args: { table_name: string }
         Returns: undefined
       }
       adjust_talk_ratio_constraints: {
@@ -671,9 +696,7 @@ export type Database = {
         Returns: undefined
       }
       analyze_call_sentiment: {
-        Args: {
-          call_id: string
-        }
+        Args: { call_id: string }
         Returns: undefined
       }
       apply_all_fixes: {
@@ -689,18 +712,11 @@ export type Database = {
         Returns: undefined
       }
       assign_rep_to_call: {
-        Args: {
-          call_id: string
-          rep_id: string
-          rep_name?: string
-        }
+        Args: { call_id: string; rep_id: string; rep_name?: string }
         Returns: boolean
       }
       check_column_exists: {
-        Args: {
-          p_table_name: string
-          p_column_name: string
-        }
+        Args: { p_table_name: string; p_column_name: string }
         Returns: boolean
       }
       check_connection: {
@@ -708,23 +724,15 @@ export type Database = {
         Returns: Json
       }
       check_table_exists: {
-        Args: {
-          table_name: string
-        }
+        Args: { table_name: string }
         Returns: boolean
       }
       check_table_in_publication: {
-        Args: {
-          table_name: string
-          publication_name: string
-        }
+        Args: { table_name: string; publication_name: string }
         Returns: boolean
       }
       column_exists: {
-        Args: {
-          table_name: string
-          column_name: string
-        }
+        Args: { table_name: string; column_name: string }
         Returns: boolean
       }
       create_alert: {
@@ -757,34 +765,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      execute_sql:
-        | {
-            Args: {
-              query_text: string
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              sql: string
-              params?: string
-            }
-            Returns: Json
-          }
-      execute_sql_with_results:
-        | {
-            Args: {
-              query_text: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              sql: string
-              params?: string
-            }
-            Returns: Json
-          }
+      execute_sql: {
+        Args: { query_text: string } | { sql: string; params?: string }
+        Returns: undefined
+      }
+      execute_sql_with_results: {
+        Args: { sql: string; params?: string } | { query_text: string }
+        Returns: Json
+      }
       fix_all_call_records: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -797,54 +785,33 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      get_call_analytics:
-        | {
-            Args: {
-              user_id_param: string
-            }
-            Returns: {
-              id: string
-              created_at: string
-              sentiment_score: number
-            }[]
-          }
-        | {
-            Args: {
+      get_call_analytics: {
+        Args:
+          | { user_id_param: string }
+          | {
               user_id_param: string
               start_date_param: string
               end_date_param: string
             }
-            Returns: {
-              id: string
-              filename: string
-              created_at: string
-              duration: number
-              sentiment_agent: number
-              sentiment_customer: number
-            }[]
-          }
-      get_keyword_analytics:
-        | {
-            Args: {
-              p_category?: string
-              p_limit?: number
-              p_days?: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
+        Returns: {
+          id: string
+          created_at: string
+          sentiment_score: number
+        }[]
+      }
+      get_keyword_analytics: {
+        Args:
+          | {
               start_date?: string
               end_date?: string
               user_ids?: string[]
               limit_count?: number
             }
-            Returns: Json
-          }
+          | { p_category?: string; p_limit?: number; p_days?: number }
+        Returns: Json
+      }
       get_recent_alerts: {
-        Args: {
-          p_days?: number
-        }
+        Args: { p_days?: number }
         Returns: {
           alert_name: string
           alert_type: string
@@ -859,41 +826,38 @@ export type Database = {
           updated_at: string | null
         }[]
       }
-      get_sentiment_trends:
-        | {
-            Args: {
-              p_days?: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              start_date?: string
-              end_date?: string
-              user_ids?: string[]
-            }
-            Returns: Json
-          }
+      get_sentiment_trends: {
+        Args:
+          | { p_days?: number }
+          | { start_date?: string; end_date?: string; user_ids?: string[] }
+        Returns: Json
+      }
       get_table_columns: {
-        Args: {
-          table_name: string
-        }
+        Args: { table_name: string }
         Returns: Json
       }
       get_table_metadata: {
-        Args: {
-          table_name: string
-        }
+        Args: { table_name: string }
         Returns: Json
+      }
+      get_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_user_team_ids: {
+        Args: { user_id_param: string }
+        Returns: string[]
+      }
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
       is_service_role: {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
       query: {
-        Args: {
-          sql_query: string
-        }
+        Args: { sql_query: string }
         Returns: Json[]
       }
       refresh_schema_cache: {
@@ -905,9 +869,7 @@ export type Database = {
         Returns: undefined
       }
       search_calls_by_keyword: {
-        Args: {
-          search_term: string
-        }
+        Args: { search_term: string }
         Returns: {
           id: string
           user_id: string
@@ -920,9 +882,7 @@ export type Database = {
         }[]
       }
       search_keywords: {
-        Args: {
-          search_term: string
-        }
+        Args: { search_term: string }
         Returns: {
           keyword: string
           category: string
@@ -931,9 +891,7 @@ export type Database = {
         }[]
       }
       set_replica_identity_full_for_table: {
-        Args: {
-          table_name: string
-        }
+        Args: { table_name: string }
         Returns: undefined
       }
       validate_database_fixes: {
@@ -950,27 +908,29 @@ export type Database = {
   }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DefaultSchema = Database[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -978,20 +938,22 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -999,20 +961,22 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -1020,21 +984,23 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
     | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof PublicSchema["CompositeTypes"]
+    | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof Database },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof Database
@@ -1043,6 +1009,12 @@ export type CompositeTypes<
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
   ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
