@@ -1,167 +1,146 @@
 
-import React, { useContext } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Activity, Clock, MessageSquare, TrendingUp, Volume2 } from "lucide-react";
-import { ThemeContext } from "@/App";
-import AnimatedNumber from "../ui/AnimatedNumber";
-import AIWaveform from "../ui/AIWaveform";
-import GlowingCard from "../ui/GlowingCard";
-import { useCallMetricsStore } from "@/store/useCallMetricsStore";
-import { useSharedTeamMetrics } from "@/services/SharedDataService";
-import { useSharedFilters } from "@/contexts/SharedFilterContext";
-import { useTheme } from "@/hooks/use-theme";
+import React from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { useCallMetricsStore } from '@/store/useCallMetricsStore';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Clock, LineChart, BarChart, MessageSquare } from 'lucide-react';
 
-interface LiveMetricsDisplayProps {
-  isCallActive?: boolean;
-}
+const formatTime = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+};
 
-const LiveMetricsDisplay = ({ isCallActive }: LiveMetricsDisplayProps) => {
-  const { isDarkMode } = useTheme();
+const getSentimentLabel = (value: number) => {
+  if (value >= 0.7) return { label: 'Positive', color: 'bg-green-500' };
+  if (value <= 0.3) return { label: 'Negative', color: 'bg-red-500' };
+  return { label: 'Neutral', color: 'bg-blue-500' };
+};
+
+const LiveMetricsDisplay = () => {
   const { 
-    isRecording, 
-    callDuration: duration, 
-    talkRatioData: talkRatio, 
-    sentimentData: sentiment, 
-    speakerActivity: isTalkingMap, 
-    keyPhrasesList: keyPhrases 
+    duration, 
+    talkRatio, 
+    sentiment, 
+    isTalkingMap, 
+    keyPhrases,
   } = useCallMetricsStore();
   
-  // Use shared team metrics for consistent data across components
-  const { filters } = useSharedFilters();
-  const { metrics: sharedMetrics } = useSharedTeamMetrics(filters);
-  
-  // Check if we should display metrics
-  const showMetrics = isCallActive !== undefined ? isCallActive : isRecording;
-  
-  // Format duration into minutes:seconds
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-  
+  // Handle the customer/client property mapping
+  const customerTalkRatio = talkRatio.client; // Use client property from talkRatio
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Call Duration */}
-        <Card className={`${isDarkMode ? "border-neon-blue/20 bg-black/20" : "border-blue-100 bg-blue-50"}`}>
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Call Duration</p>
-                <div className="text-2xl font-bold mt-1 flex items-center">
-                  <Clock className={`h-5 w-5 mr-2 ${isDarkMode ? "text-neon-blue" : "text-blue-500"}`} />
-                  <AnimatedNumber 
-                    value={duration} 
-                    formatter={formatDuration}
-                  />
-                </div>
-              </div>
-              {showMetrics && <AIWaveform color="blue" barCount={3} className="h-6" />}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Talk Ratio Card */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center">
+              <BarChart className="h-4 w-4 mr-2 text-blue-500" />
+              <span className="text-sm font-medium">Talk Ratio</span>
             </div>
-          </CardContent>
-        </Card>
-        
-        {/* Talk Ratio */}
-        <Card className={`${isDarkMode ? "border-purple-500/20 bg-black/20" : "border-purple-100 bg-purple-50"}`}>
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Talk Ratio</p>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${isDarkMode ? "text-neon-blue" : "text-blue-500"}`}>Agent</span>
-                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-neon-blue rounded-full" 
-                    style={{ width: `${talkRatio.agent}%` }}
-                  ></div>
-                </div>
-                <span className="text-xs font-semibold w-8 text-end">
-                  {Math.round(talkRatio.agent)}%
-                </span>
+            <Badge variant="outline" className="text-xs">
+              Live
+            </Badge>
+          </div>
+          
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span>Agent</span>
+                <span>{talkRatio.agent}%</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${isDarkMode ? "text-neon-pink" : "text-pink-500"}`}>Customer</span>
-                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-neon-pink rounded-full" 
-                    style={{ width: `${talkRatio.client}%` }}
-                  ></div>
-                </div>
-                <span className="text-xs font-semibold w-8 text-end">
-                  {Math.round(talkRatio.client)}%
-                </span>
-              </div>
+              <Progress value={talkRatio.agent} className="h-2 bg-blue-100" />
             </div>
-          </CardContent>
-        </Card>
-        
-        {/* Live Sentiment */}
-        <Card className={`${isDarkMode ? "border-green-500/20 bg-black/20" : "border-green-100 bg-green-50"}`}>
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Live Sentiment</p>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${isDarkMode ? "text-neon-blue" : "text-blue-500"}`}>Agent</span>
-                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full ${sentiment.agent > 0.7 ? "bg-green-500" : sentiment.agent > 0.4 ? "bg-yellow-500" : "bg-red-500"} rounded-full`}
-                    style={{ width: `${sentiment.agent * 100}%` }}
-                  ></div>
-                </div>
-                <span className="text-xs font-semibold w-8 text-end">
-                  {Math.round(sentiment.agent * 100)}%
-                </span>
+            
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span>Customer</span>
+                <span>{customerTalkRatio}%</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${isDarkMode ? "text-neon-pink" : "text-pink-500"}`}>Customer</span>
-                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full ${sentiment.client > 0.7 ? "bg-green-500" : sentiment.client > 0.4 ? "bg-yellow-500" : "bg-red-500"} rounded-fu`}
-                    style={{ width: `${sentiment.client * 100}%` }}
-                  ></div>
-                </div>
-                <span className="text-xs font-semibold w-8 text-end">
-                  {Math.round(sentiment.client * 100)}%
-                </span>
-              </div>
+              <Progress value={customerTalkRatio} className="h-2 bg-pink-100" />
             </div>
-          </CardContent>
-        </Card>
-        
-        {/* Key Phrases */}
-        <Card className={`${isDarkMode ? "border-amber-500/20 bg-black/20" : "border-amber-100 bg-amber-50"}`}>
-          <CardContent className="p-4">
-            <div className="flex flex-col h-full">
-              <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Key Phrases</p>
-              <div className="mt-2 flex-1 overflow-hidden">
-                {keyPhrases && keyPhrases.length > 0 ? (
-                  <div className="text-sm space-y-1">
-                    {keyPhrases.slice(0, 3).map((phrase, index) => (
-                      <div 
-                        key={index} 
-                        className={`px-2 py-1 rounded ${
-                          isDarkMode ? "bg-gray-800 text-gray-200" : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {phrase && typeof phrase === 'object' && 'text' in phrase ? phrase.text : String(phrase)}
-                      </div>
-                    ))}
-                    {keyPhrases.length > 3 && (
-                      <div className="text-xs text-muted-foreground mt-1 text-right">
-                        +{keyPhrases.length - 3} more
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground flex items-center justify-center h-full">
-                    {isRecording ? "Listening for key phrases..." : "No key phrases detected yet"}
-                  </div>
-                )}
-              </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Call Duration Card */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center">
+              <Clock className="h-4 w-4 mr-2 text-blue-500" />
+              <span className="text-sm font-medium">Call Duration</span>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Badge variant="outline" className="text-xs">
+              Live
+            </Badge>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <div className="text-3xl font-bold">{formatTime(duration)}</div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Sentiment Card */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center">
+              <LineChart className="h-4 w-4 mr-2 text-blue-500" />
+              <span className="text-sm font-medium">Sentiment</span>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              Live
+            </Badge>
+          </div>
+          
+          <div className="space-y-3">
+            <Progress value={sentiment * 100} className="h-2" />
+            <div className="flex items-center justify-between">
+              <Badge 
+                variant="outline" 
+                className={`${getSentimentLabel(sentiment).color} text-white px-2 py-0.5`}
+              >
+                {getSentimentLabel(sentiment).label}
+              </Badge>
+              <span className="text-sm">{Math.round(sentiment * 100)}%</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Key Phrases Card */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center">
+              <MessageSquare className="h-4 w-4 mr-2 text-blue-500" />
+              <span className="text-sm font-medium">Key Phrases</span>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              Live
+            </Badge>
+          </div>
+          
+          <div className="space-y-2 max-h-[120px] overflow-y-auto">
+            {keyPhrases.length > 0 ? (
+              keyPhrases.map((phrase, index) => (
+                <div key={index} className="text-xs p-1 bg-gray-100 dark:bg-gray-800 rounded">
+                  {phrase.text}
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500 text-center py-2">
+                No key phrases detected yet
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

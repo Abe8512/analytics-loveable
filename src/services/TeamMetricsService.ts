@@ -1,112 +1,165 @@
 
-import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { TeamPerformanceMetric } from '@/types/teamTypes';
-import { teamService } from './TeamService';
+import { TeamPerformanceMetric, TeamPerformance } from '@/types/teamTypes';
 
-/**
- * Fetches team performance metrics with optional filtering
- */
-export const useTeamPerformanceMetrics = (
-  repId?: string | null,
-  dateRange?: { from: Date, to: Date } | null
-) => {
-  const [metrics, setMetrics] = useState<TeamPerformanceMetric[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+// Service to fetch and process team metrics
+export class TeamMetricsService {
+  /**
+   * Get performance metrics for all team members
+   */
+  static async getTeamPerformanceMetrics(): Promise<TeamPerformanceMetric[]> {
+    try {
+      // First try to get metrics from the database
+      const { data, error } = await supabase
+        .from('rep_metrics_summary')
+        .select('*')
+        .order('call_volume', { ascending: false });
 
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      setIsLoading(true);
-      
-      try {
-        // In a real application, you would fetch this from the database
-        // Here we're creating mock data based on team members
-        const teamMembers = await teamService.getTeamMembers();
-        
-        // Create mock metrics for each team member
-        const mockMetrics: TeamPerformanceMetric[] = teamMembers.map(member => ({
-          rep_id: member.id,
-          rep_name: member.name,
-          call_volume: Math.floor(Math.random() * 100) + 20,
-          avg_call_duration: Math.floor(Math.random() * 500) + 120,
-          sentiment_score: parseFloat((Math.random() * 0.4 + 0.6).toFixed(2)),
-          success_rate: parseFloat((Math.random() * 40 + 60).toFixed(2)),
-          avg_talk_ratio: parseFloat((Math.random() * 30 + 40).toFixed(2)),
-          objection_handling_score: parseFloat((Math.random() * 30 + 70).toFixed(2)),
-          positive_language_score: parseFloat((Math.random() * 20 + 80).toFixed(2)),
-          top_keywords: ['product', 'pricing', 'features', 'competitors'].sort(() => Math.random() - 0.5).slice(0, 3),
-          last_call_date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
+      if (error) {
+        console.error('Error fetching team metrics:', error);
+        // If there's an error, return demo data
+        return this.getDemoTeamMetrics();
+      }
+
+      if (data && data.length > 0) {
+        // Transform the database response to match TeamPerformanceMetric
+        return data.map(item => ({
+          id: item.id,
+          name: item.rep_name,
+          value: item.sentiment_score * 100,
+          change: Math.random() * 20 - 10, // Random change for demo
+          trend: Math.random() > 0.5 ? 'up' : 'down',
+          performance: item.sentiment_score > 0.7 ? 'good' : item.sentiment_score > 0.4 ? 'average' : 'poor'
         }));
-        
-        // Filter by repId if provided
-        const filteredMetrics = repId 
-          ? mockMetrics.filter(m => m.rep_id === repId)
-          : mockMetrics;
-        
-        setMetrics(filteredMetrics);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching team performance metrics:", err);
-        setError(err instanceof Error ? err : new Error('Failed to fetch team metrics'));
-      } finally {
-        setIsLoading(false);
+      } else {
+        // If no data, return demo data
+        return this.getDemoTeamMetrics();
       }
-    };
-    
-    fetchMetrics();
-  }, [repId, dateRange]);
-  
-  return { metrics, isLoading, error };
-};
+    } catch (error) {
+      console.error('Error in getTeamPerformanceMetrics:', error);
+      return this.getDemoTeamMetrics();
+    }
+  }
 
-/**
- * Fetches aggregated team metrics 
- */
-export const useAggregatedTeamMetrics = () => {
-  const [data, setData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      try {
-        // In a real app, this would be an API or database call
-        // Mock aggregated metrics
-        const mockData = {
-          totalCallVolume: 1254,
-          avgSuccessRate: 78.5,
-          avgSentimentScore: 0.82,
-          topPerformer: {
-            name: 'Sarah Johnson',
-            id: 'demo-1',
-            metric: 'success_rate',
-            value: 92
-          },
-          conversionTrend: [
-            { month: 'Jan', rate: 65 },
-            { month: 'Feb', rate: 68 },
-            { month: 'Mar', rate: 72 },
-            { month: 'Apr', rate: 75 },
-            { month: 'May', rate: 79 },
-            { month: 'Jun', rate: 78 }
-          ]
-        };
-        
-        setData(mockData);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching aggregated team metrics:", err);
-        setError(err instanceof Error ? err : new Error('Failed to fetch aggregated metrics'));
-      } finally {
-        setIsLoading(false);
+  /**
+   * Get detailed performance data for charts and tables
+   */
+  static async getTeamPerformanceData(): Promise<TeamPerformance[]> {
+    try {
+      // First try to get data from the database
+      const { data, error } = await supabase
+        .from('rep_metrics_summary')
+        .select('*')
+        .order('call_volume', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching team performance data:', error);
+        // If there's an error, return demo data
+        return this.getDemoTeamPerformanceData();
       }
-    };
-    
-    fetchData();
-  }, []);
-  
-  return { data, isLoading, error };
-};
+
+      if (data && data.length > 0) {
+        // Transform the database response to match TeamPerformance
+        return data.map(item => ({
+          id: item.id,
+          name: item.rep_name,
+          rep_id: item.rep_id,
+          calls: item.call_volume,
+          successRate: Math.round(item.success_rate * 100),
+          avgSentiment: item.sentiment_score,
+          conversionRate: item.success_rate
+        }));
+      } else {
+        // If no data, return demo data
+        return this.getDemoTeamPerformanceData();
+      }
+    } catch (error) {
+      console.error('Error in getTeamPerformanceData:', error);
+      return this.getDemoTeamPerformanceData();
+    }
+  }
+
+  /**
+   * Get demo metrics data for UI development
+   */
+  private static getDemoTeamMetrics(): TeamPerformanceMetric[] {
+    return [
+      {
+        id: '1',
+        name: 'John Smith',
+        value: 85,
+        change: 5.2,
+        trend: 'up',
+        performance: 'good'
+      },
+      {
+        id: '2',
+        name: 'Sarah Johnson',
+        value: 72,
+        change: -2.1,
+        trend: 'down',
+        performance: 'average'
+      },
+      {
+        id: '3',
+        name: 'Michael Brown',
+        value: 91,
+        change: 8.7,
+        trend: 'up',
+        performance: 'good'
+      },
+      {
+        id: '4',
+        name: 'Emily Davis',
+        value: 64,
+        change: 1.3,
+        trend: 'up',
+        performance: 'average'
+      }
+    ];
+  }
+
+  /**
+   * Get demo performance data for charts and tables
+   */
+  private static getDemoTeamPerformanceData(): TeamPerformance[] {
+    return [
+      {
+        id: '1',
+        name: 'John Smith',
+        rep_id: 'rep-1',
+        calls: 45,
+        successRate: 78,
+        avgSentiment: 0.85,
+        conversionRate: 0.32
+      },
+      {
+        id: '2',
+        name: 'Sarah Johnson',
+        rep_id: 'rep-2',
+        calls: 38,
+        successRate: 65,
+        avgSentiment: 0.72,
+        conversionRate: 0.29
+      },
+      {
+        id: '3',
+        name: 'Michael Brown',
+        rep_id: 'rep-3',
+        calls: 52,
+        successRate: 82,
+        avgSentiment: 0.91,
+        conversionRate: 0.41
+      },
+      {
+        id: '4',
+        name: 'Emily Davis',
+        rep_id: 'rep-4',
+        calls: 31,
+        successRate: 59,
+        avgSentiment: 0.64,
+        conversionRate: 0.25
+      }
+    ];
+  }
+}

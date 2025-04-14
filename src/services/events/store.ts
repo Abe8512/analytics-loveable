@@ -1,98 +1,93 @@
 
-import { EventType, EventPayload } from './types';
 import { v4 as uuidv4 } from 'uuid';
+import { EventType, EventPayload, EventMap, EventsStore, EventListener } from './types';
 
-// Store for event listeners
-type ListenerRecord = {
-  id: string;
-  type: EventType;
-  callback: (payload: EventPayload) => void;
-};
+// Create a Map to store event listeners
+const listenerMap: EventMap = new Map();
 
-const listeners: ListenerRecord[] = [];
-const eventHistory: {type: EventType, payload: EventPayload}[] = [];
+// Store recent event history for debugging
+const eventHistory: EventPayload[] = [];
 
-/**
- * Register an event listener
- * @param type The event type to listen for
- * @param callback The callback to invoke when the event occurs
- * @returns A function to unregister the listener
- */
-export const addEventListener = (type: EventType, callback: (payload: EventPayload) => void): () => void => {
-  const id = uuidv4();
-  listeners.push({ id, type, callback });
+// Add an event listener
+export const addEventListener = (type: EventType, listener: (payload: EventPayload) => void) => {
+  // Get the current listeners for this event type
+  let listeners = listenerMap.get(type);
   
-  // Return a function to unsubscribe
+  // If no listeners exist yet, create a new set
+  if (!listeners) {
+    listeners = new Set();
+    listenerMap.set(type, listeners);
+  }
+  
+  // Add the listener to the set
+  listeners.add(listener);
+  
+  // Return an unsubscribe function
   return () => {
-    const index = listeners.findIndex(listener => listener.id === id);
-    if (index !== -1) {
-      listeners.splice(index, 1);
+    const currentListeners = listenerMap.get(type);
+    if (currentListeners) {
+      currentListeners.delete(listener);
+      if (currentListeners.size === 0) {
+        listenerMap.delete(type);
+      }
     }
   };
 };
 
-/**
- * Remove an event listener
- * @param id The ID of the listener to remove
- */
-export const removeEventListener = (id: string): void => {
-  const index = listeners.findIndex(listener => listener.id === id);
-  if (index !== -1) {
-    listeners.splice(index, 1);
-  }
+// Remove an event listener by ID (deprecated)
+export const removeEventListener = (id: string) => {
+  // This method is kept for backward compatibility
+  // but will be removed in the future
+  console.warn('removeEventListener by ID is deprecated, use the unsubscribe function returned by addEventListener');
 };
 
-/**
- * Dispatch an event
- * @param type The type of event to dispatch
- * @param payload Optional payload to pass to event handlers
- */
-export const dispatchEvent = (type: EventType, payload?: EventPayload): void => {
-  const eventPayload = payload || {};
-  
-  // Store in history
-  eventHistory.push({
-    type, 
-    payload: eventPayload
-  });
-  
-  // Limit history to 100 events
-  if (eventHistory.length > 100) {
-    eventHistory.shift();
-  }
-  
-  // Notify listeners
-  listeners
-    .filter(listener => listener.type === type)
-    .forEach(listener => {
+// Dispatch an event to all registered listeners
+export const dispatchEvent = (type: EventType, payload: EventPayload = {}) => {
+  const listeners = listenerMap.get(type);
+  if (listeners) {
+    listeners.forEach(listener => {
       try {
-        listener.callback(eventPayload);
+        listener(payload);
       } catch (error) {
         console.error(`Error in event listener for ${type}:`, error);
       }
     });
-};
-
-// Create an events store singleton object
-export const EventsStore = {
-  addEventListener,
-  removeEventListener,
-  dispatchEvent,
-  getListeners: () => [...listeners],
-  getEventHistory: () => [...eventHistory],
-  clearEventHistory: () => {
-    eventHistory.length = 0;
+  }
+  
+  // Add to history for debugging
+  eventHistory.push({ ...payload, type, timestamp: Date.now() });
+  if (eventHistory.length > 100) {
+    eventHistory.shift(); // Keep history limited to 100 events
   }
 };
 
-// Re-export event constants
-export const EVENT_TYPES = {
-  // Add your event types here
-  TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED',
-  TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED',
-  TEAM_MEMBER_UPDATED: 'TEAM_MEMBER_UPDATED',
-  MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED',
-  CALL_UPDATED: 'CALL_UPDATED',
-  CALL_CREATED: 'CALL_CREATED',
-  CALL_DELETED: 'CALL_DELETED',
-} as const;
+// Get all listeners for debugging
+export const getListeners = (): EventListener[] => {
+  const result: EventListener[] = [];
+  listenerMap.forEach((listeners, type) => {
+    listeners.forEach(callback => {
+      result.push({ id: uuidv4(), type, callback });
+    });
+  });
+  return result;
+};
+
+// Get event history
+export const getEventHistory = () => [...eventHistory];
+
+// Clear event history
+export const clearEventHistory = () => {
+  eventHistory.length = 0;
+};
+
+// Export the store object
+export const EventsStore: EventsStore = {
+  listenerMap,
+  eventHistory,
+  addEventListener,
+  removeEventListener,
+  dispatchEvent,
+  getListeners,
+  getEventHistory,
+  clearEventHistory
+};

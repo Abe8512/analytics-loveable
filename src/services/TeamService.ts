@@ -44,7 +44,7 @@ class TeamService {
     }
   }
 
-  async addTeamMember(teamMember: Partial<TeamMember>): Promise<TeamMember> {
+  async addTeamMember(teamMember: TeamMember): Promise<TeamMember> {
     // Ensure the required fields are present
     if (!teamMember.name) {
       throw new Error('Team member name is required');
@@ -69,16 +69,14 @@ class TeamService {
       }
 
       if (data) {
-        // Dispatch both event types
-        const unsubscribe1 = EventsService.addEventListener('TEAM_MEMBER_ADDED' as EventType, { teamMember: data });
-        const unsubscribe2 = EventsService.addEventListener('team-member-added' as EventType, { teamMember: data });
+        // Dispatch events using proper event dispatch
+        const eventPayload = { teamMember: data };
         
-        // Clean up the event listeners
-        if (typeof unsubscribe1 === 'function') unsubscribe1();
-        if (typeof unsubscribe2 === 'function') unsubscribe2();
+        EventsService.dispatchEvent('TEAM_MEMBER_ADDED' as EventType, eventPayload);
+        EventsService.dispatchEvent('team-member-added' as EventType, eventPayload);
       }
 
-      return data;
+      return data as TeamMember;
     } catch (error: any) {
       console.error('Error in addTeamMember:', error.message);
       throw error;
@@ -99,7 +97,7 @@ class TeamService {
         throw new Error(error.message);
       }
 
-      return data || null;
+      return data as TeamMember || null;
     } catch (error: any) {
       console.error(`Error in updateTeamMember (${id}):`, error.message);
       throw error;
@@ -118,13 +116,11 @@ class TeamService {
         throw new Error(error.message);
       }
 
-      // Dispatch both event types
-      const unsubscribe1 = EventsService.addEventListener('TEAM_MEMBER_REMOVED' as EventType, { teamMemberId: id });
-      const unsubscribe2 = EventsService.addEventListener('team-member-removed' as EventType, { teamMemberId: id });
+      // Dispatch events using proper event dispatch
+      const eventPayload = { teamMemberId: id };
       
-      // Clean up the event listeners
-      if (typeof unsubscribe1 === 'function') unsubscribe1();
-      if (typeof unsubscribe2 === 'function') unsubscribe2();
+      EventsService.dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, eventPayload);
+      EventsService.dispatchEvent('team-member-removed' as EventType, eventPayload);
 
       return true;
     } catch (error: any) {
@@ -133,12 +129,8 @@ class TeamService {
     }
   }
 
-  // Add hook for useTeamMembers
-  useTeamMembers = (limit?: number) => {
-    const { teamMembers, isLoading, error, refreshTeamMembers } = require('@/hooks/useTeamMembers').useTeamMembers(limit);
-    return { teamMembers, isLoading, error, refreshTeamMembers };
-  }
+  // Use method for useTeamMembers
+  getTeamMembers = this.getTeamMembers;
 }
 
 export const teamService = new TeamService();
-export type { TeamMember };

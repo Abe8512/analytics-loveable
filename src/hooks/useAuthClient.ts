@@ -1,251 +1,252 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { User, Session } from '@supabase/supabase-js';
-import { Profile } from '@/types/profile';
-
-export interface AuthError {
-  message: string;
-}
-
-export interface AuthResult {
-  error: AuthError | null;
-}
+import { Session, User } from '@supabase/supabase-js';
 
 export interface AuthState {
   user: User | null;
   session: Session | null;
-  profile: Profile | null;
   isLoading: boolean;
+  error: Error | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isManager: boolean;
-  login: (email: string, password: string) => Promise<AuthResult>;
-  signup: (email: string, password: string, name: string) => Promise<AuthResult>;
+  profile: any | null;
+  managedUsers: any[];
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: Error }>;
+  signup: (email: string, password: string, data?: any) => Promise<{ success: boolean; error?: Error }>;
   logout: () => Promise<void>;
-  resetPassword: (email: string) => Promise<AuthResult>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: Error }>;
+  updateProfile: (data: any) => Promise<{ success: boolean; error?: Error }>;
+  getManagedUsers: () => Promise<any[]>;
 }
 
-export const useAuthClient = () => {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    session: null,
-    profile: null,
-    isLoading: true,
-    isAuthenticated: false,
-    isAdmin: false,
-    isManager: false,
-    login: async () => ({ error: null }),
-    signup: async () => ({ error: null }),
-    logout: async () => {},
-    resetPassword: async () => ({ error: null }),
-  });
+export const useAuthClient = (): AuthState => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
+  const [managedUsers, setManagedUsers] = useState<any[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isManager, setIsManager] = useState(false);
 
-  const fetchUserProfile = async (userId: string): Promise<Profile | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        console.error("Error fetching user profile:", error);
-        return null;
-      }
-      
-      return data as Profile;
-    } catch (err) {
-      console.error("Exception fetching user profile:", err);
-      return null;
-    }
-  };
-
+  // Check for existing session on mount
   useEffect(() => {
-    const setupAuth = async () => {
+    const checkSession = async () => {
       try {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, currentSession) => {
-            setState(prevState => ({
-              ...prevState,
-              session: currentSession,
-              user: currentSession?.user || null,
-              isAuthenticated: !!currentSession?.user,
-            }));
-            
-            if (currentSession?.user) {
-              setTimeout(async () => {
-                const userProfile = await fetchUserProfile(currentSession.user.id);
-                setState(prevState => ({
-                  ...prevState,
-                  profile: userProfile,
-                  isAdmin: userProfile?.role === 'admin',
-                  isManager: userProfile?.role === 'admin' || userProfile?.role === 'manager',
-                }));
-              }, 0);
-            } else {
-              setState(prevState => ({
-                ...prevState,
-                profile: null,
-                isAdmin: false,
-                isManager: false,
-                isAuthenticated: false,
-              }));
-            }
-          }
-        );
-        
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        
-        setState(prevState => ({
-          ...prevState,
-          session: initialSession,
-          user: initialSession?.user || null,
-          isLoading: false,
-          isAuthenticated: !!initialSession?.user,
-        }));
-        
-        if (initialSession?.user) {
-          const userProfile = await fetchUserProfile(initialSession.user.id);
-          setState(prevState => ({
-            ...prevState,
-            profile: userProfile,
-            isAdmin: userProfile?.role === 'admin',
-            isManager: userProfile?.role === 'admin' || userProfile?.role === 'manager',
-          }));
-        }
-        
-        return () => {
-          subscription.unsubscribe();
-        };
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+        setUser(data.session?.user || null);
+        setIsLoading(false);
       } catch (error) {
-        console.error("Error setting up auth:", error);
-        setState(prevState => ({
-          ...prevState,
-          isLoading: false,
-        }));
+        console.error('Error checking session:', error);
+        setError(error instanceof Error ? error : new Error('Failed to check session'));
+        setIsLoading(false);
       }
     };
-    
-    setupAuth();
+
+    checkSession();
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user || null);
+      if (event === 'SIGNED_OUT') {
+        setProfile(null);
+        setManagedUsers([]);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const login = async (email: string, password: string): Promise<AuthResult> => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      if (error) {
-        console.error("Login error:", error);
-        toast.error("Login failed", { description: error.message });
-        return { error };
+  // Fetch user profile when user changes
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+
+        setProfile(data);
+        setIsAdmin(data?.role === 'admin');
+        setIsManager(data?.role === 'manager' || data?.role === 'admin');
+
+        // Fetch managed users if admin or manager
+        if (data?.role === 'admin' || data?.role === 'manager') {
+          await getManagedUsers();
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
       }
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  // Login function
+  const login = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
-      toast.success("Login successful", { description: "Welcome back!" });
+      if (error) throw error;
       
-      // Update state with the user and session
-      setState(prevState => ({
-        ...prevState,
-        user: data.user,
-        session: data.session,
-        isAuthenticated: !!data.user,
-      }));
-      
-      return { error: null };
-    } catch (error: any) {
-      console.error("Login exception:", error);
-      toast.error("Login failed", { description: error.message });
-      return { error };
+      return { success: true };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error : new Error('Login failed') 
+      };
     }
   };
 
-  const signup = async (email: string, password: string, name: string): Promise<AuthResult> => {
+  // Signup function
+  const signup = async (email: string, password: string, userData?: any) => {
     try {
-      const nameParts = name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-      
-      const { data, error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
         password,
         options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            display_name: name,
-          },
-        },
+          data: userData
+        }
       });
       
-      if (error) {
-        console.error("Signup error:", error);
-        toast.error("Signup failed", { description: error.message });
-        return { error };
-      }
+      if (error) throw error;
       
-      toast.success("Signup successful", { 
-        description: "Please check your email for verification." 
-      });
-      return { error: null };
-    } catch (error: any) {
-      console.error("Signup exception:", error);
-      toast.error("Signup failed", { description: error.message });
-      return { error };
+      return { success: true };
+    } catch (error) {
+      console.error('Signup error:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error : new Error('Signup failed') 
+      };
     }
   };
 
-  const logout = async (): Promise<void> => {
+  // Logout function
+  const logout = async () => {
     try {
       await supabase.auth.signOut();
-      toast.success("Logged out successfully");
-      
-      // Update state after successful logout
-      setState(prevState => ({
-        ...prevState,
-        user: null,
-        session: null,
-        profile: null,
-        isAuthenticated: false,
-        isAdmin: false,
-        isManager: false,
-      }));
-    } catch (error: any) {
-      console.error("Error logging out:", error.message);
-      toast.error("Error logging out");
+    } catch (error) {
+      console.error('Logout error:', error);
     }
   };
 
-  const resetPassword = async (email: string): Promise<AuthResult> => {
+  // Reset password function
+  const resetPassword = async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + '/reset-password',
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
       
-      if (error) {
-        console.error("Password reset error:", error);
-        toast.error("Password reset failed", { description: error.message });
-        return { error };
+      if (error) throw error;
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error : new Error('Reset password failed') 
+      };
+    }
+  };
+
+  // Update profile function
+  const updateProfile = async (data: any) => {
+    if (!user) {
+      return { 
+        success: false, 
+        error: new Error('No authenticated user') 
+      };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(data)
+        .eq('id', user.id);
+      
+      if (error) throw error;
+      
+      // Update local profile state
+      setProfile(prev => ({ ...prev, ...data }));
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Update profile error:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error : new Error('Update profile failed') 
+      };
+    }
+  };
+
+  // Get managed users function
+  const getManagedUsers = async () => {
+    if (!user) return [];
+
+    try {
+      // Check if we have a managed_users table
+      try {
+        const { data, error } = await supabase
+          .from('managed_users')
+          .select('*')
+          .eq('owner_id', user.id);
+
+        if (!error && data) {
+          setManagedUsers(data);
+          return data;
+        }
+      } catch (e) {
+        console.log('Managed users table may not exist:', e);
       }
-      
-      toast.success("Password reset email sent", { 
-        description: "Check your email for a password reset link." 
-      });
-      return { error: null };
-    } catch (error: any) {
-      console.error("Password reset exception:", error);
-      toast.error("Password reset failed", { description: error.message });
-      return { error };
+
+      // Fallback: get team members instead
+      try {
+        const { data, error } = await supabase
+          .from('team_members')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (!error && data) {
+          setManagedUsers(data);
+          return data;
+        }
+      } catch (e) {
+        console.log('Team members table may not exist:', e);
+      }
+
+      // Final fallback: return empty array
+      return [];
+    } catch (error) {
+      console.error('Error fetching managed users:', error);
+      return [];
     }
   };
 
   return {
-    ...state,
+    user,
+    session,
+    isLoading,
+    error,
+    isAuthenticated: !!user,
+    isAdmin,
+    isManager,
+    profile,
+    managedUsers,
     login,
     signup,
     logout,
     resetPassword,
+    updateProfile,
+    getManagedUsers,
   };
 };

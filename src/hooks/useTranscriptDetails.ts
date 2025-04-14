@@ -1,6 +1,7 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { CallTranscript } from '@/types/call';
+import { CallTranscript, castToCallTranscript } from '@/types/call';
 import { useSearchParams } from 'react-router-dom';
 import { EventsService } from '@/services/EventsService';
 import { EventType } from '@/services/events/types';
@@ -40,7 +41,8 @@ export const useTranscriptDetails = (): UseTranscriptDetailsResult => {
       }
 
       if (data) {
-        setTranscript(data);
+        // Use our helper to safely cast the data
+        setTranscript(castToCallTranscript(data));
       } else {
         setTranscript(null);
         console.warn('Transcript not found');
@@ -63,12 +65,10 @@ export const useTranscriptDetails = (): UseTranscriptDetailsResult => {
   }, [transcriptId, fetchTranscript]);
 
   useEffect(() => {
-    // This should return void, not a string
-    const id = EventsService.addEventListener('transcript-updated' as EventType, handleTranscriptUpdated);
+    const unsubscribe = EventsService.addEventListener('transcript-updated' as EventType, handleTranscriptUpdated);
     
     return () => {
-      // Cleanup function should return void
-      id();
+      unsubscribe();
     };
   }, [handleTranscriptUpdated]);
 

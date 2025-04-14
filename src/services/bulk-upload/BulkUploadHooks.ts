@@ -1,80 +1,101 @@
 
-import { useState, useEffect, useCallback } from 'react';
-import { BulkUploadState } from '@/types/team';
+import { useState, useEffect } from 'react';
+import { useBulkUploadStore } from '@/store/useBulkUploadStore';
+import { BulkUploadFilter } from '@/types/teamTypes';
 import { EventsService } from '@/services/EventsService';
 import { EventType } from '@/services/events/types';
-import { BulkUploadStore } from '@/services/BulkUploadService';
 
-export interface BulkUploadHooksResult {
-  start: () => void;
-  complete: () => void;
-  setProgress: (progress: number) => void;
-  addTranscript: (transcript: any) => void;
-  setFileCount: (count: number) => void;
-  uploadState: BulkUploadState;
-  progress: number;
-  transcripts: any[];
-  fileCount: number;
-}
-
-/**
- * Custom hook to manage bulk upload state and events
- */
-export const useBulkUpload = (): BulkUploadHooksResult => {
-  const [uploadState, setUploadState] = useState<BulkUploadState>('idle');
-  const [progress, setProgress] = useState(0);
-  const [transcripts, setTranscripts] = useState<any[]>([]);
-  const [fileCount, setFileCount] = useState(0);
-
-  // Start the upload process
-  const start = useCallback(() => {
-    setUploadState('uploading');
-    setProgress(0);
-    
-    // Dispatch event to notify other components
-    EventsService.addEventListener('bulk-upload-started' as EventType, { timestamp: Date.now() });
-  }, []);
-
-  // Mark the upload as complete
-  const complete = useCallback(() => {
-    setUploadState('complete');
-    setProgress(100);
-    
-    // Dispatch event to notify other components
-    EventsService.addEventListener('bulk-upload-completed' as EventType, {
-      timestamp: Date.now(),
-      transcriptsCount: transcripts.length
-    });
-    
-    // Create a custom event for compatibility with old code
-    const customEvent = new CustomEvent('bulk-upload-completed');
-    window.dispatchEvent(customEvent);
-  }, [transcripts.length]);
-
-  // Add a new transcript to the list
-  const addTranscript = useCallback((transcript: any) => {
-    setTranscripts(prev => [...prev, transcript]);
-  }, []);
-
-  // Reset state when component unmounts
-  useEffect(() => {
-    return () => {
-      // Clean up or save state if needed
-    };
-  }, []);
-
-  return {
-    // Methods
+// Create a hook for the bulk upload processing state
+export const useBulkUploadProcessingState = () => {
+  const {
+    files,
+    isProcessing,
+    progress,
     start,
     complete,
     setProgress,
     addTranscript,
-    setFileCount,
+    setFileCount
+  } = useBulkUploadStore();
+  
+  const [hasError, setHasError] = useState(false);
+  
+  // Listen for bulk upload events
+  useEffect(() => {
+    const handleBulkUploadProgress = (payload: any) => {
+      const { file, progress: fileProgress, status, transcriptId, error } = payload;
+      
+      // Find the file in our state by name
+      const fileToUpdate = files.find(f => f.name === file);
+      
+      if (fileToUpdate) {
+        setProgress(
+          fileToUpdate.id,
+          fileProgress,
+          status,
+          transcriptId,
+          error
+        );
+        
+        if (error) {
+          setHasError(true);
+        }
+      }
+    };
     
-    // State
+    // Subscribe to bulk upload progress events
+    const unsubscribe = EventsService.addEventListener(
+      'bulk-upload-progress' as EventType,
+      handleBulkUploadProgress
+    );
+    
+    // Cleanup on unmount
+    return () => {
+      unsubscribe();
+    };
+  }, [files, setProgress]);
+  
+  return {
+    files,
+    isProcessing,
+    progress,
+    hasError,
+    start,
+    complete,
+    setProgress,
+    addTranscript,
+    setFileCount
+  };
+};
+
+// Hook to access the bulk upload store with history loading
+export const useBulkUpload = () => {
+  const {
     uploadState,
     progress,
     transcripts,
-    fileCount
+    fileCount,
+    refreshTranscripts
+  } = useBulkUploadStore();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Load transcripts on mount
+  useEffect(() => {
+    const loadTranscripts = async () => {
+      await refreshTranscripts();
+      setIsLoading(false);
+    };
+    
+    loadTranscripts();
+  }, [refreshTranscripts]);
+  
+  return {
+    uploadState,
+    progress,
+    transcripts,
+    fileCount,
+    isLoading,
+    refreshTranscripts
   };
 };

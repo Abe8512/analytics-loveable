@@ -10,7 +10,8 @@ import {
   CallTranscript,
   CallTranscriptSegment,
   CallSentiment,
-  SentimentType
+  SentimentType,
+  castToCallTranscript
 } from '@/types/call';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,14 +61,11 @@ export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       if (data) {
-        // Ensure sentiment is one of the allowed types
-        const sentimentValue = data.sentiment as SentimentType;
-        setTranscript({
-          ...data,
-          sentiment: sentimentValue,
-        });
-        setSegments(data.transcript_segments as CallTranscriptSegment[] || []);
-        setSentiment(data.sentiment_data as CallSentiment || { agent: 0.5, customer: 0.5, overall: 0.5 });
+        // Use our helper to safely cast the data
+        const safeTranscript = castToCallTranscript(data);
+        setTranscript(safeTranscript);
+        setSegments(safeTranscript.transcript_segments || []);
+        setSentiment(safeTranscript.sentiment_data || { agent: 0.5, customer: 0.5, overall: 0.5 });
       } else {
         setTranscript(null);
         setSegments(null);
@@ -108,17 +106,15 @@ export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({
       if (callTranscripts) {
         // Update the local state with the refreshed transcripts
         console.log('Transcripts refreshed:', callTranscripts.length);
-        setTranscripts(callTranscripts as CallTranscript[]);
         
-        // Also dispatch an event for other components to know transcripts were refreshed
-        const unsubscribe = EventsService.addEventListener('transcripts-refreshed' as EventType, {
-          transcripts: callTranscripts,
+        // Map the transcripts to ensure they match our type
+        const safeTranscripts = callTranscripts.map(castToCallTranscript);
+        setTranscripts(safeTranscripts);
+        
+        // Dispatch an event for other components
+        EventsService.dispatchEvent('transcripts-refreshed' as EventType, { 
+          count: safeTranscripts.length 
         });
-        
-        // Clean up the event listener
-        if (typeof unsubscribe === 'function') {
-          unsubscribe();
-        }
       } else {
         console.log('No transcripts found for the current user.');
       }
@@ -135,12 +131,12 @@ export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [toast, user]);
 
   useEffect(() => {
-    // Fix the event listener issue
     const unsubscribe1 = EventsService.addEventListener('transcript-selected' as EventType, (payload) => {
       if (payload && payload.transcriptId) {
         loadTranscript(payload.transcriptId);
       }
     });
+    
     const unsubscribe2 = EventsService.addEventListener('transcript-updated' as EventType, () => refreshTranscripts());
     const unsubscribe3 = EventsService.addEventListener('transcripts-updated' as EventType, () => refreshTranscripts());
     const unsubscribe4 = EventsService.addEventListener('bulk-upload-completed' as EventType, () => refreshTranscripts());
@@ -180,5 +176,5 @@ export const useTranscript = () => {
   return context;
 };
 
-// Add a new hook that has the same functionality but with a different name
+// Add a hook with the same functionality for export compatibility
 export const useTranscripts = useTranscript;
