@@ -1,18 +1,22 @@
 
-import { useContext, useEffect, useState } from 'react';
+import { useContext } from 'react';
 import { ThemeContext } from '@/App';
 
-export function useTheme() {
-  const { isDarkMode, toggleDarkMode } = useContext(ThemeContext);
-  const [mounted, setMounted] = useState(false);
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
   
-  // To avoid hydration mismatch
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Add the toggleDarkMode function that was missing
+  const toggleDarkMode = () => {
+    context.setIsDarkMode(!context.isDarkMode);
+  };
   
   return {
-    isDark: mounted ? isDarkMode : false,
-    toggleTheme: toggleDarkMode,
+    ...context,
+    toggleDarkMode
   };
-}
+};
+
+export default useTheme;
