@@ -1,3 +1,4 @@
+
 import { PostgrestError } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 
@@ -60,7 +61,7 @@ export class SupabaseErrorHandler {
         
       case '42P10': // invalid_on_conflict
         userMessage = 'Database error';
-        description = 'There is no unique constraint matching the ON CONFLICT specification. Data has been saved using fallback method.';
+        description = 'ON CONFLICT specification error. Using fallback method to save data.';
         break;
         
       default:
