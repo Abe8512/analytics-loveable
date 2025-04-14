@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useCallback } from "react";
 import { CallTranscript } from "@/types/call";
@@ -107,15 +108,36 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     }
   }, [currentPage]);
 
+  // Implement nextPage function
+  const nextPage = async (): Promise<void> => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+      await fetchTranscripts();
+    }
+  };
+
+  // Implement previousPage function
+  const previousPage = async (): Promise<void> => {
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+      await fetchTranscripts();
+    }
+  };
+
+  // Add refreshData function with proper return type
+  const refreshData = async (): Promise<void> => {
+    await fetchTranscripts({ force: true });
+  };
+
   // Add more robust event listeners
   useEventListener('call-uploaded' as EventType, () => {
     console.log('Call uploaded event received, refreshing transcripts');
-    fetchTranscripts({ force: true });
+    refreshData();
   });
 
   useEventListener('bulk-upload-completed' as EventType, () => {
     console.log('Bulk upload completed event received, refreshing transcripts');
-    fetchTranscripts({ force: true });
+    refreshData();
   });
 
   // Initial and dependency-based fetch
@@ -133,6 +155,6 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     previousPage,
     currentPage,
     totalPages,
-    refreshData: fetchTranscripts
+    refreshData
   };
 };
