@@ -9,7 +9,12 @@ export const createSalesInsightsTable = async () => {
     });
     
     // If there's an error or the table doesn't exist (null result)
-    const tableExists = data && data.length > 0 && data[0] && data[0].to_regclass;
+    // Properly type check the response
+    const tableExists = data && 
+      Array.isArray(data) && 
+      data.length > 0 && 
+      data[0] && 
+      data[0].to_regclass !== null;
     
     if (checkError || !tableExists) {
       console.log('Sales insights table does not exist, trying to create it...');
@@ -60,14 +65,19 @@ export const createSalesInsightsTable = async () => {
         }
       ];
       
-      // Insert demo data via SQL instead of using the Supabase API directly
+      // Use a safer approach to insert demo data
       for (const insight of demoInsights) {
+        // Escape single quotes in string values to prevent SQL injection
+        const escapedTitle = insight.title.replace(/'/g, "''");
+        const escapedValue = insight.value.replace(/'/g, "''");
+        const escapedTooltip = insight.tooltip.replace(/'/g, "''");
+        
         const { error: insertError } = await supabase.rpc('execute_sql', {
           query_text: `
             INSERT INTO public.sales_insights 
             (title, value, change, is_positive, tooltip)
             VALUES 
-            ('${insight.title}', '${insight.value}', ${insight.change}, ${insight.is_positive}, '${insight.tooltip}');
+            ('${escapedTitle}', '${escapedValue}', ${insight.change}, ${insight.is_positive}, '${escapedTooltip}');
           `
         });
         
