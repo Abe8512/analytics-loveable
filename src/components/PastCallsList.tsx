@@ -47,7 +47,8 @@ const PastCallsList = () => {
     setRefreshing(true);
     try {
       console.log('Manually refreshing past calls list');
-      loadPastCalls(true); // Pass true to force refresh
+      // Remove the true parameter since loadPastCalls doesn't accept arguments
+      loadPastCalls(); 
     } catch (error) {
       console.error("Error refreshing calls:", error);
     }
@@ -174,7 +175,7 @@ const PastCallsList = () => {
                           Key Phrases
                         </h5>
                         <div className="flex flex-wrap gap-1">
-                          {call.keyPhrases.slice(0, 5).map((phrase, i) => ( // Limiting to 5 phrases to avoid cluttering
+                          {call.keyPhrases.slice(0, 5).map((phrase, i) => (
                             <Badge key={i} variant="outline" className="text-xs">
                               {phrase}
                             </Badge>

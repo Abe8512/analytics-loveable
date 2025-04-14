@@ -11,8 +11,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 
-const DashboardMetricsSection: React.FC = () => {
-  const { metricsData, isLoading, refresh, error, isUsingDemoData, lastUpdated } = useMetrics();
+// Update to define the props interface
+interface DashboardMetricsSectionProps {
+  isLoading?: boolean;
+}
+
+const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({ isLoading: externalLoading }) => {
+  const { metricsData, isLoading: metricsLoading, refresh, error, isUsingDemoData, lastUpdated } = useMetrics();
+  
+  // Combine external loading state with metrics loading state
+  const isLoading = externalLoading || metricsLoading;
   
   // Extract the necessary metrics for the dashboard
   const dashboardStats = extractDashboardKPIs(metricsData);

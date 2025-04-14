@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import DashboardHeader from '../components/Dashboard/DashboardHeader';
@@ -24,7 +23,6 @@ const Dashboard = () => {
   const { toast: toastNotification } = useToast();
   const { refresh: refreshMetrics } = useMetrics();
   
-  // Add effect to listen for bulk upload completion events
   useEffect(() => {
     const handleBulkUploadCompleted = () => {
       console.log('Dashboard detected bulk-upload-completed event');
@@ -52,7 +50,6 @@ const Dashboard = () => {
           description: `Updated ${result.updated} of ${result.total} calls`
         });
         
-        // Refresh data after updating
         refreshData();
       } else {
         toast.error("Could not update sentiments");
@@ -76,7 +73,6 @@ const Dashboard = () => {
   };
   
   const handleBulkUploadOpen = useCallback(() => {
-    // Check if OpenAI API key is set when opening bulk upload modal
     const apiKey = getOpenAIKey();
     if (!apiKey) {
       toast.warning("API Key Missing", {
@@ -91,7 +87,6 @@ const Dashboard = () => {
   const handleBulkUploadClose = useCallback(() => {
     setIsBulkUploadOpen(false);
     
-    // Refresh data after closing the modal if we have uploads
     if (bulkUploadService.files.length > 0) {
       setIsLoading(true);
       toast.loading("Refreshing data with new transcripts...");
@@ -100,7 +95,6 @@ const Dashboard = () => {
         .then(() => {
           fetchTranscripts({ force: true })
             .then(() => {
-              // Clear metrics cache and refresh metrics data
               clearMetricsCache();
               refreshMetrics();
               
@@ -124,15 +118,12 @@ const Dashboard = () => {
     
     console.log("Dashboard - manually refreshing all data");
     
-    // Clear metrics cache to ensure fresh data
     clearMetricsCache();
     
-    // Use the bulk upload service to refresh transcripts
     bulkUploadService.refreshTranscripts({ force: true })
       .then(() => {
         fetchTranscripts({ force: true })
           .then(() => {
-            // Refresh metrics with force flag to bypass cache
             refreshMetrics();
             setIsLoading(false);
             toast.success('Dashboard data refreshed');
@@ -160,10 +151,8 @@ const Dashboard = () => {
           onClose={handleBulkUploadClose} 
         />
         
-        {/* Metrics Section - uses the central metrics context */}
-        <DashboardMetricsSection isLoading={isLoading} />
+        <DashboardMetricsSection />
         
-        {/* Content Section */}
         <DashboardContentSection isLoading={isLoading} />
       </div>
     </DashboardLayout>
