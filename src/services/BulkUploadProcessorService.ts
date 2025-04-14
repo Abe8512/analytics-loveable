@@ -6,6 +6,7 @@ import { getSentimentScore } from "./AIService";
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from "@/integrations/supabase/client";
 import { teamService } from "./TeamService";
+import { safeSupabaseOperation } from "@/integrations/supabase/errorHandling";
 
 export type UploadStatus = 'queued' | 'processing' | 'complete' | 'error';
 
@@ -89,13 +90,13 @@ export class BulkUploadProcessorService {
             userName = assignedMember.name;
           } else if (this.assignedUserId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
             // If it's a UUID format but not found in team members, try direct DB query
-            const { data: userProfile, error: userError } = await supabase
+            const { data: userProfile } = await supabase
               .from('team_members')
               .select('name')
               .eq('id', this.assignedUserId)
-              .single();
+              .maybeSingle();
               
-            if (!userError && userProfile && userProfile.name) {
+            if (userProfile && userProfile.name) {
               userName = userProfile.name;
             }
           } else {
@@ -107,35 +108,37 @@ export class BulkUploadProcessorService {
         }
       }
       
-      // Standard insert without any ON CONFLICT clauses
+      // Prepare transcript data
+      const transcriptData = {
+        id: transcriptId,
+        user_id: this.assignedUserId || 'anonymous',
+        text: cleanText,
+        filename: file.name,
+        duration: duration,
+        sentiment: sentiment,
+        keywords: keywords,
+        key_phrases: keyPhrases,
+        call_score: callScore,
+        transcript_segments: transcriptionResult.segments,
+        user_name: userName,
+        customer_name: 'Customer',
+        metadata: {
+          source: 'bulk_upload',
+          created_at: new Date().toISOString(),
+          original_filename: file.name,
+          file_size: file.size,
+          file_type: file.type,
+          assigned_to: this.assignedUserId || 'unassigned'
+        }
+      };
+      
+      // Try direct database insert first - no ON CONFLICT clause
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('call_transcripts')
-          .insert({
-            id: transcriptId,
-            user_id: this.assignedUserId || 'anonymous',
-            text: cleanText,
-            filename: file.name,
-            duration: duration,
-            sentiment: sentiment,
-            keywords: keywords,
-            key_phrases: keyPhrases,
-            call_score: callScore,
-            transcript_segments: transcriptionResult.segments,
-            user_name: userName,
-            customer_name: 'Customer',
-            metadata: {
-              source: 'bulk_upload',
-              created_at: new Date().toISOString(),
-              original_filename: file.name,
-              file_size: file.size,
-              file_type: file.type,
-              assigned_to: this.assignedUserId || 'unassigned'
-            }
-          });
+          .insert(transcriptData);
         
         if (error) {
-          console.error('Error saving transcript to database:', error);
           throw error;
         }
         
@@ -151,8 +154,8 @@ export class BulkUploadProcessorService {
         });
         
         return;
-      } catch (error) {
-        console.error('Error saving transcript to database:', error);
+      } catch (dbError) {
+        console.error('Error saving transcript to database:', dbError);
         
         // If direct insert fails, try edge function
         progressCallback('processing', 70, 'Using edge function fallback...');
@@ -160,27 +163,7 @@ export class BulkUploadProcessorService {
         try {
           const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
             body: { 
-              data: {
-                id: transcriptId,
-                user_id: this.assignedUserId || 'anonymous',
-                text: cleanText,
-                filename: file.name,
-                duration: duration,
-                sentiment: sentiment,
-                keywords: keywords,
-                key_phrases: keyPhrases,
-                call_score: callScore,
-                user_name: userName,
-                customer_name: 'Customer',
-                metadata: {
-                  source: 'bulk_upload',
-                  created_at: new Date().toISOString(),
-                  original_filename: file.name,
-                  file_size: file.size,
-                  file_type: file.type,
-                  assigned_to: this.assignedUserId || 'unassigned'
-                }
-              }
+              data: transcriptData
             }
           });
           

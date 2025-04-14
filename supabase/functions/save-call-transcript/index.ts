@@ -57,89 +57,100 @@ serve(async (req) => {
     // Generate a unique ID if not provided
     const transcriptId = data.id || crypto.randomUUID()
     
-    // Basic insert without ON CONFLICT
-    const { data: insertData, error } = await supabase
-      .from('call_transcripts')
-      .insert({
-        id: transcriptId,
-        user_id: data.user_id || 'anonymous',
-        text: cleanText,
-        filename: data.filename || 'unnamed_recording.mp3',
-        duration: duration,
-        sentiment: sentiment,
-        keywords: data.keywords || [],
-        key_phrases: data.key_phrases || [],
-        call_score: callScore,
-        metadata: data.metadata || {},
-        user_name: data.user_name || null,
-        customer_name: data.customer_name || null
-      })
-    
-    if (error) {
-      console.error('Error inserting call transcript:', error)
+    try {
+      // Simple insert with no ON CONFLICT clause at all
+      const { data: insertData, error } = await supabase
+        .from('call_transcripts')
+        .insert({
+          id: transcriptId,
+          user_id: data.user_id || 'anonymous',
+          text: cleanText,
+          filename: data.filename || 'unnamed_recording.mp3',
+          duration: duration,
+          sentiment: sentiment,
+          keywords: data.keywords || [],
+          key_phrases: data.key_phrases || [],
+          call_score: callScore,
+          metadata: data.metadata || {},
+          user_name: data.user_name || null,
+          customer_name: data.customer_name || null
+        })
       
-      // Try a simplified insert with minimal data as last resort
-      try {
-        console.log('Attempting simplified insert with minimal data')
+      if (error) {
+        console.error('Error inserting call transcript:', error)
         
-        const { data: minimalData, error: minimalError } = await supabase
-          .from('call_transcripts')
-          .insert({
-            id: transcriptId,
-            user_id: data.user_id || 'anonymous',
-            text: cleanText || "No transcript available",
-            filename: data.filename || 'unnamed_recording.mp3',
-            user_name: data.user_name || null,
-            customer_name: data.customer_name || null
-          })
-        
-        if (minimalError) {
-          console.error('Simplified insert also failed:', minimalError)
+        // Try a simplified insert with minimal data as last resort
+        try {
+          console.log('Attempting simplified insert with minimal data')
+          
+          const { data: minimalData, error: minimalError } = await supabase
+            .from('call_transcripts')
+            .insert({
+              id: transcriptId,
+              user_id: data.user_id || 'anonymous',
+              text: cleanText || "No transcript available",
+              filename: data.filename || 'unnamed_recording.mp3',
+              user_name: data.user_name || null,
+              customer_name: data.customer_name || null
+            })
+          
+          if (minimalError) {
+            console.error('Simplified insert also failed:', minimalError)
+            return new Response(
+              JSON.stringify({ error: minimalError.message }),
+              { 
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
+                status: 500 
+              }
+            )
+          }
+          
+          console.log('Simplified insert succeeded with ID:', transcriptId)
+          
           return new Response(
-            JSON.stringify({ error: minimalError.message }),
+            JSON.stringify({ 
+              success: true, 
+              message: 'Call transcript saved with minimal data',
+              id: transcriptId
+            }),
+            { 
+              headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+            }
+          )
+        } catch (fallbackError) {
+          console.error('All insert attempts failed:', fallbackError)
+          return new Response(
+            JSON.stringify({ error: fallbackError instanceof Error ? fallbackError.message : 'All insert attempts failed' }),
             { 
               headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
               status: 500 
             }
           )
         }
-        
-        console.log('Simplified insert succeeded with ID:', transcriptId)
-        
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: 'Call transcript saved with minimal data',
-            id: transcriptId
-          }),
-          { 
-            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-          }
-        )
-      } catch (fallbackError) {
-        console.error('All insert attempts failed:', fallbackError)
-        return new Response(
-          JSON.stringify({ error: fallbackError instanceof Error ? fallbackError.message : 'All insert attempts failed' }),
-          { 
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
-            status: 500 
-          }
-        )
       }
+      
+      console.log('Call transcript saved successfully, ID:', transcriptId)
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Call transcript saved successfully',
+          id: transcriptId
+        }),
+        { 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+        }
+      )
+    } catch (insertError) {
+      console.error('Exception during insert:', insertError)
+      return new Response(
+        JSON.stringify({ error: insertError instanceof Error ? insertError.message : 'Exception during insert' }),
+        { 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }, 
+          status: 500 
+        }
+      )
     }
-    
-    console.log('Call transcript saved successfully, ID:', transcriptId)
-    
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Call transcript saved successfully',
-        id: transcriptId
-      }),
-      { 
-        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-      }
-    )
   } catch (err) {
     console.error('Error in save-call-transcript:', err)
     
