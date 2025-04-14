@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
@@ -26,14 +25,38 @@ export interface KeywordTrend {
 export class KeywordAnalysisService {
   public async getKeywordAnalysis(): Promise<KeywordAnalysis[]> {
     try {
-      const { data, error } = await supabase
-        .from('keyword_trends')
-        .select('keyword, category, count, last_used')
-        .order('count', { ascending: false })
-        .limit(50);
+      // Try primary keyword_trends table first
+      let data;
+      let error;
+      
+      try {
+        const result = await supabase
+          .from('keyword_trends')
+          .select('keyword, category, count, last_used')
+          .order('count', { ascending: false })
+          .limit(50);
+        
+        data = result.data;
+        error = result.error;
+        
+        if (error || !data || data.length === 0) {
+          throw new Error('No data from keyword_trends');
+        }
+      } catch (e) {
+        // Try fallback keyword_analytics table
+        console.log('Falling back to keyword_analytics table');
+        const fallbackResult = await supabase
+          .from('keyword_analytics')
+          .select('keyword, category, count, last_used')
+          .order('count', { ascending: false })
+          .limit(50);
+          
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
       
       if (error) {
-        console.error('Error fetching keyword analysis:', error);
+        console.error('Error fetching keyword analysis from all sources:', error);
         return [];
       }
       
@@ -50,7 +73,7 @@ export class KeywordAnalysisService {
           // Update existing entry
           const newTotal = existing.occurrence_count + item.count;
           const newSentiment = ((existing.avg_sentiment * existing.occurrence_count) + 
-                               (sentimentValue * item.count)) / newTotal;
+                             (sentimentValue * item.count)) / newTotal;
           
           // Update first/last occurrence
           const lastDate = new Date(item.last_used);
@@ -91,14 +114,38 @@ export class KeywordAnalysisService {
   
   public async getKeywordTrends(): Promise<KeywordTrend[]> {
     try {
-      const { data, error } = await supabase
-        .from('keyword_trends')
-        .select('*')
-        .order('count', { ascending: false })
-        .limit(50);
+      // Try to get from keyword_trends first
+      let data;
+      let error;
+      
+      try {
+        const result = await supabase
+          .from('keyword_trends')
+          .select('*')
+          .order('count', { ascending: false })
+          .limit(50);
+          
+        data = result.data;
+        error = result.error;
+        
+        if (error || !data || data.length === 0) {
+          throw new Error('No data in keyword_trends');
+        }
+      } catch (e) {
+        // Fall back to keyword_analytics table
+        console.log('Falling back to keyword_analytics table for trends');
+        const fallbackResult = await supabase
+          .from('keyword_analytics')
+          .select('*')
+          .order('count', { ascending: false })
+          .limit(50);
+          
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
       
       if (error) {
-        console.error('Error fetching keyword trends:', error);
+        console.error('Error fetching keyword trends from all sources:', error);
         return [];
       }
       

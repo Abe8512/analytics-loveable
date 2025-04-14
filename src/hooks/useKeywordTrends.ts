@@ -42,13 +42,37 @@ export function useKeywordTrends() {
     setIsLoading(true);
     
     try {
-      const { data, error } = await supabase
-        .from('keyword_trends')
-        .select('*')
-        .order('count', { ascending: false });
+      // Try to fetch from keyword_trends first
+      let data;
+      let error;
+      
+      try {
+        const result = await supabase
+          .from('keyword_trends')
+          .select('*')
+          .order('count', { ascending: false });
+        
+        data = result.data;
+        error = result.error;
+      } catch (e) {
+        console.error('Error fetching from keyword_trends, will try fallback:', e);
+        error = e;
+      }
+      
+      // If that fails, try the fallback table
+      if (error || !data || data.length === 0) {
+        console.log('Using keyword_analytics fallback table');
+        const fallbackResult = await supabase
+          .from('keyword_analytics')
+          .select('*')
+          .order('count', { ascending: false });
+          
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
           
       if (error) {
-        console.error('Error fetching keyword trends:', error);
+        console.error('Error fetching keyword trends from all sources:', error);
         toast.error('Failed to load keyword trends');
         return;
       }

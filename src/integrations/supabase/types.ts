@@ -297,6 +297,39 @@ export type Database = {
         }
         Relationships: []
       }
+      keyword_analytics: {
+        Row: {
+          category: string
+          count: number | null
+          created_at: string | null
+          id: string
+          keyword: string
+          last_used: string | null
+          report_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          keyword: string
+          last_used?: string | null
+          report_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          keyword?: string
+          last_used?: string | null
+          report_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       keyword_trends: {
         Row: {
           category: string

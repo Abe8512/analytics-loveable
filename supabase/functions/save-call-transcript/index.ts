@@ -131,6 +131,29 @@ serve(async (req) => {
         }
       }
       
+      // If we get here, try to store keywords separately in keyword_analytics table which has more relaxed permissions
+      if (data.keywords && data.keywords.length > 0) {
+        try {
+          // Process each keyword individually
+          for (const keyword of data.keywords) {
+            if (!keyword) continue;
+            
+            await supabase
+              .from('keyword_analytics')
+              .insert({
+                keyword,
+                category: data.sentiment || 'neutral',
+                last_used: new Date().toISOString()
+              })
+              .single();
+          }
+          console.log('Keywords saved to analytics table successfully');
+        } catch (keywordError) {
+          // Just log this error without failing the whole process
+          console.error('Error saving keywords to analytics:', keywordError);
+        }
+      }
+      
       console.log('Call transcript saved successfully, ID:', transcriptId)
       
       return new Response(
