@@ -1,3 +1,4 @@
+
 export type EventType = 
   | 'transcript-created'
   | 'transcript-updated'
@@ -9,6 +10,8 @@ export type EventType =
   | 'bulk-upload-progress'
   | 'team-member-added'
   | 'team-member-removed'
+  | 'team-member-selected'  // Added for team member selection
+  | 'team-metrics-updated'  // Added for team metrics updates
   | 'managed-users-updated'
   | 'call-updated'
   | 'recording-completed'
@@ -18,6 +21,8 @@ export type EventType =
   | 'call-uploaded'
   | 'TEAM_MEMBER_ADDED'      // Added for backward compatibility
   | 'TEAM_MEMBER_REMOVED'    // Added for backward compatibility
+  | 'TEAM_MEMBER_SELECTED'   // Added for backward compatibility
+  | 'TEAM_METRICS_UPDATED'   // Added for backward compatibility
   | 'MANAGED_USERS_UPDATED'  // Added for backward compatibility
   | 'CALL_UPDATED';          // Added for backward compatibility
 
@@ -52,6 +57,8 @@ export interface EventsStore extends EventsState {
 export const EVENT_TYPES = {
   TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED' as EventType,
   TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED' as EventType,
+  TEAM_MEMBER_SELECTED: 'TEAM_MEMBER_SELECTED' as EventType,
+  TEAM_METRICS_UPDATED: 'TEAM_METRICS_UPDATED' as EventType,
   MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED' as EventType,
   CALL_UPDATED: 'CALL_UPDATED' as EventType,
   CONNECTION_RESTORED: 'connection-restored' as EventType,
