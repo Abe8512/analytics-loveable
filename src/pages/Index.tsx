@@ -41,6 +41,8 @@ const Index = () => {
                   <div>Loading...</div>
                 ) : error ? (
                   <div>Error: {error.message}</div>
+                ) : !metrics || !Array.isArray(metrics) || metrics.length === 0 ? (
+                  <div>No team metrics available</div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -51,7 +53,7 @@ const Index = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {metrics.map((metric) => (
+                      {Array.isArray(metrics) && metrics.map((metric) => (
                         <TableRow key={metric.team_id}>
                           <TableCell>{metric.team_name}</TableCell>
                           <TableCell>{metric.call_count}</TableCell>

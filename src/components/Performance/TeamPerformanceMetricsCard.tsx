@@ -19,12 +19,24 @@ const TeamPerformanceMetricsCard = () => {
     // Create performance data for each team member
     // In a real app, this would come from the API
     const performance = teamMembers.map((member, index) => ({
+      rep_id: member.id,
+      rep_name: member.name,
+      call_volume: Math.floor(Math.random() * 50) + 10, // Random for demo
+      avg_call_duration: Math.floor(Math.random() * 300) + 60,
+      sentiment_score: (Math.random() * 0.5) + 0.5, // Random for demo
+      success_rate: Math.floor(Math.random() * 40) + 60, // Random for demo
+      avg_talk_ratio: Math.floor(Math.random() * 30) + 35,
+      objection_handling_score: Math.floor(Math.random() * 40) + 60,
+      positive_language_score: Math.floor(Math.random() * 40) + 60,
+      top_keywords: ['pricing', 'demo', 'features'],
+      last_call_date: new Date().toISOString(),
+      // For compatibility with existing code
       id: member.id,
       name: member.name,
-      calls: Math.floor(Math.random() * 50) + 10, // Random for demo
-      successRate: Math.floor(Math.random() * 40) + 60, // Random for demo
-      avgSentiment: (Math.random() * 0.5) + 0.5, // Random for demo
-      conversionRate: Math.floor(Math.random() * 20) + 10, // Random for demo
+      calls: Math.floor(Math.random() * 50) + 10,
+      successRate: Math.floor(Math.random() * 40) + 60,
+      avgSentiment: (Math.random() * 0.5) + 0.5,
+      conversionRate: Math.floor(Math.random() * 20) + 10
     }));
     
     setTeamPerformance(performance);
@@ -48,11 +60,11 @@ const TeamPerformanceMetricsCard = () => {
   
   // Format data for chart
   const chartData = teamPerformance.map(member => ({
-    name: member.name,
-    'Call Volume': member.calls,
-    'Success Rate': member.successRate,
-    'Sentiment': Math.round(member.avgSentiment * 100),
-    'Conversion': member.conversionRate
+    name: member.rep_name || member.name,
+    'Call Volume': member.call_volume || member.calls,
+    'Success Rate': member.success_rate || member.successRate,
+    'Sentiment': Math.round((member.sentiment_score || member.avgSentiment) * 100),
+    'Conversion': member.conversionRate || 0
   }));
   
   return (

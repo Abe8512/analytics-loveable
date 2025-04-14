@@ -10,6 +10,7 @@ interface Listener {
 
 class EventsStoreClass {
   private listeners: Listener[] = [];
+  private eventHistory: { type: EventType; payload: EventPayload; timestamp: number }[] = [];
   
   addEventListener(type: EventType, callback: (payload: EventPayload) => void): () => void {
     const id = uuidv4();
@@ -34,6 +35,18 @@ class EventsStoreClass {
   dispatchEvent(type: EventType, payload: EventPayload = {}): void {
     console.log(`[EventsStore] Dispatching event: ${type}`, payload);
     
+    // Add to event history
+    this.eventHistory.push({
+      type,
+      payload,
+      timestamp: Date.now()
+    });
+    
+    // Limit history size
+    if (this.eventHistory.length > 100) {
+      this.eventHistory = this.eventHistory.slice(-100);
+    }
+    
     // Call all matching listeners
     this.listeners
       .filter(listener => listener.type === type)
@@ -45,6 +58,10 @@ class EventsStoreClass {
         }
       });
   }
+  
+  getEventHistory() {
+    return [...this.eventHistory];
+  }
 }
 
 // Export a singleton instance
@@ -52,3 +69,16 @@ export const EventsStore = new EventsStoreClass();
 
 // Re-export the EVENT_TYPES
 export { EVENT_TYPES };
+
+// Export the core functions
+export const dispatchEvent = (type: EventType, payload?: EventPayload) => 
+  EventsStore.dispatchEvent(type, payload);
+
+export const addEventListener = (type: EventType, callback: (payload: EventPayload) => void) => 
+  EventsStore.addEventListener(type, callback);
+
+export const removeEventListener = (unsubscribeFn: () => void) => {
+  if (typeof unsubscribeFn === 'function') {
+    unsubscribeFn();
+  }
+};

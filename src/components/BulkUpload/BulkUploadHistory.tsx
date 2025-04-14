@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { useBulkUploadService } from '@/services/BulkUploadService';
+import { useBulkUploadService } from '@/hooks/useBulkUploadService';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';

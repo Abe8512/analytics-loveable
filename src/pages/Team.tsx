@@ -1,19 +1,17 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlusCircle, Trash } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { TeamMember } from '@/types/teamTypes';
-import { teamService } from '@/services/TeamService';
-import { useToast } from '@/hooks/use-toast';
-import { TeamMembersList } from '@/components/Team/TeamMembersList';
-import TeamTranscriptActivity from '@/components/Team/TeamTranscriptActivity';
-import { useEventListener } from '@/services/events/hooks';
+import React, { useState, useEffect, useCallback } from "react";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PlusCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { teamService } from "@/services/TeamService";
+import { useToast } from "@/hooks/use-toast";
+import { TeamMembersList } from "@/components/Team/TeamMembersList";
+import { TeamTranscriptActivity } from "@/components/Team/TeamTranscriptActivity";
+import { useEventListener } from "@/services/events/hooks";
 
 const Team = () => {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -28,12 +26,10 @@ const Team = () => {
     role: 'sales-rep',
   });
   
-  // Load team members on mount
   useEffect(() => {
     fetchTeamMembers();
   }, []);
   
-  // Listen for team member events
   useEventListener('team-member-added', () => fetchTeamMembers());
   useEventListener('team-member-removed', () => fetchTeamMembers());
   

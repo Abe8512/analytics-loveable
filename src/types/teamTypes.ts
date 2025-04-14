@@ -30,7 +30,7 @@ export interface TeamPerformanceMetric {
   change: number;
   trend: 'up' | 'down' | 'neutral';
   performance: 'good' | 'average' | 'poor';
-  rep_id?: string; // Added for compatibility
+  rep_id?: string;
 }
 
 export interface TeamPerformance {
@@ -45,6 +45,13 @@ export interface TeamPerformance {
   positive_language_score: number;
   top_keywords: string[];
   last_call_date: string;
+  // For compatibility with existing code
+  id?: string;
+  name?: string;
+  calls?: number;
+  successRate?: number;
+  avgSentiment?: number;
+  conversionRate?: number;
 }
 
 export interface TeamTranscriptActivityProps {

@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useRef, useEffect } from "react";
 import { X, Upload, CheckCircle, Clock, AlertCircle, FileAudio, ToggleLeft, ToggleRight, UserPlus, Settings } from "lucide-react";
 import { ThemeContext } from "@/App";
@@ -10,11 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useWhisperService, getOpenAIKey, setOpenAIKey } from "@/services/WhisperService";
-import { useBulkUploadService } from "@/services/BulkUploadService";
+import { useBulkUploadService } from '@/hooks/useBulkUploadService';
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { BulkUploadFile } from "@/types/bulkUpload";
 
 interface BulkUploadModalProps {
   isOpen: boolean;
@@ -39,28 +37,22 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   
   useEffect(() => {
     if (isOpen) {
-      // Check if OpenAI API key exists
       const storedKey = getOpenAIKey();
       setOpenAIKeyMissing(!storedKey || storedKey.trim() === '');
       setApiKey(storedKey || '');
       
-      // Check local Whisper setting
       setUseLocalWhisperState(whisperService.getUseLocalWhisper());
       
-      // Set default rep ID to current user if available
       if (user?.id && !selectedRepId) {
         setSelectedRepId(user.id);
       }
       
-      // Fetch managed users
       fetchManagedUsers();
     }
   }, [isOpen, whisperService, user, selectedRepId]);
   
   const fetchManagedUsers = async () => {
     try {
-      // In a real app, this would call a service
-      // For now, just set some dummy data
       setManagedUsers([
         { id: 'user1', email: 'user1@example.com' },
         { id: 'user2', email: 'user2@example.com' }
@@ -70,7 +62,6 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
     }
   };
   
-  // Listen for upload events
   useEffect(() => {
     const handleUploadComplete = () => {
       toast({
@@ -89,11 +80,9 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
       }
     };
     
-    // Add event listeners
     window.addEventListener('upload-completed' as any, handleUploadComplete as EventListener);
     window.addEventListener('upload-error' as any, handleUploadError as EventListener);
     
-    // Clean up
     return () => {
       window.removeEventListener('upload-completed' as any, handleUploadComplete as EventListener);
       window.removeEventListener('upload-error' as any, handleUploadError as EventListener);
@@ -127,7 +116,6 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   };
 
   const handleFiles = (fileList: FileList) => {
-    // Handle API key check for non-local Whisper
     if (!useLocalWhisper && openAIKeyMissing) {
       toast({
         title: "API Key Required",
@@ -155,7 +143,6 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
       return;
     }
     
-    // Assign the selected rep ID to the files
     if (selectedRepId) {
       bulkUploadService.setAssignedUserId(selectedRepId);
     }
@@ -253,7 +240,6 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
           
           <TabsContent value="upload">
             <div className="grid grid-cols-1 gap-4 mb-2">
-              {/* Rep Selection Dropdown */}
               <div className="space-y-2">
                 <Label htmlFor="sales-rep-select" className="text-sm flex items-center">
                   <UserPlus className="h-4 w-4 mr-1" /> 
@@ -273,7 +259,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
                     
                     {managedUsers && managedUsers.length > 0 && (
                       managedUsers
-                        .filter(rep => rep.id !== user?.id) // Filter out current user
+                        .filter(rep => rep.id !== user?.id)
                         .map(rep => (
                           <SelectItem key={rep.id} value={rep.id}>
                             {rep.email}
@@ -284,7 +270,6 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
                 </Select>
               </div>
               
-              {/* Whisper Mode Toggle */}
               <div className="flex items-center space-x-2">
                 <Switch
                   id="bulk-upload-local-whisper"

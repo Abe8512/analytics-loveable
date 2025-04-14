@@ -5,11 +5,20 @@ export type EventType =
   | 'managed-users-updated'
   | 'call-updated'
   | 'call-assigned'
+  | 'call-uploaded'
   | 'transcript-updated'
+  | 'transcript-created'
+  | 'transcripts-refreshed'
   | 'sentiment-updated'
   | 'bulk-upload-status-change'
+  | 'bulk-upload-started'
+  | 'bulk-upload-progress'
   | 'bulk-upload-completed'
   | 'bulk-upload-error'
+  | 'processing-started'
+  | 'processing-progress'
+  | 'processing-completed'
+  | 'processing-error'
   | 'metrics-refreshed';
 
 export interface EventPayload {
@@ -22,6 +31,8 @@ export interface EventPayload {
   files?: any[];
   error?: any;
   transcripts?: any[];
+  progress?: number;
+  data?: any;
   [key: string]: any;
 }
 
@@ -31,10 +42,21 @@ export const EVENT_TYPES = {
   MANAGED_USERS_UPDATED: 'managed-users-updated' as EventType,
   CALL_UPDATED: 'call-updated' as EventType,
   CALL_ASSIGNED: 'call-assigned' as EventType,
+  CALL_UPLOADED: 'call-uploaded' as EventType,
   TRANSCRIPT_UPDATED: 'transcript-updated' as EventType,
+  TRANSCRIPT_CREATED: 'transcript-created' as EventType,
+  TRANSCRIPTS_REFRESHED: 'transcripts-refreshed' as EventType,
   SENTIMENT_UPDATED: 'sentiment-updated' as EventType,
   BULK_UPLOAD_STATUS_CHANGE: 'bulk-upload-status-change' as EventType,
+  BULK_UPLOAD_STARTED: 'bulk-upload-started' as EventType,
+  BULK_UPLOAD_PROGRESS: 'bulk-upload-progress' as EventType,
   BULK_UPLOAD_COMPLETED: 'bulk-upload-completed' as EventType,
   BULK_UPLOAD_ERROR: 'bulk-upload-error' as EventType,
   METRICS_REFRESHED: 'metrics-refreshed' as EventType
 };
+
+// Adding a TeamEventType for better type safety
+export type TeamEventType = 
+  | 'team-member-added'
+  | 'team-member-removed'
+  | 'managed-users-updated';

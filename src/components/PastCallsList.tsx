@@ -8,11 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Clock, Mic, BarChart2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEventListener } from '@/services/events/hooks';
-
-interface CallHistoryWithTalkRatio extends CallHistory {
-  talkRatio?: { agent: number; customer: number };
-  keyPhrases?: { text: string; sentiment?: number }[];
-}
+import { CallHistory } from '@/types/call';
 
 const PastCallsList = () => {
   const { callHistory, loadPastCalls } = useCallMetricsStore();
@@ -142,8 +138,8 @@ const PastCallsList = () => {
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-4">
               {callHistory.map((call) => {
-                // TypeScript cast for better type safety
-                const typedCall = call as unknown as CallHistoryWithTalkRatio;
+                const talkRatio = call.talkRatio || { agent: 50, customer: 50 };
+                const keyPhrases = call.keyPhrases || [];
                 
                 return (
                   <Card key={call.id} className="bg-muted/40">
@@ -173,28 +169,28 @@ const PastCallsList = () => {
                           </span>
                         </div>
                         
-                        {typedCall.talkRatio && (
+                        {talkRatio && (
                           <div className="flex items-center">
                             <Mic className="h-4 w-4 mr-2 text-muted-foreground" />
                             <span className="text-sm">
-                              Talk ratio: {Math.round(typedCall.talkRatio.agent || 0)}% / {Math.round(typedCall.talkRatio.customer || 0)}%
+                              Talk ratio: {Math.round(talkRatio.agent)}% / {Math.round(talkRatio.customer)}%
                             </span>
                           </div>
                         )}
                       </div>
                       
-                      {typedCall.keyPhrases && typedCall.keyPhrases.length > 0 && (
+                      {keyPhrases && keyPhrases.length > 0 && (
                         <div className="mt-3">
                           <h5 className="text-sm font-medium mb-1">Key Phrases</h5>
                           <div className="flex flex-wrap gap-1">
-                            {typedCall.keyPhrases.slice(0, 3).map((phrase, idx) => (
+                            {keyPhrases.slice(0, 3).map((phrase, idx) => (
                               <Badge key={idx} variant="outline" className="text-xs">
                                 {phrase.text}
                               </Badge>
                             ))}
-                            {typedCall.keyPhrases.length > 3 && (
+                            {keyPhrases.length > 3 && (
                               <Badge variant="outline" className="text-xs">
-                                +{typedCall.keyPhrases.length - 3} more
+                                +{keyPhrases.length - 3} more
                               </Badge>
                             )}
                           </div>

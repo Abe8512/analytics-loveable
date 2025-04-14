@@ -1,123 +1,216 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
+import { EventsStore } from './events/store';
+import { EVENT_TYPES } from './events/types';
 import { TeamMember } from '@/types/teamTypes';
-import { EventsService } from './EventsService';
-import { EventType } from '@/services/events/types';
 
-class TeamService {
-  async getTeamMembers(): Promise<TeamMember[]> {
-    try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('*')
-        .order('created_at', { ascending: false });
+export type { TeamMember };
 
-      if (error) {
-        console.error('Error fetching team members:', error);
-        throw new Error(error.message);
-      }
-
-      return data || [];
-    } catch (error: any) {
-      console.error('Error in getTeamMembers:', error.message);
-      throw error;
+class TeamServiceClass {
+  private demoTeamMembers: TeamMember[] = [
+    {
+      id: '1',
+      name: 'John Smith',
+      email: 'john.smith@example.com',
+      role: 'sales-rep',
+      user_id: 'user-1'
+    },
+    {
+      id: '2',
+      name: 'Sarah Johnson',
+      email: 'sarah.johnson@example.com',
+      role: 'team-lead',
+      user_id: 'user-2'
+    },
+    {
+      id: '3',
+      name: 'Michael Brown',
+      email: 'michael.brown@example.com',
+      role: 'sales-rep',
+      user_id: 'user-3'
     }
-  }
-
-  async getTeamMemberById(id: string): Promise<TeamMember | null> {
-    try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        console.error(`Error fetching team member with ID ${id}:`, error);
-        throw new Error(error.message);
-      }
-
-      return data || null;
-    } catch (error: any) {
-      console.error(`Error in getTeamMemberById (${id}):`, error.message);
-      throw error;
-    }
-  }
-
-  async addTeamMember(teamMember: Partial<TeamMember> & { name: string; email: string; user_id: string }): Promise<TeamMember> {
-    try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .insert([teamMember])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Error adding team member:', error);
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        // Dispatch events
-        EventsService.dispatchEvent('TEAM_MEMBER_ADDED' as EventType, { teamMember: data });
-        EventsService.dispatchEvent('team-member-added' as EventType, { teamMember: data });
-      }
-
-      return data as TeamMember;
-    } catch (error: any) {
-      console.error('Error in addTeamMember:', error.message);
-      throw error;
-    }
-  }
-
-  async updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember | null> {
-    try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .update(updates)
-        .eq('id', id)
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error(`Error updating team member with ID ${id}:`, error);
-        throw new Error(error.message);
-      }
-
-      return data as TeamMember || null;
-    } catch (error: any) {
-      console.error(`Error in updateTeamMember (${id}):`, error.message);
-      throw error;
-    }
-  }
-
-  async removeTeamMember(id: string): Promise<boolean> {
+  ];
+  
+  // Cache for team members
+  private teamMembersCache: TeamMember[] | null = null;
+  
+  async isTeamMembersTableMissing(): Promise<boolean> {
     try {
       const { error } = await supabase
         .from('team_members')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.error(`Error deleting team member with ID ${id}:`, error);
-        throw new Error(error.message);
-      }
-
-      // Dispatch events
-      EventsService.dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, { teamMemberId: id });
-      EventsService.dispatchEvent('team-member-removed' as EventType, { teamMemberId: id });
-
+        .select('id')
+        .limit(1);
+        
+      return !!error;
+    } catch (error) {
+      console.error('Error checking team_members table:', error);
       return true;
-    } catch (error: any) {
-      console.error(`Error in removeTeamMember (${id}):`, error.message);
+    }
+  }
+
+  async getTeamMembers(): Promise<TeamMember[]> {
+    // Return cached data if available
+    if (this.teamMembersCache) {
+      return this.teamMembersCache;
+    }
+    
+    try {
+      // First, try to get from database
+      const isTableMissing = await this.isTeamMembersTableMissing();
+      
+      if (!isTableMissing) {
+        const { data, error } = await supabase
+          .from('team_members')
+          .select('*')
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          this.teamMembersCache = data;
+          return data;
+        }
+      }
+      
+      // If table missing or no data, try local storage
+      const storedMembers = this.getStoredTeamMembers();
+      if (storedMembers && storedMembers.length > 0) {
+        this.teamMembersCache = storedMembers;
+        return storedMembers;
+      }
+      
+      // If nothing in local storage, return demo data
+      this.saveStoredTeamMembers(this.demoTeamMembers);
+      this.teamMembersCache = this.demoTeamMembers;
+      return this.demoTeamMembers;
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      
+      // Fallback to local storage
+      const storedMembers = this.getStoredTeamMembers();
+      if (storedMembers && storedMembers.length > 0) {
+        this.teamMembersCache = storedMembers;
+        return storedMembers;
+      }
+      
+      // Last resort: return demo data
+      this.teamMembersCache = this.demoTeamMembers;
+      return this.demoTeamMembers;
+    }
+  }
+  
+  // Get team members from local storage
+  getStoredTeamMembers(): TeamMember[] | null {
+    try {
+      const storedData = localStorage.getItem('team_members');
+      return storedData ? JSON.parse(storedData) : null;
+    } catch (error) {
+      console.error('Error retrieving team members from local storage:', error);
+      return null;
+    }
+  }
+  
+  // Save team members to local storage
+  saveStoredTeamMembers(members: TeamMember[]): void {
+    try {
+      localStorage.setItem('team_members', JSON.stringify(members));
+    } catch (error) {
+      console.error('Error saving team members to local storage:', error);
+    }
+  }
+  
+  // Add a team member
+  async addTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
+    try {
+      // Generate ID if not provided
+      const newMember: TeamMember = {
+        id: member.id || uuidv4(),
+        name: member.name || 'New Team Member',
+        email: member.email || 'email@example.com',
+        role: member.role || 'sales-rep',
+        user_id: member.user_id || `user-${Date.now()}`,
+        created_at: new Date().toISOString()
+      };
+      
+      // Try to add to database first
+      const isTableMissing = await this.isTeamMembersTableMissing();
+      
+      if (!isTableMissing) {
+        const { data, error } = await supabase
+          .from('team_members')
+          .insert(newMember)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        if (data) {
+          // Update cache
+          this.teamMembersCache = null; // Force refresh on next get
+          
+          // Dispatch event
+          EventsStore.dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, { teamMember: data });
+          
+          return data;
+        }
+      }
+      
+      // If database fails, add to local storage
+      const storedMembers = this.getStoredTeamMembers() || [];
+      const updatedMembers = [...storedMembers, newMember];
+      this.saveStoredTeamMembers(updatedMembers);
+      
+      // Update cache
+      this.teamMembersCache = updatedMembers;
+      
+      // Dispatch event
+      EventsStore.dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, { teamMember: newMember });
+      
+      return newMember;
+    } catch (error) {
+      console.error('Error adding team member:', error);
+      throw error;
+    }
+  }
+  
+  // Remove a team member
+  async removeTeamMember(id: string): Promise<void> {
+    try {
+      // Try database first
+      const isTableMissing = await this.isTeamMembersTableMissing();
+      
+      if (!isTableMissing) {
+        const { error } = await supabase
+          .from('team_members')
+          .delete()
+          .eq('id', id);
+          
+        if (error) throw error;
+      }
+      
+      // Also remove from local storage
+      const storedMembers = this.getStoredTeamMembers();
+      if (storedMembers) {
+        const updatedMembers = storedMembers.filter(member => member.id !== id);
+        this.saveStoredTeamMembers(updatedMembers);
+        
+        // Update cache
+        this.teamMembersCache = updatedMembers;
+      }
+      
+      // Dispatch event
+      EventsStore.dispatchEvent(EVENT_TYPES.TEAM_MEMBER_REMOVED, { teamMemberId: id });
+    } catch (error) {
+      console.error('Error removing team member:', error);
       throw error;
     }
   }
 
-  // Alias for useTeamMembers hook compatibility
-  useTeamMembers = () => {
-    return this.getTeamMembers();
+  // Clear the cache
+  clearCache(): void {
+    this.teamMembersCache = null;
   }
 }
 
-export const teamService = new TeamService();
+export const teamService = new TeamServiceClass();

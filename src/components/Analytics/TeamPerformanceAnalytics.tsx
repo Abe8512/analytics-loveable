@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTeamMetrics, useRepMetrics } from '@/services/RealTimeMetricsService';
@@ -15,6 +16,9 @@ const TeamPerformanceAnalytics = () => {
     return <div className="text-center py-4 text-red-500">Error loading metrics.</div>;
   }
 
+  const hasTeamMetrics = teamMetrics && Array.isArray(teamMetrics) && teamMetrics.length > 0;
+  const hasRepMetrics = repMetrics && Array.isArray(repMetrics) && repMetrics.length > 0;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Team Metrics Card */}
@@ -23,7 +27,7 @@ const TeamPerformanceAnalytics = () => {
           <CardTitle>Team Performance</CardTitle>
         </CardHeader>
         <CardContent>
-          {teamMetrics && teamMetrics.length > 0 ? (
+          {hasTeamMetrics ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={teamMetrics}>
                 <XAxis dataKey="team_name" />
@@ -46,7 +50,7 @@ const TeamPerformanceAnalytics = () => {
           <CardTitle>Representative Performance</CardTitle>
         </CardHeader>
         <CardContent>
-          {repMetrics && repMetrics.length > 0 ? (
+          {hasRepMetrics ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={repMetrics}>
                 <XAxis dataKey="rep_name" />

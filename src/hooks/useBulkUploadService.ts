@@ -3,17 +3,24 @@ import { useState, useEffect } from 'react';
 import { BulkUploadService } from '@/services/BulkUploadService';
 import { BulkUploadFilter } from '@/types/teamTypes';
 import { useEventListener } from '@/services/events/hooks';
+import { v4 as uuidv4 } from 'uuid';
+
+export interface BulkUploadFile {
+  id: string;
+  file: File;
+  status: 'queued' | 'uploading' | 'processing' | 'complete' | 'error';
+  progress?: number;
+  error?: Error;
+  result?: any;
+}
 
 export const useBulkUploadService = () => {
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<BulkUploadFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Listen for file status updates
-  useEventListener('bulk-upload-status-change', (payload) => {
-    if (payload && payload.files) {
-      setFiles(payload.files);
-    }
-  });
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
+  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+  const [assignedUserId, setAssignedUserId] = useState<string>('');
 
   // Listen for upload completion
   useEventListener('bulk-upload-completed', () => {
@@ -24,7 +31,8 @@ export const useBulkUploadService = () => {
     setIsLoading(true);
     try {
       const transcriptions = await BulkUploadService.getTranscriptions(filters);
-      setFiles(transcriptions || []);
+      setUploadHistory(transcriptions || []);
+      setHasLoadedHistory(true);
       return transcriptions;
     } catch (error) {
       console.error('Error refreshing transcriptions:', error);
@@ -34,18 +42,51 @@ export const useBulkUploadService = () => {
     }
   };
 
-  const uploadFile = async (file: File) => {
-    setIsLoading(true);
-    try {
-      const result = await BulkUploadService.processFile(file);
-      await refreshTranscripts();
-      return result;
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
+  const addFiles = (newFiles: File[]) => {
+    const filesWithIds: BulkUploadFile[] = newFiles.map(file => ({
+      id: uuidv4(),
+      file,
+      status: 'queued'
+    }));
+    
+    setFiles(prev => [...prev, ...filesWithIds]);
+    return filesWithIds;
+  };
+
+  const processQueue = async () => {
+    if (files.length === 0 || isProcessing) return;
+    
+    setIsProcessing(true);
+    
+    // Process files one by one
+    for (const file of files) {
+      // Update status to uploading
+      setFiles(prev => 
+        prev.map(f => f.id === file.id ? { ...f, status: 'uploading' } : f)
+      );
+      
+      try {
+        // Process the file
+        await BulkUploadService.processFile(file.file);
+        
+        // Update status to complete
+        setFiles(prev => 
+          prev.map(f => f.id === file.id ? { ...f, status: 'complete' } : f)
+        );
+      } catch (error) {
+        console.error(`Error processing file ${file.file.name}:`, error);
+        // Update status to error
+        setFiles(prev => 
+          prev.map(f => f.id === file.id ? { ...f, status: 'error', error: error as Error } : f)
+        );
+      }
     }
+    
+    setIsProcessing(false);
+    
+    // Dispatch event that all uploads are complete
+    const event = new CustomEvent('bulk-upload-completed');
+    window.dispatchEvent(event);
   };
 
   // Initial fetch
@@ -56,7 +97,13 @@ export const useBulkUploadService = () => {
   return {
     files,
     isLoading,
-    uploadFile,
-    refreshTranscripts
+    isProcessing,
+    uploadHistory,
+    hasLoadedHistory,
+    addFiles,
+    processQueue,
+    refreshTranscripts,
+    setAssignedUserId,
+    assignedUserId
   };
 };

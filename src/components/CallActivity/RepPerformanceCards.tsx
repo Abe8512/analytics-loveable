@@ -26,7 +26,7 @@ const RepPerformanceCards = () => {
   }
   
   // If no metrics, show empty state
-  if (!metrics || metrics.length === 0) {
+  if (!metrics || !Array.isArray(metrics) || metrics.length === 0) {
     return (
       <Card className="col-span-full">
         <CardHeader>
@@ -41,14 +41,17 @@ const RepPerformanceCards = () => {
     );
   }
   
+  // Get the top performing reps
+  const metricsArray = Array.isArray(metrics) ? metrics : [];
+  
   // Get the top performing rep by sentiment
-  const topSentimentRep = [...metrics].sort((a, b) => b.avg_sentiment - a.avg_sentiment)[0];
+  const topSentimentRep = [...metricsArray].sort((a, b) => b.avg_sentiment - a.avg_sentiment)[0];
   
   // Get the top performing rep by conversion rate
-  const topConversionRep = [...metrics].sort((a, b) => b.conversion_rate - a.conversion_rate)[0];
+  const topConversionRep = [...metricsArray].sort((a, b) => b.conversion_rate - a.conversion_rate)[0];
   
   // Get the most active rep by call count
-  const mostActiveRep = [...metrics].sort((a, b) => b.call_count - a.call_count)[0];
+  const mostActiveRep = [...metricsArray].sort((a, b) => b.call_count - a.call_count)[0];
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
