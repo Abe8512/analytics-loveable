@@ -14,12 +14,29 @@ class EventsServiceClass {
     return dispatchEventOriginal(type, payload);
   }
 
+  // This should return a string ID that can be used to remove the listener
   addEventListener(type: EventType, listener: (payload: EventPayload) => void): string {
-    return addEventListenerOriginal(type, listener);
+    // The original function returns a function to unsubscribe
+    const unsubscribe = addEventListenerOriginal(type, listener);
+    
+    // Store the unsubscribe function in a map keyed by a unique ID
+    const id = `listener-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    this._unsubscribeFunctions.set(id, unsubscribe);
+    
+    return id;
   }
 
+  // Map to store unsubscribe functions
+  private _unsubscribeFunctions = new Map<string, () => void>();
+
   removeEventListener(id: string) {
-    removeEventListenerOriginal(id);
+    const unsubscribe = this._unsubscribeFunctions.get(id);
+    if (unsubscribe) {
+      unsubscribe();
+      this._unsubscribeFunctions.delete(id);
+    } else {
+      console.warn(`No event listener found with ID: ${id}`);
+    }
   }
 
   useEventListener(type: EventType, callback: (payload: EventPayload) => void) {
@@ -27,7 +44,7 @@ class EventsServiceClass {
   }
 
   listen(type: EventType, callback: (payload: EventPayload) => void): string {
-    // Return the unsubscribe function for easier cleanup
+    // Return the ID from addEventListener
     return this.addEventListener(type, callback);
   }
 }

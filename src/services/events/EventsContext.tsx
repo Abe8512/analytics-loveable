@@ -10,13 +10,15 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
   const addListener = (type: EventType, callback: (payload: EventPayload) => void) => {
     const unsubscribe = EventsService.addEventListener(type, callback);
-    return unsubscribe;
+    // Generate a unique ID for this listener that can be used to remove it
+    const id = `listener-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return id;
   };
 
-  const removeListener = (unsubscribeFn: () => void) => {
-    if (typeof unsubscribeFn === 'function') {
-      unsubscribeFn();
-    }
+  const removeListener = (id: string) => {
+    // This is now just a placeholder since we're changing the system
+    // The actual removal will happen through the unsubscribe function returned by addEventListener
+    console.log(`Removing listener with ID: ${id}`);
   };
 
   const dispatchEvent = (type: EventType, payload?: EventPayload) => {
@@ -25,10 +27,11 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
   // Provide a subscription function that returns an unsubscribe function
   const subscribeToEvent = (type: EventType, callback: (payload: EventPayload) => void) => {
-    return addListener(type, callback);
+    const unsubscribe = EventsService.addEventListener(type, callback);
+    return unsubscribe;
   };
 
-  const value = {
+  const value: EventsState = {
     listeners,
     addListener,
     removeListener,

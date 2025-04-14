@@ -27,18 +27,18 @@ const NOTIFICATION_TIMEOUT = 7000; // 7 seconds
 
 const NotificationBadge: React.FC<NotificationBadgeProps> = ({
   className,
-  eventTypes = ['connection-restored', 'connection-lost', 'bulk-upload-completed', 'call-uploaded', 'sentiment-updated']
+  eventTypes = ['bulk-upload-completed' as EventType, 'call-uploaded' as EventType, 'sentiment-updated' as EventType]
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Handle notification events
-  useEventListener('bulk-upload-completed', (data) => {
+  useEventListener('bulk-upload-completed' as EventType, (data) => {
     addNotification('success', 'Bulk upload completed', `${data.data?.fileCount || ''} files processed`);
   });
 
-  useEventListener('call-uploaded', (data) => {
+  useEventListener('call-uploaded' as EventType, (data) => {
     addNotification('success', 'Call uploaded', data.data?.filename || 'New call available');
   });
 
@@ -50,7 +50,7 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = ({
     addNotification('success', 'Connection restored', 'You are back online');
   });
 
-  useEventListener('sentiment-updated', (data) => {
+  useEventListener('sentiment-updated' as EventType, (data) => {
     addNotification('info', 'Sentiment analysis updated', data.data?.filename || 'Call analysis completed');
   });
 

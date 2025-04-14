@@ -5,6 +5,7 @@ import { useConnectionStatus, CONNECTION_EVENTS } from '@/services/ConnectionMon
 import { Wifi, WifiOff } from 'lucide-react';
 import { EventsStore } from '@/services/events/store';
 import { connectionUtils } from '@/utils/connectionUtils';
+import { EventType } from '@/services/events/types';
 
 /**
  * Component that monitors connection status and shows toast notifications

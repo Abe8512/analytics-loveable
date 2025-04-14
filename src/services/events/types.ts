@@ -5,14 +5,14 @@ export type EventType =
   | 'transcript-deleted'
   | 'transcripts-updated'
   | 'transcripts-refreshed'
-  | 'transcript-selected'  // Added for transcript selection
+  | 'transcript-selected'
   | 'bulk-upload-started'
   | 'bulk-upload-completed'
   | 'bulk-upload-progress'
   | 'team-member-added'
   | 'team-member-removed'
-  | 'team-member-selected'  // Added for team member selection
-  | 'team-metrics-updated'  // Added for team metrics updates
+  | 'team-member-selected'
+  | 'team-metrics-updated'
   | 'managed-users-updated'
   | 'call-updated'
   | 'recording-completed'
@@ -20,12 +20,14 @@ export type EventType =
   | 'connection-restored'
   | 'connection-lost'
   | 'call-uploaded'
-  | 'TEAM_MEMBER_ADDED'      // Added for backward compatibility
-  | 'TEAM_MEMBER_REMOVED'    // Added for backward compatibility
-  | 'TEAM_MEMBER_SELECTED'   // Added for backward compatibility
-  | 'TEAM_METRICS_UPDATED'   // Added for backward compatibility
-  | 'MANAGED_USERS_UPDATED'  // Added for backward compatibility
-  | 'CALL_UPDATED';          // Added for backward compatibility
+  | 'TEAM_MEMBER_ADDED'
+  | 'TEAM_MEMBER_REMOVED'
+  | 'TEAM_MEMBER_SELECTED'
+  | 'TEAM_METRICS_UPDATED'
+  | 'MANAGED_USERS_UPDATED'
+  | 'CALL_UPDATED'
+  | 'CONNECTION_RESTORED'
+  | 'CONNECTION_LOST'; // Added uppercase versions for connection events
 
 export interface EventPayload {
   [key: string]: any;
@@ -47,11 +49,14 @@ export interface EventsState {
 
 export type EventMap = Map<EventType, Set<(payload: EventPayload) => void>>;
 
-export interface EventsStore extends EventsState {
+export interface EventsStore {
   listenerMap: EventMap;
   eventHistory: EventPayload[];
   addEventListener: (type: EventType, listener: (payload: EventPayload) => void) => () => void;
-  removeEventListener: (type: EventType, listener: (payload: EventPayload) => void) => void;
+  removeEventListener: (id: string) => void;
+  dispatchEvent: (type: EventType, payload?: EventPayload) => void;
+  getListeners: () => EventListener[];
+  getEventHistory: () => EventPayload[];
   clearEventHistory: () => void;
 }
 
@@ -62,8 +67,8 @@ export const EVENT_TYPES = {
   TEAM_METRICS_UPDATED: 'TEAM_METRICS_UPDATED' as EventType,
   MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED' as EventType,
   CALL_UPDATED: 'CALL_UPDATED' as EventType,
-  CONNECTION_RESTORED: 'connection-restored' as EventType,
-  CONNECTION_LOST: 'connection-lost' as EventType,
+  CONNECTION_RESTORED: 'CONNECTION_RESTORED' as EventType,
+  CONNECTION_LOST: 'CONNECTION_LOST' as EventType,
   TRANSCRIPT_SELECTED: 'transcript-selected' as EventType,
   SENTIMENT_UPDATED: 'sentiment-updated' as EventType,
   TRANSCRIPTS_UPDATED: 'transcripts-updated' as EventType,

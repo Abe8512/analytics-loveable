@@ -1,13 +1,29 @@
 
-// Re-export everything from the individual files
-export * from './types';
-export * from './store';
-export * from './hooks';
-export * from './utils';
-
-// For backward compatibility
+// Re-export selectively to avoid ambiguity
+import { EventType, EventPayload, EVENT_TYPES } from './types';
 import { dispatchEvent, addEventListener, removeEventListener } from './store';
 import { useEventListener } from './hooks';
-import { EVENT_TYPES } from './types';
+import { createEventEmitter, initEvents } from './utils';
 
-export { dispatchEvent, addEventListener, removeEventListener, useEventListener, EVENT_TYPES };
+export {
+  // Types and constants
+  EventType,
+  EventPayload,
+  EVENT_TYPES,
+  
+  // Core functions
+  dispatchEvent,
+  addEventListener,
+  removeEventListener,
+  
+  // Hooks
+  useEventListener,
+  
+  // Utilities
+  createEventEmitter,
+  initEvents
+};
+
+// Also export the store object itself, but rename it to avoid collision
+import { EventsStore as EventsStoreOriginal } from './store';
+export { EventsStoreOriginal as EventsStore };

@@ -10,16 +10,34 @@ import { EventsStore } from './events/store';
 
 // Create a proper EventsService class to match the imports in other files
 class EventsServiceClass {
+  // Map to store unsubscribe functions
+  private _unsubscribeFunctions = new Map<string, () => void>();
+  
   dispatchEvent(type: EventType, payload?: EventPayload) {
     return EventsStore.dispatchEvent(type, payload);
   }
 
-  addEventListener(type: EventType, listener: (payload: EventPayload) => void) {
-    return EventsStore.addEventListener(type, listener);
+  addEventListener(type: EventType, listener: (payload: EventPayload) => void): string {
+    // Get the unsubscribe function
+    const unsubscribe = EventsStore.addEventListener(type, listener);
+    
+    // Generate a unique ID for this listener
+    const id = `listener-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store the unsubscribe function
+    this._unsubscribeFunctions.set(id, unsubscribe);
+    
+    return id;
   }
 
   removeEventListener(id: string) {
-    EventsStore.removeEventListener(id);
+    const unsubscribe = this._unsubscribeFunctions.get(id);
+    if (unsubscribe) {
+      unsubscribe();
+      this._unsubscribeFunctions.delete(id);
+    } else {
+      console.warn(`No event listener found with ID: ${id}`);
+    }
   }
 
   useEventListener(type: EventType, callback: (payload: EventPayload) => void) {
@@ -29,8 +47,8 @@ class EventsServiceClass {
     return this.addEventListener(type, callback);
   }
 
-  listen(type: EventType, callback: (payload: EventPayload) => void) {
-    // Return the unsubscribe function for easier cleanup
+  listen(type: EventType, callback: (payload: EventPayload) => void): string {
+    // Return the string ID
     return this.addEventListener(type, callback);
   }
 }
@@ -39,7 +57,7 @@ class EventsServiceClass {
 export const EventsService = new EventsServiceClass();
 
 // Re-export the EVENT_TYPES from store
-export { EVENT_TYPES } from './events/store';
+export { EVENT_TYPES } from './events/types';
 export type { EventType, EventPayload };
 
 export default EventsService;

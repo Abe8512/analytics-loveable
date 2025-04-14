@@ -1,153 +1,83 @@
+import { useState, useEffect } from 'react';
+import { useBulkUploadStore } from '@/store/useBulkUploadStore';
+import { BulkUploadState } from '@/types/team';
+import { CallTranscript } from '@/types/call';
+import { EventsStore } from '@/services/events/store';
+import { EventType } from '@/services/events/types';
 
-import { useCallback, useEffect } from 'react';
-import { useBulkUploadStore, UploadStatus } from "@/store/useBulkUploadStore";
-import { useWhisperService } from "@/services/WhisperService";
-import { toast } from "sonner";
-import { useEventsStore } from "@/services/events";
-import { BulkUploadProcessorService } from "../BulkUploadProcessorService";
-import { debounce } from "lodash";
-import { errorHandler } from "../ErrorHandlingService";
-import { useCallTranscripts, CallTranscriptFilter } from "../CallTranscriptService";
-import { BulkUploadUtils } from "./BulkUploadUtils";
-
-export interface BulkUploadFilter {
-  force?: boolean;
+interface BulkUploadHookResult {
+  uploadState: BulkUploadState;
+  transcripts: CallTranscript[];
+  progress: number;
+  fileCount: number;
+  startUpload: () => void;
+  completeUpload: () => void;
+  updateProgress: (progress: number) => void;
+  addTranscript: (transcript: CallTranscript) => void;
+  setFileCount: (count: number) => void;
 }
 
-/**
- * Hook providing bulk upload functionality
- */
-export const useBulkUploadService = () => {
-  const whisperService = useWhisperService();
-  const bulkUploadProcessor = new BulkUploadProcessorService();
-  const { fetchTranscripts } = useCallTranscripts();
-  const { 
-    files, 
-    addFiles, 
-    updateFileStatus, 
-    removeFile, 
-    clearCompleted, 
-    isProcessing,
-    setProcessing,
-    loadUploadHistory,
-    uploadHistory,
-    hasLoadedHistory,
-    acquireProcessingLock,
-    releaseProcessingLock
-  } = useBulkUploadStore();
-  const dispatchEvent = useEventsStore.getState().dispatchEvent;
-  
-  const setAssignedUserId = useCallback((userId: string) => {
-    console.log('Setting assigned user ID:', userId);
-    bulkUploadProcessor.setAssignedUserId(userId);
-  }, [bulkUploadProcessor]);
-  
-  const debouncedLoadHistory = debounce(() => {
-    console.log('Loading upload history...');
-    loadUploadHistory().catch(error => {
-      console.error('Failed to load upload history:', error);
-      errorHandler.handleError(error, 'BulkUploadService.loadUploadHistory');
-    });
-  }, 300);
-  
-  // Load history on initial mount
+export const useBulkUpload = (): BulkUploadHookResult => {
+  const [uploadState, setUploadState] = useState<BulkUploadState>('idle');
+  const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);
+  const [progress, setProgress] = useState<number>(0);
+  const [fileCount, setFileCount] = useState<number>(0);
+
+  // Wrap Zustand actions
+  const start = useBulkUploadStore((state) => state.start);
+  const complete = useBulkUploadStore((state) => state.complete);
+  const setZProgress = useBulkUploadStore((state) => state.setProgress);
+  const addZTranscript = useBulkUploadStore((state) => state.addTranscript);
+  const setZFileCount = useBulkUploadStore((state) => state.setFileCount);
+
+  // Local actions
+  const startUpload = () => {
+    setUploadState('uploading');
+    start();
+    EventsStore.dispatchEvent('bulk-upload-started' as EventType);
+  };
+
+  const completeUpload = () => {
+    setUploadState('complete');
+    complete();
+    EventsStore.dispatchEvent('bulk-upload-completed' as EventType, { data: { fileCount } });
+  };
+
+  const updateProgress = (progress: number) => {
+    setProgress(progress);
+    setZProgress(progress);
+    EventsStore.dispatchEvent('bulk-upload-progress' as EventType, { data: { progress } });
+  };
+
+  const addTranscript = (transcript: CallTranscript) => {
+    setTranscripts((prev) => [...prev, transcript]);
+    addZTranscript(transcript);
+  };
+
+  const setFileCountAction = (count: number) => {
+    setFileCount(count);
+    setZFileCount(count);
+  };
+
+  // Subscribe to Zustand state changes
   useEffect(() => {
-    if (!hasLoadedHistory) {
-      debouncedLoadHistory();
-    }
-  }, [hasLoadedHistory, debouncedLoadHistory]);
-  
-  // Process files in queue
-  const processQueue = useCallback(async () => {
-    if (isProcessing || files.length === 0) {
-      console.log('Skipping processQueue: already processing or no files');
-      return;
-    }
-    
-    if (!acquireProcessingLock()) {
-      console.log('Failed to acquire processing lock, another process is already running');
-      toast.info("Upload processing is already in progress");
-      return;
-    }
-    
-    // Check for API key if not using local Whisper
-    if (!whisperService.getUseLocalWhisper() && !whisperService.getOpenAIKey()) {
-      console.error('OpenAI API key missing');
-      toast.error("OpenAI API Key Missing", {
-        description: "Please add your OpenAI API key in Settings before processing files."
-      });
-      releaseProcessingLock();
-      return;
-    }
-    
-    console.log(`Starting to process ${files.length} files`);
-    
-    try {
-      setProcessing(true);
-      
-      await BulkUploadUtils.processBulkUpload({
-        files,
-        updateFileStatus,
-        dispatchEvent,
-        bulkUploadProcessor,
-        fetchTranscripts,
-        debouncedLoadHistory
-      });
-      
-    } catch (error) {
-      console.error('Bulk processing error:', error);
-      errorHandler.handleError(error, 'BulkUploadService.processQueue');
-      
-      toast.error("Processing failed", {
-        description: "There was an error processing some files. Please try again.",
-      });
-    } finally {
-      console.log('Finishing bulk upload process, releasing lock');
-      setProcessing(false);
-      releaseProcessingLock();
-    }
-  }, [
-    isProcessing, 
-    files, 
-    acquireProcessingLock, 
-    whisperService, 
-    setProcessing, 
-    updateFileStatus, 
-    dispatchEvent, 
-    bulkUploadProcessor, 
-    fetchTranscripts, 
-    debouncedLoadHistory, 
-    releaseProcessingLock
-  ]);
-  
-  const refreshTranscripts = useCallback(async (filter?: BulkUploadFilter) => {
-    try {
-      console.log('Refreshing transcripts with filter:', filter);
-      const transcriptFilter: CallTranscriptFilter = {
-        force: filter?.force || false
-      };
-      
-      await fetchTranscripts(transcriptFilter);
-    } catch (error) {
-      console.error('Failed to refresh transcripts:', error);
-      errorHandler.handleError(error, 'BulkUploadService.refreshTranscripts');
-    }
-  }, [fetchTranscripts]);
-  
+    useBulkUploadStore.subscribe((state) => {
+      setUploadState(state.uploadState);
+      setProgress(state.progress);
+      setTranscripts(state.transcripts);
+      setFileCount(state.fileCount);
+    });
+  }, []);
+
   return {
-    files,
-    addFiles,
-    updateFileStatus,
-    removeFile,
-    clearCompleted,
-    isProcessing,
-    processQueue,
-    uploadHistory,
-    hasLoadedHistory,
-    loadUploadHistory: debouncedLoadHistory,
-    setAssignedUserId,
-    acquireProcessingLock,
-    releaseProcessingLock,
-    refreshTranscripts
+    uploadState,
+    transcripts,
+    progress,
+    fileCount,
+    startUpload,
+    completeUpload,
+    updateProgress,
+    addTranscript,
+    setFileCount: setFileCountAction,
   };
 };
