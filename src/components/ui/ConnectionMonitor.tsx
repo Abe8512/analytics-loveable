@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { useConnectionStatus, CONNECTION_EVENTS } from '@/services/ConnectionMonitorService';
 import { Wifi, WifiOff } from 'lucide-react';
 import { EventsStore } from '@/services/events/store';
-import { connectionUtils } from '@/utils/connectionUtils';
 import { EventType } from '@/services/events/types';
 
 /**
@@ -41,13 +40,19 @@ const ConnectionMonitor: React.FC = () => {
   
   useEffect(() => {
     // Subscribe to connection events from the event system
-    const unsubscribeRestore = EventsStore.addEventListener(CONNECTION_EVENTS.RESTORED, () => {
-      console.log('Connection restored event received');
-    });
+    const unsubscribeRestore = EventsStore.addEventListener(
+      CONNECTION_EVENTS.RESTORED as EventType, 
+      () => {
+        console.log('Connection restored event received');
+      }
+    );
     
-    const unsubscribeLost = EventsStore.addEventListener(CONNECTION_EVENTS.LOST, () => {
-      console.log('Connection lost event received');
-    });
+    const unsubscribeLost = EventsStore.addEventListener(
+      CONNECTION_EVENTS.LOST as EventType, 
+      () => {
+        console.log('Connection lost event received');
+      }
+    );
     
     return () => {
       unsubscribeRestore();

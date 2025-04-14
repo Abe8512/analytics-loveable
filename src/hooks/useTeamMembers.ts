@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { teamService } from '@/services/TeamService';
 import { TeamMember } from '@/types/teamTypes';
@@ -43,18 +42,21 @@ export const useTeamMembers = (limit?: number) => {
     fetchTeamMembers();
     
     // Listen for team member events to refresh the table
-    const id1 = EventsService.addEventListener('TEAM_MEMBER_ADDED' as EventType, fetchTeamMembers);
-    const id2 = EventsService.addEventListener('TEAM_MEMBER_REMOVED' as EventType, fetchTeamMembers);
-    const id3 = EventsService.addEventListener('team-member-added' as EventType, fetchTeamMembers);
-    const id4 = EventsService.addEventListener('team-member-removed' as EventType, fetchTeamMembers);
-    
-    // Store the listener IDs
-    listenerIds.current = [id1, id2, id3, id4];
-    
-    // Clean up
+    const unsubscribe1 = EventsService.addEventListener('TEAM_MEMBER_ADDED' as EventType, fetchTeamMembers);
+    const unsubscribe2 = EventsService.addEventListener('TEAM_MEMBER_REMOVED' as EventType, fetchTeamMembers);
+    const unsubscribe3 = EventsService.addEventListener('team-member-added' as EventType, fetchTeamMembers);
+    const unsubscribe4 = EventsService.addEventListener('team-member-removed' as EventType, fetchTeamMembers);
+
+    // Store the unsubscribe functions
+    listenerIds.current = []; // Clear the array first
+
+    // Make sure to properly cleanup in useEffect return function
     return () => {
       mountedRef.current = false;
-      listenerIds.current.forEach(id => EventsService.removeEventListener(id));
+      unsubscribe1();
+      unsubscribe2();
+      unsubscribe3();
+      unsubscribe4();
     };
   }, [fetchTeamMembers]);
   

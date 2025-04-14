@@ -1,74 +1,80 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CallTranscript } from '@/types/call';
-import { useTranscripts } from '@/contexts/TranscriptContext';
+import { useSearchParams } from 'react-router-dom';
 import { EventsService } from '@/services/EventsService';
+import { EventType } from '@/services/events/types';
 
-export const useTranscriptDetails = (transcriptId?: string) => {
-  const { transcripts, getTranscriptById } = useTranscripts();
+interface UseTranscriptDetailsResult {
+  transcript: CallTranscript | null;
+  isLoading: boolean;
+  error: Error | null;
+  refreshTranscript: () => Promise<void>;
+}
+
+export const useTranscriptDetails = (): UseTranscriptDetailsResult => {
   const [transcript, setTranscript] = useState<CallTranscript | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [searchParams] = useSearchParams();
+  const transcriptId = searchParams.get('id');
+
+  const fetchTranscript = useCallback(async () => {
+    if (!transcriptId) {
+      console.warn('No transcript ID provided in the URL.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .select('*')
+        .eq('id', transcriptId)
+        .single();
+
+      if (error) {
+        throw new Error(`Error fetching transcript: ${error.message}`);
+      }
+
+      if (data) {
+        setTranscript(data);
+      } else {
+        setTranscript(null);
+        console.warn('Transcript not found');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to load transcript'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [transcriptId]);
 
   useEffect(() => {
-    // Function to load transcript data
-    const loadTranscript = async (id: string) => {
-      if (!id) return;
-      
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        // Try to get from context first
-        const contextTranscript = await getTranscriptById(id);
-        
-        if (contextTranscript) {
-          setTranscript(contextTranscript);
-        } else {
-          // Fall back to direct database fetch
-          const { data, error } = await supabase
-            .from('call_transcripts')
-            .select('*')
-            .eq('id', id)
-            .single();
-            
-          if (error) throw error;
-          
-          setTranscript(data as CallTranscript);
-        }
-      } catch (err) {
-        console.error('Error loading transcript:', err);
-        setError(err instanceof Error ? err : new Error('Failed to load transcript'));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    if (transcriptId) {
-      loadTranscript(transcriptId);
-    } else {
-      setTranscript(null);
+    fetchTranscript();
+  }, [fetchTranscript]);
+
+  const handleTranscriptUpdated = useCallback((payload) => {
+    if (payload.id === transcriptId) {
+      fetchTranscript();
     }
-  }, [transcriptId, getTranscriptById]);
-  
-  // Listen for transcript selection events
+  }, [transcriptId, fetchTranscript]);
+
   useEffect(() => {
-    // Handler function for transcript selection events
-    const handleTranscriptSelected = (selectedTranscript: any) => {
-      if (selectedTranscript) {
-        setTranscript(selectedTranscript);
-      }
-    };
+    // This should return void, not a string
+    const id = EventsService.addEventListener('transcript-updated' as EventType, handleTranscriptUpdated);
     
-    // Subscribe to transcript selection events
-    const unsubscribe = EventsService.addEventListener('transcript-selected', handleTranscriptSelected);
-    
-    // Clean up subscription when component unmounts
     return () => {
-      unsubscribe();
+      // Cleanup function should return void
+      id();
     };
-  }, []);
-  
-  return { transcript, isLoading, error };
+  }, [handleTranscriptUpdated]);
+
+  const refreshTranscript = useCallback(async () => {
+    await fetchTranscript();
+  }, [fetchTranscript]);
+
+  return { transcript, isLoading, error, refreshTranscript };
 };

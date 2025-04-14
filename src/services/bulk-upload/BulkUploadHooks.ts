@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useBulkUploadStore } from '@/store/useBulkUploadStore';
 import { BulkUploadState } from '@/types/team';
@@ -23,50 +24,57 @@ export const useBulkUpload = (): BulkUploadHookResult => {
   const [progress, setProgress] = useState<number>(0);
   const [fileCount, setFileCount] = useState<number>(0);
 
-  // Wrap Zustand actions
-  const start = useBulkUploadStore((state) => state.start);
-  const complete = useBulkUploadStore((state) => state.complete);
-  const setZProgress = useBulkUploadStore((state) => state.setProgress);
-  const addZTranscript = useBulkUploadStore((state) => state.addTranscript);
-  const setZFileCount = useBulkUploadStore((state) => state.setFileCount);
+  // Use store methods directly without wrapping
+  const store = useBulkUploadStore();
 
   // Local actions
   const startUpload = () => {
     setUploadState('uploading');
-    start();
+    // Use setProcessing instead of start
+    store.setProcessing(true);
     EventsStore.dispatchEvent('bulk-upload-started' as EventType);
   };
 
   const completeUpload = () => {
     setUploadState('complete');
-    complete();
+    // Use setProcessing instead of complete
+    store.setProcessing(false);
     EventsStore.dispatchEvent('bulk-upload-completed' as EventType, { data: { fileCount } });
   };
 
   const updateProgress = (progress: number) => {
     setProgress(progress);
-    setZProgress(progress);
+    // We don't have direct setProgress access, so update files instead
+    if (store.files.length > 0) {
+      store.files.forEach(file => {
+        store.updateFileStatus(file.id, file.status, progress, file.result, file.error, file.transcriptId);
+      });
+    }
     EventsStore.dispatchEvent('bulk-upload-progress' as EventType, { data: { progress } });
   };
 
   const addTranscript = (transcript: CallTranscript) => {
     setTranscripts((prev) => [...prev, transcript]);
-    addZTranscript(transcript);
+    // No direct addTranscript in the store
   };
 
   const setFileCountAction = (count: number) => {
     setFileCount(count);
-    setZFileCount(count);
+    // No direct setFileCount in the store
   };
 
   // Subscribe to Zustand state changes
   useEffect(() => {
-    useBulkUploadStore.subscribe((state) => {
-      setUploadState(state.uploadState);
-      setProgress(state.progress);
-      setTranscripts(state.transcripts);
-      setFileCount(state.fileCount);
+    const unsubscribe = useBulkUploadStore.subscribe((state) => {
+      setUploadState(state.isProcessing ? 'uploading' : state.files.some(f => f.status === 'error') ? 'error' : 'idle');
+      setProgress(state.files.length ? state.files.reduce((avg, file) => avg + file.progress, 0) / state.files.length : 0);
+      // No direct access to transcripts in the store
+      setFileCount(state.files.length);
     });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   return {

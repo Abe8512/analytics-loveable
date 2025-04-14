@@ -17,26 +17,25 @@ class EventsServiceClass {
     return EventsStore.dispatchEvent(type, payload);
   }
 
-  addEventListener(type: EventType, listener: (payload: EventPayload) => void): string {
+  addEventListener(type: EventType, listener: (payload: EventPayload) => void): () => void {
     // Get the unsubscribe function
     const unsubscribe = EventsStore.addEventListener(type, listener);
     
-    // Generate a unique ID for this listener
-    const id = `listener-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Store the unsubscribe function
-    this._unsubscribeFunctions.set(id, unsubscribe);
-    
-    return id;
+    // Return the unsubscribe function directly
+    return unsubscribe;
   }
 
-  removeEventListener(id: string) {
-    const unsubscribe = this._unsubscribeFunctions.get(id);
-    if (unsubscribe) {
-      unsubscribe();
-      this._unsubscribeFunctions.delete(id);
+  removeEventListener(id: string | (() => void)) {
+    if (typeof id === 'function') {
+      id(); // If it's already a function, just call it
     } else {
-      console.warn(`No event listener found with ID: ${id}`);
+      const unsubscribe = this._unsubscribeFunctions.get(id);
+      if (unsubscribe) {
+        unsubscribe();
+        this._unsubscribeFunctions.delete(id);
+      } else {
+        console.warn(`No event listener found with ID: ${id}`);
+      }
     }
   }
 
@@ -47,8 +46,8 @@ class EventsServiceClass {
     return this.addEventListener(type, callback);
   }
 
-  listen(type: EventType, callback: (payload: EventPayload) => void): string {
-    // Return the string ID
+  listen(type: EventType, callback: (payload: EventPayload) => void): () => void {
+    // Return the unsubscribe function
     return this.addEventListener(type, callback);
   }
 }

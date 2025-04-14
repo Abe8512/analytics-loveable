@@ -1,200 +1,325 @@
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useContext,
+  useCallback,
+} from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
+import { Profile } from '@/types/profile';
+import { ManagedUser } from '@/types/managedUser';
+import { EventsService } from '@/services/EventsService';
+import { EventType } from '@/services/events/types';
+import { errorHandler } from '@/services/ErrorHandlingService';
+import { useRouter } from 'next/navigation';
 
-/**
- * Authentication Context
- * 
- * Provides authentication state and functions throughout the application.
- * Manages user sessions, profiles, and authorization levels (admin/manager).
- * Also handles team member management for managers.
- * 
- * @module contexts/AuthContext
- */
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuthClient, UserProfile, AuthResult } from "@/hooks/useAuthClient";
-import { User, Session } from "@supabase/supabase-js";
-import { teamService } from "@/services/TeamService";
-import { toast } from "sonner";
-import { EventsService } from "@/services/EventsService";
-
-/**
- * Authentication Context Props Interface
- * Defines the shape of the authentication context data and methods
- */
-interface AuthContextProps {
-  /** Current authenticated user object */
+interface AuthContextType {
   user: User | null;
-  /** Current session object */
   session: Session | null;
-  /** User profile with additional details */
-  profile: UserProfile | null;
-  /** Loading state for authentication operations */
+  profile: Profile | null;
+  managedUsers: ManagedUser[] | null;
   isLoading: boolean;
-  /** Whether user is currently authenticated */
-  isAuthenticated: boolean;
-  /** Whether user has admin privileges */
-  isAdmin: boolean;
-  /** Whether user has manager privileges */
-  isManager: boolean;
-  /** List of users managed by the current user (if manager) */
-  managedUsers: any[];
-  /** Currently selected user for filtered views */
-  selectedUser: any | null;
-  /** Function to set the selected user */
-  setSelectedUser: (user: any | null) => void;
-  /** Function to authenticate a user with email/password */
-  login: (email: string, password: string) => Promise<AuthResult>;
-  /** Function to create a new user account */
-  signup: (email: string, password: string, name: string) => Promise<AuthResult>;
-  /** Function to log the current user out */
-  logout: () => Promise<void>;
-  /** Function to send a password reset email */
-  resetPassword: (email: string) => Promise<AuthResult>;
-  /** Function to get users managed by the current user */
-  getManagedUsers: () => any[];
-  /** Function to refresh the list of managed users */
-  refreshManagedUsers: () => Promise<void>;
+  signIn: (email: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  signUp: (email: string, password?: string) => Promise<void>;
+  updateProfile: (updates: Profile) => Promise<void>;
+  getManagedUsers: () => Promise<void>;
+  createManagedUser: (email: string, password?: string) => Promise<void>;
+  deleteManagedUser: (userId: string) => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<void>;
 }
 
-// Create the context with default values
-const AuthContext = createContext<AuthContextProps>({
-  user: null,
-  session: null,
-  profile: null,
-  isLoading: true,
-  isAuthenticated: false,
-  isAdmin: false,
-  isManager: false,
-  managedUsers: [],
-  selectedUser: null,
-  setSelectedUser: () => {},
-  login: async () => ({ error: null }),
-  signup: async () => ({ error: null }),
-  logout: async () => {},
-  resetPassword: async () => ({ error: null }),
-  getManagedUsers: () => [],
-  refreshManagedUsers: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/**
- * Custom hook to use the auth context
- * @returns {AuthContextProps} The auth context
- */
-export const useAuth = () => useContext(AuthContext);
-
-/**
- * Authentication Provider Component
- * 
- * Wraps the application to provide authentication context
- * Manages auth state and provides auth-related functions
- */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const authClient = useAuthClient();
-  const navigate = useNavigate();
-  const [managedUsers, setManagedUsers] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
-  const [isRefreshingUsers, setIsRefreshingUsers] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+    const [managedUsers, setManagedUsers] = useState<ManagedUser[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
-  /**
-   * Refreshes the list of managed users from the team service
-   * Dispatches an event to notify other components when users are refreshed
-   * Optimized to prevent unnecessary refreshes and race conditions
-   */
-  const refreshManagedUsers = useCallback(async () => {
-    if (!authClient.isAuthenticated || isRefreshingUsers) return;
-    
-    setIsRefreshingUsers(true);
-    try {
-      const fetchedUsers = await teamService.getTeamMembers();
-      setManagedUsers(prevUsers => {
-        // Only update if the data has actually changed
-        const hasChanged = JSON.stringify(prevUsers) !== JSON.stringify(fetchedUsers);
-        if (hasChanged) {
-          // Dispatch an event to notify other components that users have been refreshed
-          EventsService.dispatchEvent('MANAGED_USERS_UPDATED', fetchedUsers);
-          return fetchedUsers;
+  useEffect(() => {
+    const getInitialSession = async () => {
+      setIsLoading(true);
+      try {
+        const {
+          data: { session: initialSession },
+        } = await supabase.auth.getSession();
+
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+
+        if (initialSession?.user) {
+          await getProfile(initialSession.user.id);
         }
-        return prevUsers;
-      });
-      
-      if (fetchedUsers.length > 0 && !selectedUser) {
-        setSelectedUser(fetchedUsers[0]);
+      } catch (error) {
+        console.error('Error in getInitialSession:', error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Error refreshing managed users:", err);
-      toast.error("Failed to refresh team members", {
-        description: "Please try again later or contact support if the issue persists."
-      });
-    } finally {
-      setIsRefreshingUsers(false);
-    }
-  }, [authClient.isAuthenticated, isRefreshingUsers, selectedUser]);
-
-  // Initial fetch of managed users when authenticated
-  useEffect(() => {
-    if (authClient.isAuthenticated && !isRefreshingUsers) {
-      refreshManagedUsers();
-    }
-  }, [authClient.isAuthenticated, isRefreshingUsers, refreshManagedUsers]);
-
-  // Listen for team member events
-  useEffect(() => {
-    const handleTeamEvent = () => {
-      refreshManagedUsers();
     };
-    
-    const teamMemberAddedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_ADDED', handleTeamEvent);
-    const teamMemberRemovedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_REMOVED', handleTeamEvent);
-    
-    return () => {
-      teamMemberAddedUnsubscribe();
-      teamMemberRemovedUnsubscribe();
-    };
-  }, [refreshManagedUsers]);
 
-  /**
-   * Enhanced logout with navigation and cleanup
-   * Clears selected user, managed users, and navigates to auth page
-   * Error handling improved for consistent user experience
-   */
-  const handleLogout = async (): Promise<void> => {
+    getInitialSession();
+
+    supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+
+      if (currentSession?.user) {
+        await getProfile(currentSession.user.id);
+      } else {
+        setProfile(null);
+      }
+    });
+  }, []);
+
+  const getProfile = async (userId: string) => {
     try {
-      await authClient.logout();
-      setSelectedUser(null);
-      setManagedUsers([]);
-      navigate("/auth");
-      toast.success("You have been successfully logged out");
-    } catch (error: any) {
-      console.error("Logout error:", error);
-      toast.error("Error during logout", {
-        description: error?.message || "An unexpected error occurred"
-      });
-      // Even if there's an error, we should clear the local state
-      setSelectedUser(null);
-      setManagedUsers([]);
-      navigate("/auth");
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      setProfile(profileData);
+    } catch (error) {
+      console.error('Error in getProfile:', error);
     }
   };
 
-  /**
-   * Gets the current list of managed users
-   * @returns {any[]} Array of managed users
-   */
-  const getManagedUsers = useCallback(() => {
-    return managedUsers;
-  }, [managedUsers]);
-
-  // Combine all values and functions into the context value
-  const contextValue: AuthContextProps = {
-    ...authClient,
-    managedUsers,
-    selectedUser,
-    setSelectedUser,
-    logout: handleLogout,
-    getManagedUsers,
-    refreshManagedUsers,
+  const signIn = async (email: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ email });
+      if (error) throw error;
+      alert('Check your email for the magic link to sign in.');
+    } catch (error: any) {
+      errorHandler.handleError(error, 'AuthContext.signIn');
+      alert(error.error_description || error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
+  const signOut = async () => {
+    setIsLoading(true);
+    try {
+      await supabase.auth.signOut();
+      setProfile(null);
+            setManagedUsers(null);
+      router.push('/login');
+    } catch (error: any) {
+      errorHandler.handleError(error, 'AuthContext.signOut');
+      alert(error.error_description || error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signUp = async (email: string, password?: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (error) throw error;
+      alert('Check your email to verify your account.');
+    } catch (error: any) {
+      errorHandler.handleError(error, 'AuthContext.signUp');
+      alert(error.error_description || error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateProfile = async (updates: Profile) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.from('profiles').upsert(updates, {
+        returning: 'minimal', // Don't return the value after inserting
+      });
+      if (error) throw error;
+      setProfile({ ...profile, ...updates } as Profile);
+    } catch (error: any) {
+      errorHandler.handleError(error, 'AuthContext.updateProfile');
+      alert(error.error_description || error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+    const getManagedUsers = async () => {
+        setIsLoading(true);
+        try {
+            if (!user?.id) {
+                console.warn('User ID is missing, cannot fetch managed users.');
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from('managed_users')
+                .select('*')
+                .eq('owner_id', user.id);
+
+            if (error) {
+                console.error('Error fetching managed users:', error);
+                return;
+            }
+
+            setManagedUsers(data);
+        } catch (error) {
+            console.error('Error fetching managed users:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const createManagedUser = async (email: string, password?: string) => {
+        setIsLoading(true);
+        try {
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        owner_id: user?.id,
+                    },
+                },
+            });
+
+            if (error) {
+                console.error('Error creating managed user:', error);
+                return;
+            }
+
+            // After successfully creating the user, insert the managed user record
+            const newUserId = data.user?.id;
+            if (newUserId) {
+                const { error: managedUserError } = await supabase
+                    .from('managed_users')
+                    .insert([{
+                        id: newUserId,
+                        owner_id: user?.id,
+                        email: email,
+                    }]);
+
+                if (managedUserError) {
+                    console.error('Error inserting managed user record:', managedUserError);
+                    return;
+                }
+            }
+
+            // Refresh the managed users list
+            await getManagedUsers();
+            EventsService.dispatchEvent('MANAGED_USERS_UPDATED' as EventType);
+            EventsService.dispatchEvent('managed-users-updated' as EventType);
+        } catch (error) {
+            console.error('Error creating managed user:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const deleteManagedUser = async (userId: string) => {
+        setIsLoading(true);
+        try {
+            // First, delete the user from the auth.users table
+            const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
+            if (authError) {
+                console.error('Error deleting user from auth.users:', authError);
+                return;
+            }
+
+            // Then, delete the managed user record from the managed_users table
+            const { error: managedUserError } = await supabase
+                .from('managed_users')
+                .delete()
+                .eq('id', userId);
+
+            if (managedUserError) {
+                console.error('Error deleting managed user record:', managedUserError);
+                return;
+            }
+
+            // Refresh the managed users list
+            await getManagedUsers();
+            EventsService.dispatchEvent('MANAGED_USERS_UPDATED' as EventType);
+            EventsService.dispatchEvent('managed-users-updated' as EventType);
+        } catch (error) {
+            console.error('Error deleting managed user:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+  const resetPasswordForEmail = async (email: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+      if (error) throw error;
+      alert('Check your email for the password reset link.');
+    } catch (error: any) {
+      errorHandler.handleError(error, 'AuthContext.resetPasswordForEmail');
+      alert(error.error_description || error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleConnectionRestored = () => {
+      console.log('Connection restored event received in AuthContext');
+    };
+
+    const handleConnectionLost = () => {
+      console.log('Connection lost event received in AuthContext');
+    };
+
+    const unsubscribe1 = EventsService.addEventListener('CONNECTION_RESTORED' as EventType, handleConnectionRestored);
+    const unsubscribe2 = EventsService.addEventListener('CONNECTION_LOST' as EventType, handleConnectionLost);
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
+  }, []);
+
+  const value: AuthContextType = {
+    user,
+    session,
+    profile,
+        managedUsers,
+    isLoading,
+    signIn,
+    signOut,
+    signUp,
+    updateProfile,
+        getManagedUsers,
+        createManagedUser,
+        deleteManagedUser,
+    resetPasswordForEmail,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
