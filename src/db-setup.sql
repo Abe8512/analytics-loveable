@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS public.call_transcripts (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Ensure the primary key constraint is properly set (this is important for ON CONFLICT to work)
+ALTER TABLE public.call_transcripts DROP CONSTRAINT IF EXISTS call_transcripts_pkey;
+ALTER TABLE public.call_transcripts ADD PRIMARY KEY (id);
+
 -- Calls table for metrics storage
 CREATE TABLE IF NOT EXISTS public.calls (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,6 +81,10 @@ CREATE POLICY IF NOT EXISTS "Allow public access to sentiment_trends"
   FOR ALL 
   TO anon
   USING (true);
+
+-- Create a unique constraint on keyword and category for ON CONFLICT to work
+ALTER TABLE public.keyword_trends DROP CONSTRAINT IF EXISTS keyword_trends_keyword_category_key;
+ALTER TABLE public.keyword_trends ADD CONSTRAINT keyword_trends_keyword_category_key UNIQUE (keyword, category);
 
 -- Index for faster queries
 CREATE INDEX IF NOT EXISTS call_transcripts_user_id_idx ON public.call_transcripts (user_id);
