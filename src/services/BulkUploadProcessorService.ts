@@ -107,7 +107,7 @@ export class BulkUploadProcessorService {
         }
       }
       
-      // Try direct insert without ON CONFLICT
+      // Try direct insert - removed ON CONFLICT clause that was causing errors
       try {
         const { data, error } = await supabase
           .from('call_transcripts')
