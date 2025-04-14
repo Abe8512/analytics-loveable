@@ -56,7 +56,7 @@ export class DatabaseService {
       // Generate a transcript ID
       const transcriptId = uuidv4();
       
-      // Simple insert with no ON CONFLICT clause - explicitly removed to fix the error
+      // Basic insert without any ON CONFLICT clause
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
