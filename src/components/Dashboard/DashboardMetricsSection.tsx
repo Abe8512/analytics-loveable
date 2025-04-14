@@ -40,9 +40,11 @@ const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({ isLoa
   };
   
   const handleRefresh = async () => {
+    if (isLoading) return; // Prevent multiple simultaneous refreshes
+    
     try {
       toast.loading("Refreshing metrics...");
-      await refresh();
+      await refresh(true); // Always force refresh when user explicitly requests it
       toast.success("Metrics updated successfully");
     } catch (err) {
       toast.error("Failed to refresh metrics");

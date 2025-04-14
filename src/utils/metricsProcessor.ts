@@ -6,7 +6,6 @@ import {
   FormattedMetrics,
   initialMetricsData
 } from '@/types/metrics';
-import { generateDemoCallMetrics } from '@/services/DemoDataService';
 
 /**
  * Processes raw metrics data from various sources and provides
@@ -26,7 +25,7 @@ export const processMetricsData = (
   let formattedMetrics: FormattedMetrics | null = null;
   let isUsingDemoData = false;
   
-  // If loading or error, return with appropriate flags
+  // If loading, return with appropriate flags
   if (isLoading) {
     return { metricsData, formattedMetrics, isUsingDemoData };
   }
@@ -59,60 +58,32 @@ export const processMetricsData = (
         };
       }
     } else if (hasError || !rawData) {
-      // If we have an error or no data, use demo data
-      console.log('Using demo metrics data due to missing or invalid data');
-      const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
-      formattedMetrics = formatMetricsForDisplay(demoData);
+      // If we have an error or no data, use empty state with appropriate flags
+      console.log('No metrics data available, using default empty state');
       
-      if (formattedMetrics) {
-        metricsData = {
-          totalCalls: formattedMetrics.totalCalls,
-          avgDuration: formattedMetrics.avgDurationSeconds,
-          positiveSentiment: formattedMetrics.positiveSentimentPercent,
-          negativeSentiment: formattedMetrics.negativeSentimentPercent,
-          neutralSentiment: formattedMetrics.neutralSentimentPercent,
-          avgSentiment: formattedMetrics.avgSentiment,
-          callScore: formattedMetrics.callScore,
-          conversionRate: formattedMetrics.conversionRate,
-          agentTalkRatio: formattedMetrics.agentTalkRatio,
-          customerTalkRatio: formattedMetrics.customerTalkRatio,
-          topKeywords: formattedMetrics.topKeywords,
-          reportDate: formattedMetrics.reportDate,
-          lastUpdated: new Date(),
-          isLoading: false,
-          isUsingDemoData: true,
-          lastError: hasError ? 'Error fetching metrics' : 'No metrics data available'
-        };
-      }
+      // Empty state with error flag
+      metricsData = {
+        ...initialMetricsData,
+        isLoading: false,
+        isUsingDemoData: true,
+        lastError: hasError ? 'Error fetching metrics' : 'No metrics data available',
+        lastUpdated: new Date()
+      };
+      
       isUsingDemoData = true;
     }
   } catch (error) {
     console.error('Error processing metrics data:', error);
     
-    // Fallback to demo data in case of error
-    const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
-    formattedMetrics = formatMetricsForDisplay(demoData);
+    // Fallback to empty state in case of error
+    metricsData = {
+      ...initialMetricsData,
+      isLoading: false,
+      isUsingDemoData: true,
+      lastError: error instanceof Error ? error.message : 'Unknown error processing metrics',
+      lastUpdated: new Date()
+    };
     
-    if (formattedMetrics) {
-      metricsData = {
-        ...initialMetricsData,
-        totalCalls: formattedMetrics.totalCalls,
-        avgDuration: formattedMetrics.avgDurationSeconds,
-        positiveSentiment: formattedMetrics.positiveSentimentPercent,
-        negativeSentiment: formattedMetrics.negativeSentimentPercent,
-        neutralSentiment: formattedMetrics.neutralSentimentPercent,
-        avgSentiment: formattedMetrics.avgSentiment,
-        callScore: formattedMetrics.callScore,
-        conversionRate: formattedMetrics.conversionRate,
-        agentTalkRatio: formattedMetrics.agentTalkRatio,
-        customerTalkRatio: formattedMetrics.customerTalkRatio,
-        topKeywords: formattedMetrics.topKeywords,
-        lastUpdated: new Date(),
-        isLoading: false,
-        isUsingDemoData: true,
-        lastError: error instanceof Error ? error.message : 'Unknown error processing metrics'
-      };
-    }
     isUsingDemoData = true;
   }
   

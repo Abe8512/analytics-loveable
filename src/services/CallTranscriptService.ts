@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { CallTranscript } from "@/types/call";
 import { useEventListener } from "@/services/events/hooks";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
-import { StoredTranscription, getStoredTranscriptions } from "@/services/WhisperService";
 import { EventType } from "@/services/events/types";
 import { errorHandler } from "@/services/ErrorHandlingService";
 
@@ -95,7 +94,12 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
       const formattedData = data.map(item => validateTranscript(item));
       
       setTranscripts(formattedData);
-      setTotalCount(count || formattedData.length);
+      
+      if (count !== null) {
+        setTotalCount(count);
+        setTotalPages(Math.ceil(count / limit));
+      }
+      
       setLastFetch(new Date());
       setLoading(false);
       

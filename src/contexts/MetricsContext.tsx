@@ -57,7 +57,7 @@ const MetricsContext = createContext<MetricsContextType>(defaultContext);
 export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { filters } = useSharedFilters();
 
-  // Use the metrics fetcher hook
+  // Use the metrics fetcher hook with appropriate caching settings
   const { 
     data, 
     isLoading, 
@@ -72,7 +72,7 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
     shouldSubscribe: true,
   });
 
-  // Format the raw metrics data for display
+  // Format the raw metrics data for display using memoization to prevent unnecessary recalculations
   const formattedMetrics = useMemo(() => {
     return data ? formatMetricsForDisplay(data) : defaultFormattedMetrics;
   }, [data]);

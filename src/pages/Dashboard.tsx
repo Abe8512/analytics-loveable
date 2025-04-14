@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import DashboardHeader from '../components/Dashboard/DashboardHeader';
@@ -19,10 +20,11 @@ const Dashboard = () => {
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   
   const bulkUploadService = useBulkUploadService();
-  const { transcripts, fetchTranscripts } = useCallTranscripts();
+  const { refreshData: refreshTranscripts } = useCallTranscripts();
   const { toast: toastNotification } = useToast();
   const { refresh: refreshMetrics } = useMetrics();
   
+  // Use a proper event listener for bulk upload completed
   useEffect(() => {
     const handleBulkUploadCompleted = () => {
       console.log('Dashboard detected bulk-upload-completed event');
@@ -37,6 +39,8 @@ const Dashboard = () => {
   }, []);
   
   const handleFixSentiments = async () => {
+    if (isUpdating) return; // Prevent multiple simultaneous updates
+    
     setIsUpdating(true);
     
     try {
@@ -91,18 +95,13 @@ const Dashboard = () => {
       setIsLoading(true);
       toast.loading("Refreshing data with new transcripts...");
       
-      bulkUploadService.refreshTranscripts({ force: true })
+      // Improved error handling and data flow
+      refreshData()
         .then(() => {
-          fetchTranscripts({ force: true })
-            .then(() => {
-              clearMetricsCache();
-              refreshMetrics();
-              
-              setIsLoading(false);
-              if (bulkUploadService.files.some(f => f.status === 'complete')) {
-                toast.success('Dashboard data refreshed with new transcripts');
-              }
-            });
+          setIsLoading(false);
+          if (bulkUploadService.files.some(f => f.status === 'complete')) {
+            toast.success('Dashboard data refreshed with new transcripts');
+          }
         })
         .catch((err) => {
           console.error("Error refreshing data:", err);
@@ -110,31 +109,32 @@ const Dashboard = () => {
           setIsLoading(false);
         });
     }
-  }, [bulkUploadService, fetchTranscripts, refreshMetrics]);
+  }, [bulkUploadService]);
   
-  const refreshData = useCallback(() => {
+  // Consolidated refresh function to prevent duplicate requests
+  const refreshData = useCallback(async () => {
     setIsLoading(true);
     toast.loading("Refreshing dashboard data...");
     
     console.log("Dashboard - manually refreshing all data");
     
-    clearMetricsCache();
-    
-    bulkUploadService.refreshTranscripts({ force: true })
-      .then(() => {
-        fetchTranscripts({ force: true })
-          .then(() => {
-            refreshMetrics();
-            setIsLoading(false);
-            toast.success('Dashboard data refreshed');
-          });
-      })
-      .catch((err) => {
-        console.error("Error refreshing data:", err);
-        setIsLoading(false);
-        toast.error('Failed to refresh data');
-      });
-  }, [bulkUploadService, fetchTranscripts, refreshMetrics]);
+    try {
+      // Clear metrics cache before refreshing
+      clearMetricsCache();
+      
+      // Sequential refresh to prevent race conditions
+      await bulkUploadService.refreshTranscripts({ force: true });
+      await refreshTranscripts();
+      await refreshMetrics();
+      
+      setIsLoading(false);
+      toast.success('Dashboard data refreshed');
+    } catch (err) {
+      console.error("Error refreshing data:", err);
+      setIsLoading(false);
+      toast.error('Failed to refresh data');
+    }
+  }, [bulkUploadService, refreshTranscripts, refreshMetrics]);
   
   return (
     <DashboardLayout>
@@ -151,7 +151,7 @@ const Dashboard = () => {
           onClose={handleBulkUploadClose} 
         />
         
-        <DashboardMetricsSection />
+        <DashboardMetricsSection isLoading={isLoading} />
         
         <DashboardContentSection isLoading={isLoading} />
       </div>
