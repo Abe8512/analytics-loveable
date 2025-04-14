@@ -48,25 +48,31 @@ const PerformanceMetrics = () => {
       console.error("Failed to fetch sales insights:", err);
       setInsightsError(err instanceof Error ? err.message : 'Error fetching insights');
       
-      // Provide default data
+      // Provide default data that matches the InsightItem interface
       setSalesInsights([
         { 
+          id: "insight-1",
           title: 'Call Volume Trending Up', 
-          description: 'Call volume increased by 15% compared to previous period',
-          category: 'positive',
-          date: new Date().toISOString()
+          value: "15%",
+          change: 15,
+          isPositive: true,
+          tooltip: 'Compared to previous period'
         },
         {
+          id: "insight-2",
           title: 'Conversion Rate Improvement',
-          description: 'Team conversion rate has improved by 5% this month',
-          category: 'positive',
-          date: new Date().toISOString()
+          value: "5%",
+          change: 5,
+          isPositive: true,
+          tooltip: 'Improvement this month'
         },
         {
+          id: "insight-3",
           title: 'Call Duration Increasing',
-          description: 'Average call duration is up 2 minutes from last month',
-          category: 'neutral',
-          date: new Date().toISOString()
+          value: "+2 min",
+          change: 2,
+          isPositive: false,
+          tooltip: 'Change from last month'
         }
       ]);
     } finally {
@@ -80,33 +86,42 @@ const PerformanceMetrics = () => {
   }, [filters]);
   
   // Prepare insights for coaching and opportunities sections
+  // Updated to match InsightItem interface
   const coachingInsights = [
     {
+      id: "coaching-1",
       title: 'More Discovery Questions Needed',
-      description: 'Top performers ask 40% more discovery questions',
-      category: 'action',
-      date: new Date().toISOString()
+      value: "40%",
+      change: 40,
+      isPositive: false,
+      tooltip: 'Top performers ask more discovery questions'
     },
     {
+      id: "coaching-2",
       title: 'Objection Handling Opportunity',
-      description: 'Price objections are increasing by 20% this quarter',
-      category: 'warning',
-      date: new Date().toISOString()
+      value: "20%",
+      change: 20,
+      isPositive: false,
+      tooltip: 'Price objections are increasing this quarter'
     }
   ];
   
   const opportunityInsights = [
     {
+      id: "opportunity-1",
       title: 'Feature Requests Trending',
-      description: 'Customers asking about advanced reporting features',
-      category: 'opportunity',
-      date: new Date().toISOString()
+      value: "35%",
+      change: 35,
+      isPositive: true,
+      tooltip: 'Customers asking about advanced reporting features'
     },
     {
+      id: "opportunity-2",
       title: 'Integration Questions Rising',
-      description: '35% increase in API integration questions',
-      category: 'opportunity',
-      date: new Date().toISOString()
+      value: "35%",
+      change: 35,
+      isPositive: true,
+      tooltip: 'Increase in API integration questions'
     }
   ];
   
