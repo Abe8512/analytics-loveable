@@ -5,6 +5,7 @@ export type EventType =
   | 'transcript-deleted'
   | 'transcripts-updated'
   | 'transcripts-refreshed'
+  | 'transcript-selected'  // Added for transcript selection
   | 'bulk-upload-started'
   | 'bulk-upload-completed'
   | 'bulk-upload-progress'
@@ -62,5 +63,9 @@ export const EVENT_TYPES = {
   MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED' as EventType,
   CALL_UPDATED: 'CALL_UPDATED' as EventType,
   CONNECTION_RESTORED: 'connection-restored' as EventType,
-  CONNECTION_LOST: 'connection-lost' as EventType
+  CONNECTION_LOST: 'connection-lost' as EventType,
+  TRANSCRIPT_SELECTED: 'transcript-selected' as EventType,
+  SENTIMENT_UPDATED: 'sentiment-updated' as EventType,
+  TRANSCRIPTS_UPDATED: 'transcripts-updated' as EventType,
+  TRANSCRIPTS_REFRESHED: 'transcripts-refreshed' as EventType
 };

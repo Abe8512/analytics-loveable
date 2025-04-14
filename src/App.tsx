@@ -1,151 +1,106 @@
+import React, { createContext, useState, useEffect, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from '@/components/theme-provider';
+import { Toaster } from '@/components/ui/toaster';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { TeamProvider } from '@/contexts/TeamContext'; 
+import { TranscriptProvider } from '@/contexts/TranscriptContext';
+import { EventsProvider } from '@/services/events/EventsContext';
+import Dashboard from '@/pages/Dashboard';
+import Login from '@/pages/Login';
+import Register from '@/pages/Register';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
+import Settings from '@/pages/Settings';
+import Team from '@/pages/Team';
+import CallActivity from '@/pages/CallActivity';
+import Transcripts from '@/pages/Transcripts';
+import CallDetails from '@/components/CallAnalysis/CallDetails';
+import { RequireAuth } from '@/components/auth/RequireAuth';
+import { RequireUnauth } from '@/components/auth/RequireUnauth';
+import PricingPage from '@/pages/PricingPage';
+import SubscriptionPage from '@/pages/SubscriptionPage';
+import AccountSettings from '@/pages/AccountSettings';
+import { useSubscription } from '@/hooks/useSubscription';
+import { pricing } from '@/config/pricing';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+import { siteConfig } from '@/config/site';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import TermsOfService from '@/pages/TermsOfService';
 
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Dashboard from './pages/Dashboard';
-import Settings from './pages/Settings';
-import CallPage from './pages/CallPage';
-import Auth from './pages/Auth';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import { AuthProvider } from './contexts/AuthContext';
-import { QueryProvider } from './contexts/QueryContext';
-import AICoaching from './pages/AICoaching';
-import Transcribe from './pages/Transcribe';
-import Transcripts from './pages/Transcripts';
-import { Toaster } from 'sonner';
-import ConnectionMonitor from './components/ui/ConnectionMonitor';
-import Analytics from './pages/Analytics';
-import CallActivity from './pages/CallActivity';
-import Performance from './pages/Performance';
-import PerformanceMetrics from './pages/PerformanceMetrics';
-import { SharedFilterProvider } from './contexts/SharedFilterContext';
-import { createContext, useState, useEffect } from 'react';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-import { RealTimeMetricsProvider } from './components/metrics/RealTimeMetricsProvider';
-
-// Define the ThemeContext type
-interface ThemeContextType {
-  isDarkMode: boolean;
-  toggleDarkMode: () => void;
-}
-
-// Create the ThemeContext with a default value
-export const ThemeContext = createContext<ThemeContextType>({
+export const ThemeContext = createContext({
   isDarkMode: false,
-  toggleDarkMode: () => {},
+  setIsDarkMode: (value: boolean) => {},
 });
 
-// ThemeProvider component to wrap the app
-const ThemeProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(
+function App() {
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(
     localStorage.getItem('theme') === 'dark'
   );
 
-  // Apply theme class to html element for global styling
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDarkMode);
+    document.body.dataset.theme = isDarkMode ? 'dark' : 'light';
   }, [isDarkMode]);
 
-  const toggleDarkMode = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    localStorage.setItem('theme', newTheme ? 'dark' : 'light');
+  const handleThemeChange = (value: boolean) => {
+    setIsDarkMode(value);
+    localStorage.setItem('theme', value ? 'dark' : 'light');
   };
 
-  return (
-    <ThemeContext.Provider value={{ isDarkMode, toggleDarkMode }}>
-      <div className={isDarkMode ? 'dark' : 'light'}>
-        {children}
-      </div>
-    </ThemeContext.Provider>
-  );
-};
+  const stripePromise = useMemo(() => loadStripe(siteConfig.stripe.publicKey), []);
+  const { subscription } = useSubscription();
 
-function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <QueryProvider>
-            <SharedFilterProvider>
-              <RealTimeMetricsProvider>
-                {/* ConnectionMonitor for offline detection and notifications */}
-                <ConnectionMonitor />
-                
-                {/* Sonner Toast provider */}
-                <Toaster position="top-right" />
-                
-                <Routes>
-                  {/* Auth routes */}
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  
-                  {/* Redirect /login and /signup to /auth for consistency */}
-                  <Route path="/login" element={<Navigate to="/auth" replace />} />
-                  <Route path="/signup" element={<Navigate to="/auth" replace />} />
-                  
-                  {/* Protected routes */}
-                  <Route path="/" element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/call/:id" element={
-                    <ProtectedRoute>
-                      <CallPage />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/ai-coaching" element={
-                    <ProtectedRoute>
-                      <AICoaching />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/transcribe" element={
-                    <ProtectedRoute>
-                      <Transcribe />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/analytics" element={
-                    <ProtectedRoute>
-                      <Analytics />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/transcripts" element={
-                    <ProtectedRoute>
-                      <Transcripts />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/call-activity" element={
-                    <ProtectedRoute>
-                      <CallActivity />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/performance" element={
-                    <ProtectedRoute>
-                      <Performance />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/performance-metrics" element={
-                    <ProtectedRoute>
-                      <PerformanceMetrics />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Catch all route - redirect to login */}
-                  <Route path="*" element={<Navigate to="/auth" replace />} />
-                </Routes>
-              </RealTimeMetricsProvider>
-            </SharedFilterProvider>
-          </QueryProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </ThemeProvider>
+    <ThemeContext.Provider value={{ isDarkMode, setIsDarkMode: handleThemeChange }}>
+      <ThemeProvider defaultTheme={isDarkMode ? 'dark' : 'light'}>
+        <EventsProvider>
+          <AuthProvider>
+            <TeamProvider>
+              <TranscriptProvider>
+                <div className="min-h-screen bg-background font-sans antialiased">
+                  <Router>
+                    <Routes>
+                      <Route path="/login" element={<RequireUnauth><Login /></RequireUnauth>} />
+                      <Route path="/register" element={<RequireUnauth><Register /></RequireUnauth>} />
+                      <Route path="/forgot-password" element={<RequireUnauth><ForgotPassword /></RequireUnauth>} />
+                      <Route path="/reset-password" element={<RequireUnauth><ResetPassword /></RequireUnauth>} />
+                      <Route path="/pricing" element={<PricingPage />} />
+                      <Route path="/privacy" element={<PrivacyPolicy />} />
+                      <Route path="/terms" element={<TermsOfService />} />
+
+                      <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+                      <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+                      <Route path="/team" element={<RequireAuth><Team /></RequireAuth>} />
+                      <Route path="/call-activity" element={<RequireAuth><CallActivity /></RequireAuth>} />
+                      <Route path="/transcripts" element={<RequireAuth><Transcripts /></RequireAuth>} />
+                      <Route path="/call-details/:id" element={<RequireAuth><CallDetails /></RequireAuth>} />
+                      <Route path="/account" element={<RequireAuth><AccountSettings /></RequireAuth>} />
+
+                      {/* Subscription Routes */}
+                      <Route
+                        path="/subscription"
+                        element={
+                          <RequireAuth>
+                            <Elements stripe={stripePromise}>
+                              <SubscriptionPage
+                                isSubscribed={!!subscription}
+                                pricingPlans={pricing}
+                              />
+                            </Elements>
+                          </RequireAuth>
+                        }
+                      />
+                    </Routes>
+                  </Router>
+                  <Toaster />
+                </div>
+              </TranscriptProvider>
+            </TeamProvider>
+          </AuthProvider>
+        </EventsProvider>
+      </ThemeProvider>
+    </ThemeContext.Provider>
   );
 }
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { CallTranscript } from '@/types/call';
 import { toast } from '@/hooks/use-toast';
+import { useTranscriptDetails } from '@/hooks/useTranscriptDetails';
+import { dispatchTranscriptSelected } from '@/services/events/transcriptEvents';
 
 interface TranscriptViewerProps {
   transcriptId: string;
@@ -15,59 +16,17 @@ interface TranscriptViewerProps {
 }
 
 const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClose }) => {
-  const [transcript, setTranscript] = useState<CallTranscript | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { transcript, isLoading: loading, error } = useTranscriptDetails(transcriptId);
 
   useEffect(() => {
-    const fetchTranscript = async () => {
-      if (!transcriptId) {
-        setError('No transcript ID provided');
-        setLoading(false);
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const { data, error: fetchError } = await supabase
-          .from('call_transcripts')
-          .select('*')
-          .eq('id', transcriptId)
-          .maybeSingle();
-          
-        if (fetchError) {
-          console.error('Error fetching transcript:', fetchError);
-          throw fetchError;
-        }
-        
-        if (data) {
-          // Ensure all required fields exist
-          const formattedTranscript = {
-            ...data,
-            sentiment: data.sentiment || 'neutral',
-            keywords: data.keywords || [],
-            call_score: data.call_score || 50,
-            duration: data.duration || 0,
-            text: data.text || 'No transcript text available',
-            user_name: data.user_name || 'Unknown Rep'
-          } as CallTranscript;
-          
-          setTranscript(formattedTranscript);
-        } else {
-          setError('Transcript not found');
-        }
-      } catch (err) {
-        console.error('Error fetching transcript:', err);
-        setError('Failed to load transcript');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (transcript) {
+      dispatchTranscriptSelected(transcript);
+    }
     
-    fetchTranscript();
-  }, [transcriptId]);
+    return () => {
+      dispatchTranscriptSelected(null);
+    };
+  }, [transcript]);
 
   if (loading) {
     return (
@@ -109,7 +68,6 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
     );
   }
 
-  // Format timestamp to readable date
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Unknown date';
     try {
@@ -138,18 +96,15 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({ transcriptId, onClo
     }
 
     try {
-      // Create a blob with the transcript text
       const blob = new Blob([transcript.text], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       
-      // Create a download link and trigger it
       const a = document.createElement('a');
       a.href = url;
       a.download = `transcript-${transcript.id.substring(0, 8)}.txt`;
       document.body.appendChild(a);
       a.click();
       
-      // Clean up
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
