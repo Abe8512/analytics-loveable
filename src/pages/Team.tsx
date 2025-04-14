@@ -1,219 +1,257 @@
 
-import React, { useState, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useCallback } from 'react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UserPlus, RefreshCw } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import TeamMemberCard from '@/components/Team/TeamMemberCard';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PlusCircle, Trash } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { TeamMember } from '@/types/teamTypes';
 import { teamService } from '@/services/TeamService';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Badge } from '@/components/ui/badge';
-import { v4 as uuidv4 } from 'uuid';
+import { useToast } from '@/hooks/use-toast';
+import { TeamMembersList } from '@/components/Team/TeamMembersList';
+import { TeamTranscriptActivity } from '@/components/Team/TeamTranscriptActivity';
+import { useEventListener } from '@/services/events/hooks';
 
 const Team = () => {
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState('');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { teamMembers, isLoading, refreshTeamMembers, error } = teamService.useTeamMembers();
-
-  const handleAddMember = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newMemberName.trim()) {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    role: 'sales-rep',
+  });
+  
+  // Load team members on mount
+  useEffect(() => {
+    fetchTeamMembers();
+  }, []);
+  
+  // Listen for team member events
+  useEventListener('team-member-added', () => fetchTeamMembers());
+  useEventListener('team-member-removed', () => fetchTeamMembers());
+  
+  const fetchTeamMembers = async () => {
+    setIsLoading(true);
+    try {
+      const members = await teamService.getTeamMembers();
+      setTeamMembers(members);
+    } catch (error) {
+      console.error('Error fetching team members:', error);
       toast({
-        title: "Error",
-        description: "Member name is required",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load team members',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleAddTeamMember = async () => {
+    if (!formData.name || !formData.email) {
+      toast({
+        title: 'Validation Error',
+        description: 'Name and email are required',
+        variant: 'destructive',
       });
       return;
     }
     
+    setIsLoading(true);
     try {
-      setIsSubmitting(true);
-      
-      await teamService.addTeamMember({
-        name: newMemberName,
-        email: newMemberEmail,
-        role: newMemberRole,
-        user_id: uuidv4() // Generate a proper UUID for user_id
+      const newMember = await teamService.addTeamMember({
+        ...formData,
+        user_id: `user-${Date.now()}` // Generate a temporary ID
       });
       
       toast({
-        title: "Success",
-        description: `${newMemberName} added to the team`,
+        title: 'Success',
+        description: `${newMember.name} added to team`,
       });
       
-      // Clear form
-      setNewMemberName('');
-      setNewMemberEmail('');
-      setNewMemberRole('');
+      setFormData({
+        name: '',
+        email: '',
+        role: 'sales-rep',
+      });
       
-    } catch (error) {
-      console.error("Error adding team member:", error);
+      setIsModalOpen(false);
+      fetchTeamMembers();
+    } catch (error: any) {
+      console.error('Error adding team member:', error);
       toast({
-        title: "Error",
-        description: "Failed to add team member",
-        variant: "destructive",
+        title: 'Error',
+        description: error.message || 'Failed to add team member',
+        variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
-  }, [newMemberName, newMemberEmail, newMemberRole, toast]);
+  };
   
-  const handleRemoveMember = useCallback(async (id: string) => {
+  const handleDeleteTeamMember = async (id: string) => {
+    if (!id) return;
+    
+    setIsLoading(true);
     try {
       await teamService.removeTeamMember(id);
       toast({
-        title: "Success",
-        description: "Team member removed",
+        title: 'Success',
+        description: 'Team member removed',
       });
-    } catch (error) {
-      console.error("Error removing team member:", error);
+      fetchTeamMembers();
+    } catch (error: any) {
+      console.error('Error removing team member:', error);
       toast({
-        title: "Error",
-        description: "Failed to remove team member",
-        variant: "destructive",
+        title: 'Error',
+        description: error.message || 'Failed to remove team member',
+        variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
-  }, [toast]);
+  };
+  
+  const handleMemberSelect = useCallback((id: string) => {
+    setSelectedMemberId(id === selectedMemberId ? null : id);
+  }, [selectedMemberId]);
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleRoleChange = (value: string) => {
+    setFormData(prev => ({ ...prev, role: value }));
+  };
   
   return (
-    <ProtectedRoute>
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold">Team Management</h1>
-            <Button 
-              variant="outline" 
-              onClick={refreshTeamMembers} 
-              disabled={isLoading}
-              className="flex items-center"
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-neon-purple mr-2"></div>
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Refresh
-            </Button>
+    <DashboardLayout>
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">Team Management</h1>
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <PlusCircle className="h-4 w-4" />
+                Add Team Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Team Member</DialogTitle>
+                <DialogDescription>
+                  Create a new team member to assign calls and track performance.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="email" className="text-right">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="role" className="text-right">
+                    Role
+                  </Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={handleRoleChange}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sales-rep">Sales Representative</SelectItem>
+                      <SelectItem value="team-lead">Team Lead</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleAddTeamMember}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Adding...' : 'Add Member'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>Team Members</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TeamMembersList
+                  teamMembers={teamMembers}
+                  isLoading={isLoading}
+                  selectedMemberId={selectedMemberId}
+                  onMemberSelect={handleMemberSelect}
+                  onDeleteMember={handleDeleteTeamMember}
+                />
+              </CardContent>
+            </Card>
           </div>
           
-          {error && (
-            <div className="bg-red-100 text-red-800 p-4 rounded-md">
-              <p className="font-semibold">Error loading team members</p>
-              <p className="text-sm">{error.message}</p>
-              <p className="text-sm mt-2">Try refreshing or check your connection.</p>
-            </div>
-          )}
-          
-          {isLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <div className="flex flex-col items-center space-y-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-neon-purple"></div>
-                <p className="text-muted-foreground">Loading team members...</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Add Team Member</CardTitle>
-                  <CardDescription>Add a new member to your sales team</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleAddMember} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Name <span className="text-red-500">*</span></Label>
-                        <Input
-                          id="name"
-                          value={newMemberName}
-                          onChange={(e) => setNewMemberName(e.target.value)}
-                          placeholder="John Doe"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={newMemberEmail}
-                          onChange={(e) => setNewMemberEmail(e.target.value)}
-                          placeholder="john@example.com"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="role">Role</Label>
-                        <Input
-                          id="role"
-                          value={newMemberRole}
-                          onChange={(e) => setNewMemberRole(e.target.value)}
-                          placeholder="Sales Rep"
-                        />
-                      </div>
-                    </div>
-                    <Button 
-                      type="submit" 
-                      className="flex items-center"
-                      disabled={isSubmitting || !newMemberName.trim()}
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                          Adding...
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Add Member
-                        </>
-                      )}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-              
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-semibold">Team Members</h2>
-                <Badge variant="outline" className="px-2 py-1">
-                  {teamMembers.length} {teamMembers.length === 1 ? 'Member' : 'Members'}
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {teamMembers.map((member) => (
-                  <TeamMemberCard
-                    key={member.id}
-                    member={{
-                      id: member.id,
-                      name: member.name,
-                      email: member.email || '',
-                      role: member.role || '',
-                      avatar: member.avatar_url
-                    }}
-                    onDelete={() => handleRemoveMember(member.id)}
-                  />
-                ))}
-                
-                {teamMembers.length === 0 && (
-                  <div className="col-span-full text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
-                    <p className="mb-2">No team members found.</p>
-                    <p>Add your first team member above.</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+          <div className="md:col-span-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {selectedMemberId 
+                    ? `${teamMembers.find(m => m.id === selectedMemberId)?.name}'s Activity` 
+                    : 'Team Activity'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TeamTranscriptActivity memberId={selectedMemberId} />
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </DashboardLayout>
-    </ProtectedRoute>
+      </div>
+    </DashboardLayout>
   );
 };
 

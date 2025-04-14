@@ -44,7 +44,7 @@ class TeamService {
     }
   }
 
-  async addTeamMember(teamMember: TeamMember): Promise<TeamMember> {
+  async addTeamMember(teamMember: Partial<TeamMember>): Promise<TeamMember> {
     // Ensure the required fields are present
     if (!teamMember.name) {
       throw new Error('Team member name is required');
@@ -69,11 +69,9 @@ class TeamService {
       }
 
       if (data) {
-        // Dispatch events using proper event dispatch
-        const eventPayload = { teamMember: data };
-        
-        EventsService.dispatchEvent('TEAM_MEMBER_ADDED' as EventType, eventPayload);
-        EventsService.dispatchEvent('team-member-added' as EventType, eventPayload);
+        // Dispatch events
+        EventsService.dispatchEvent('TEAM_MEMBER_ADDED' as EventType, { teamMember: data });
+        EventsService.dispatchEvent('team-member-added' as EventType, { teamMember: data });
       }
 
       return data as TeamMember;
@@ -116,11 +114,9 @@ class TeamService {
         throw new Error(error.message);
       }
 
-      // Dispatch events using proper event dispatch
-      const eventPayload = { teamMemberId: id };
-      
-      EventsService.dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, eventPayload);
-      EventsService.dispatchEvent('team-member-removed' as EventType, eventPayload);
+      // Dispatch events
+      EventsService.dispatchEvent('TEAM_MEMBER_REMOVED' as EventType, { teamMemberId: id });
+      EventsService.dispatchEvent('team-member-removed' as EventType, { teamMemberId: id });
 
       return true;
     } catch (error: any) {
@@ -129,8 +125,10 @@ class TeamService {
     }
   }
 
-  // Use method for useTeamMembers
-  getTeamMembers = this.getTeamMembers;
+  // Alias for useTeamMembers hook compatibility
+  useTeamMembers = () => {
+    return this.getTeamMembers();
+  }
 }
 
 export const teamService = new TeamService();

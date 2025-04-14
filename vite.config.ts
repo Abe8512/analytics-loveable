@@ -11,7 +11,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    port: 8080
+  },
   optimizeDeps: {
-    exclude: ['natural', 'webworker-threads'],
+    exclude: ['webworker-threads', 'natural'],
   },
 });

@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBulkUploadStore } from '@/store/useBulkUploadStore';
-import { BulkUploadFilter } from '@/types/teamTypes';
+import { BulkUploadFilter } from '@/types/bulkUpload';
 import { EventsService } from '@/services/EventsService';
 import { EventType } from '@/services/events/types';
 

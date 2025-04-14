@@ -24,7 +24,7 @@ export class TeamMetricsService {
       if (data && data.length > 0) {
         // Transform the database response to match TeamPerformanceMetric
         return data.map(item => ({
-          id: item.id,
+          id: item.rep_id || item.id,
           name: item.rep_name,
           value: item.sentiment_score * 100,
           change: Math.random() * 20 - 10, // Random change for demo

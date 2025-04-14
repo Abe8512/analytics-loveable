@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useRef, useEffect } from "react";
 import { X, Upload, CheckCircle, Clock, AlertCircle, FileAudio, ToggleLeft, ToggleRight, UserPlus, Settings } from "lucide-react";
 import { ThemeContext } from "@/App";
@@ -13,6 +14,7 @@ import { useBulkUploadService } from "@/services/BulkUploadService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { BulkUploadFile } from "@/types/bulkUpload";
 
 interface BulkUploadModalProps {
   isOpen: boolean;
@@ -23,14 +25,16 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
   const { isDarkMode } = useContext(ThemeContext);
   const { toast } = useToast();
   const whisperService = useWhisperService();
-  const { user, managedUsers, getManagedUsers } = useAuth();
+  const { user } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [openAIKeyMissing, setOpenAIKeyMissing] = useState(false);
   const [useLocalWhisper, setUseLocalWhisperState] = useState(false);
   const [selectedRepId, setSelectedRepId] = useState<string>("");
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const { files, addFiles, setAssignedUserId, processQueue, isProcessing } = useBulkUploadService();
+  const [managedUsers, setManagedUsers] = useState<any[]>([]);
+  const bulkUploadService = useBulkUploadService();
+  const { files, addFiles, processQueue, isProcessing } = bulkUploadService;
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
@@ -47,8 +51,24 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
       if (user?.id && !selectedRepId) {
         setSelectedRepId(user.id);
       }
+      
+      // Fetch managed users
+      fetchManagedUsers();
     }
   }, [isOpen, whisperService, user, selectedRepId]);
+  
+  const fetchManagedUsers = async () => {
+    try {
+      // In a real app, this would call a service
+      // For now, just set some dummy data
+      setManagedUsers([
+        { id: 'user1', email: 'user1@example.com' },
+        { id: 'user2', email: 'user2@example.com' }
+      ]);
+    } catch (error) {
+      console.error('Error fetching managed users:', error);
+    }
+  };
   
   // Listen for upload events
   useEffect(() => {
@@ -135,8 +155,11 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
       return;
     }
     
-    // Assign the selected rep ID for these files
-    setAssignedUserId(selectedRepId);
+    // Assign the selected rep ID to the files
+    if (selectedRepId) {
+      bulkUploadService.setAssignedUserId(selectedRepId);
+    }
+    
     addFiles(audioFiles);
     
     toast({
@@ -158,7 +181,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
 
   const handleRepChange = (value: string) => {
     setSelectedRepId(value);
-    setAssignedUserId(value);
+    bulkUploadService.setAssignedUserId(value);
     toast({
       title: "Sales Rep Selected",
       description: "All uploaded files will be assigned to this rep"
@@ -339,7 +362,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
                 <div className="mb-4">
                   <h3 className="text-sm font-medium mb-2">Files to process ({files.length})</h3>
                   <div className="max-h-40 overflow-y-auto border rounded-md">
-                    {files.map(file => (
+                    {files.map((file: BulkUploadFile) => (
                       <div key={file.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
                         <div className="flex items-center gap-2">
                           <FileAudio className="h-4 w-4 text-gray-500" />
@@ -347,7 +370,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
                         </div>
                         <div>
                           {file.status === 'queued' && <Clock className="h-4 w-4 text-gray-500" />}
-                          {file.status === 'processing' && <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />}
+                          {file.status === 'uploading' || file.status === 'processing' && <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />}
                           {file.status === 'complete' && <CheckCircle className="h-4 w-4 text-green-500" />}
                           {file.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500" />}
                         </div>

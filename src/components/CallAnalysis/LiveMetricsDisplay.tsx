@@ -7,6 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Clock, LineChart, BarChart, MessageSquare } from 'lucide-react';
 
+interface KeyPhrase {
+  text: string;
+  sentiment?: number;
+}
+
 const formatTime = (seconds: number) => {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
@@ -28,8 +33,8 @@ const LiveMetricsDisplay = () => {
     keyPhrases,
   } = useCallMetricsStore();
   
-  // Handle the customer/client property mapping
-  const customerTalkRatio = talkRatio.client; // Use client property from talkRatio
+  // Handle the customer/client property mapping (client is in the type but we use customer in the UI)
+  const customerTalkRatio = talkRatio.client;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -128,7 +133,7 @@ const LiveMetricsDisplay = () => {
           
           <div className="space-y-2 max-h-[120px] overflow-y-auto">
             {keyPhrases.length > 0 ? (
-              keyPhrases.map((phrase, index) => (
+              keyPhrases.map((phrase: KeyPhrase, index: number) => (
                 <div key={index} className="text-xs p-1 bg-gray-100 dark:bg-gray-800 rounded">
                   {phrase.text}
                 </div>

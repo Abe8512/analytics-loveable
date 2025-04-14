@@ -1,113 +1,152 @@
 
+import { Json } from '@/types/supabase';
+
+export type SpeakerType = 'agent' | 'client' | 'customer' | 'system' | 'unknown';
 export type SentimentType = 'positive' | 'negative' | 'neutral';
 
 export interface CallTranscriptSegment {
   id: string;
   start_time: number;
   end_time: number;
-  speaker: string;
+  speaker: SpeakerType;
   text: string;
   sentiment?: number;
 }
 
 export interface CallSentiment {
-  agent: number;
-  customer: number;
-  overall: number;
+  agent: number; // 0-1 scale
+  customer: number; // 0-1 scale
+  overall: number; // 0-1 scale
 }
 
 export interface CallTranscript {
   id: string;
   call_id?: string;
   user_id?: string;
-  text: string;
-  filename?: string;
-  duration?: number;
-  sentiment?: SentimentType;
+  user_name?: string;
+  created_at: string;
+  updated_at?: string;
+  filename: string;
+  duration: number;
+  sentiment: SentimentType;
+  transcript_segments: CallTranscriptSegment[];
+  sentiment_data?: CallSentiment;
+  metadata?: Record<string, any>;
   keywords?: string[];
   key_phrases?: string[];
-  created_at?: string;
+  call_score?: number;
+  customer_name?: string;
   start_time?: string;
   end_time?: string;
-  metadata?: any;
-  call_score?: number;
-  speaker_count?: number;
-  user_name?: string;
-  customer_name?: string;
-  transcription_text?: string;
   assigned_to?: string;
-  transcript_segments?: CallTranscriptSegment[];
-  sentiment_data?: CallSentiment;
 }
 
-// Add a helper to safely cast database objects to CallTranscript
-export const castToCallTranscript = (data: any): CallTranscript => {
-  // Handle the transcript_segments conversion
-  let segments: CallTranscriptSegment[] = [];
-  if (data.transcript_segments) {
-    try {
-      if (typeof data.transcript_segments === 'string') {
-        segments = JSON.parse(data.transcript_segments);
-      } else if (Array.isArray(data.transcript_segments)) {
-        segments = data.transcript_segments.map((segment: any) => ({
-          id: segment.id || `segment-${Math.random().toString(36).substring(2, 9)}`,
-          start_time: Number(segment.start_time || segment.start || 0),
-          end_time: Number(segment.end_time || segment.end || 0),
-          speaker: segment.speaker || 'unknown',
-          text: segment.text || '',
-          sentiment: segment.sentiment || 0
-        }));
-      }
-    } catch (e) {
-      console.error('Error parsing transcript segments:', e);
-      segments = [];
-    }
-  }
+export interface CallHistory {
+  id: string;
+  date: string;
+  duration: number;
+  sentiment: number | { agent: number; customer: number };
+}
 
-  // Make sure sentiment is a valid SentimentType
-  let sentimentValue: SentimentType = 'neutral';
-  if (data.sentiment === 'positive' || data.sentiment === 'negative' || data.sentiment === 'neutral') {
-    sentimentValue = data.sentiment;
-  } else if (typeof data.sentiment === 'number') {
-    sentimentValue = data.sentiment > 0.6 ? 'positive' : data.sentiment < 0.4 ? 'negative' : 'neutral';
-  } else if (typeof data.sentiment === 'string') {
-    // Try to convert other string formats
-    const lowerSentiment = data.sentiment.toLowerCase();
-    if (lowerSentiment.includes('pos')) {
-      sentimentValue = 'positive';
-    } else if (lowerSentiment.includes('neg')) {
-      sentimentValue = 'negative';
-    }
-  }
-
-  // Create sentiment_data if it doesn't exist
-  const sentimentData: CallSentiment = data.sentiment_data || {
-    agent: 0.5,
-    customer: 0.5,
-    overall: sentimentValue === 'positive' ? 0.8 : sentimentValue === 'negative' ? 0.2 : 0.5
-  };
-
-  return {
-    id: data.id,
-    call_id: data.call_id,
-    user_id: data.user_id,
-    text: data.text || '',
-    filename: data.filename,
-    duration: Number(data.duration) || 0,
-    sentiment: sentimentValue,
+// Helper function to safely cast data from Supabase to CallTranscript
+export function castToCallTranscript(data: any): CallTranscript {
+  // Create a base transcript object with default values
+  const transcript: CallTranscript = {
+    id: data.id || '',
+    call_id: data.call_id || null,
+    user_id: data.user_id || null,
+    user_name: data.user_name || null,
+    created_at: data.created_at || new Date().toISOString(),
+    updated_at: data.updated_at || null,
+    filename: data.filename || '',
+    duration: data.duration || 0,
+    sentiment: parseSentiment(data.sentiment),
+    transcript_segments: parseTranscriptSegments(data.transcript_segments),
+    sentiment_data: parseSentimentData(data.sentiment_data),
+    metadata: data.metadata || {},
     keywords: Array.isArray(data.keywords) ? data.keywords : [],
     key_phrases: Array.isArray(data.key_phrases) ? data.key_phrases : [],
-    created_at: data.created_at,
-    start_time: data.start_time,
-    end_time: data.end_time,
-    metadata: data.metadata,
-    call_score: Number(data.call_score) || 50,
-    speaker_count: Number(data.speaker_count) || 2,
-    user_name: data.user_name,
-    customer_name: data.customer_name,
-    transcription_text: data.transcription_text,
-    assigned_to: data.assigned_to,
-    transcript_segments: segments,
-    sentiment_data: sentimentData
+    call_score: data.call_score || null,
+    customer_name: data.customer_name || null,
+    start_time: data.start_time || null,
+    end_time: data.end_time || null,
+    assigned_to: data.assigned_to || null
   };
-};
+  
+  return transcript;
+}
+
+// Parse sentiment string to SentimentType
+function parseSentiment(sentiment: any): SentimentType {
+  if (typeof sentiment === 'string') {
+    const normalizedSentiment = sentiment.toLowerCase();
+    if (normalizedSentiment === 'positive' || normalizedSentiment === 'negative' || normalizedSentiment === 'neutral') {
+      return normalizedSentiment as SentimentType;
+    }
+  }
+  return 'neutral'; // Default
+}
+
+// Parse transcript segments from JSON or array
+function parseTranscriptSegments(segments: any): CallTranscriptSegment[] {
+  if (!segments) return [];
+  
+  try {
+    // If it's a JSON string, parse it
+    if (typeof segments === 'string') {
+      const parsed = JSON.parse(segments);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+    
+    // If it's already an array, use it
+    if (Array.isArray(segments)) {
+      return segments.map(segment => ({
+        id: segment.id || `segment-${Math.random().toString(36).substr(2, 9)}`,
+        start_time: Number(segment.start_time) || 0,
+        end_time: Number(segment.end_time) || 0,
+        speaker: segment.speaker || 'unknown',
+        text: segment.text || '',
+        sentiment: segment.sentiment || undefined
+      }));
+    }
+    
+    // If it's a Json type from Supabase, handle accordingly
+    if (segments && typeof segments === 'object') {
+      return Array.isArray(segments) ? segments : [];
+    }
+  } catch (error) {
+    console.error('Error parsing transcript segments:', error);
+  }
+  
+  return [];
+}
+
+// Parse sentiment data
+function parseSentimentData(data: any): CallSentiment | undefined {
+  if (!data) return undefined;
+  
+  try {
+    // If it's a JSON string, parse it
+    if (typeof data === 'string') {
+      const parsed = JSON.parse(data);
+      return {
+        agent: Number(parsed.agent) || 0.5,
+        customer: Number(parsed.customer) || 0.5,
+        overall: Number(parsed.overall) || 0.5
+      };
+    }
+    
+    // If it's already an object, use it
+    if (data && typeof data === 'object') {
+      return {
+        agent: Number(data.agent) || 0.5,
+        customer: Number(data.customer) || 0.5,
+        overall: Number(data.overall) || 0.5
+      };
+    }
+  } catch (error) {
+    console.error('Error parsing sentiment data:', error);
+  }
+  
+  return undefined;
+}

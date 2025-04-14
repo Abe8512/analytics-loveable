@@ -52,7 +52,7 @@ const Index = () => {
                     </TableHeader>
                     <TableBody>
                       {metrics.map((metric) => (
-                        <TableRow key={metric.id}>
+                        <TableRow key={metric.team_id}>
                           <TableCell>{metric.team_name}</TableCell>
                           <TableCell>{metric.call_count}</TableCell>
                           <TableCell>

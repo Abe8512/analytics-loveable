@@ -6,45 +6,46 @@ import { EventType, EventPayload, EventsState } from '@/services/events/types';
 const EventsContext = createContext<EventsState | undefined>(undefined);
 
 export function EventsProvider({ children }: { children: React.ReactNode }) {
-  const [listeners, setListeners] = useState<any[]>([]);
+  const [listeners, setListeners] = useState<{ id: string; unsubscribe: () => void }[]>([]);
 
-  // Return a function that wraps addEventListener to match the expected return type
+  // Add listener and return the unsubscribe function
   const addListener = (type: EventType, callback: (payload: EventPayload) => void) => {
     // Get the unsubscribe function from EventsService
     const unsubscribe = EventsService.addEventListener(type, callback);
     
-    // Use a string ID for backward compatibility
+    // Create a unique ID for this listener
     const id = Math.random().toString(36).substring(2, 9);
     
     // Store the mapping between ID and unsubscribe function
     const listenerInfo = { id, unsubscribe };
     setListeners(prev => [...prev, listenerInfo]);
     
-    // Return the ID
-    return id;
+    // Return the unsubscribe function
+    return unsubscribe;
   };
 
-  const removeListener = (id: string) => {
-    // Find the listener by ID
-    const listener = listeners.find(l => l.id === id);
+  const removeListener = (unsubscribeFn: () => void) => {
+    // Find the listener by unsubscribe function
+    const listener = listeners.find(l => l.unsubscribe === unsubscribeFn);
     
-    // Call the unsubscribe function if found
-    if (listener && typeof listener.unsubscribe === 'function') {
-      listener.unsubscribe();
+    // Call the unsubscribe function
+    if (typeof unsubscribeFn === 'function') {
+      unsubscribeFn();
     }
     
-    // Remove from listeners array
-    setListeners(prev => prev.filter(l => l.id !== id));
+    // Remove from listeners array if found
+    if (listener) {
+      setListeners(prev => prev.filter(l => l.id !== listener.id));
+    }
   };
 
   const dispatchEvent = (type: EventType, payload?: EventPayload) => {
     EventsService.dispatchEvent(type, payload);
   };
 
-  // Provide a subscription function that matches the required signature
+  // Provide a subscription function
   const subscribeToEvent = (type: EventType, callback: (payload: EventPayload) => void) => {
-    const unsubscribe = EventsService.addEventListener(type, callback);
-    return unsubscribe;
+    return EventsService.addEventListener(type, callback);
   };
 
   const value: EventsState = {

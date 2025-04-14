@@ -9,6 +9,11 @@ import { Clock, Mic, BarChart2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEventListener } from '@/services/events/hooks';
 
+interface CallHistoryWithTalkRatio extends CallHistory {
+  talkRatio?: { agent: number; customer: number };
+  keyPhrases?: { text: string; sentiment?: number }[];
+}
+
 const PastCallsList = () => {
   const { callHistory, loadPastCalls } = useCallMetricsStore();
   const [refreshing, setRefreshing] = useState(false);
@@ -47,7 +52,6 @@ const PastCallsList = () => {
     setRefreshing(true);
     try {
       console.log('Manually refreshing past calls list');
-      // Remove the true parameter since loadPastCalls doesn't accept arguments
       loadPastCalls(); 
     } catch (error) {
       console.error("Error refreshing calls:", error);
@@ -81,11 +85,18 @@ const PastCallsList = () => {
   };
   
   // Calculate average sentiment score
-  const getAverageSentiment = (sentiment: { agent: number; customer: number } | null | undefined) => {
-    if (!sentiment || typeof sentiment.agent !== 'number' || typeof sentiment.customer !== 'number') {
-      return 0.5; // Default middle value if sentiment data is invalid
+  const getAverageSentiment = (sentimentObj: any) => {
+    if (!sentimentObj) return 0.5;
+    
+    if (typeof sentimentObj === 'number') {
+      return sentimentObj;
     }
-    return (sentiment.agent + sentiment.customer) / 2;
+    
+    if (typeof sentimentObj === 'object' && 'agent' in sentimentObj && 'customer' in sentimentObj) {
+      return (sentimentObj.agent + sentimentObj.customer) / 2;
+    }
+    
+    return 0.5; // Default middle value
   };
   
   // Get sentiment color
@@ -130,67 +141,69 @@ const PastCallsList = () => {
         ) : (
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-4">
-              {callHistory.map((call) => (
-                <Card key={call.id} className="bg-muted/40">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="font-medium">
-                          {isAnonymousCall(call.id) 
-                            ? 'Anonymous Call' 
-                            : `Call ${typeof call.id === 'string' ? call.id.substring(0, 8) : call.id}`}
-                        </h4>
-                        <p className="text-sm text-muted-foreground">{formatDate(call.date)}</p>
-                      </div>
-                      {call.sentiment && (
-                        <Badge className={getSentimentColor(getAverageSentiment(call.sentiment))}>
-                          {getAverageSentiment(call.sentiment) > 0.66 ? 'Positive' : 
-                           getAverageSentiment(call.sentiment) > 0.33 ? 'Neutral' : 'Negative'}
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mt-3">
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <span className="text-sm">
-                          Duration: {formatDuration(call.duration)}
-                        </span>
+              {callHistory.map((call) => {
+                // TypeScript cast for better type safety
+                const typedCall = call as unknown as CallHistoryWithTalkRatio;
+                
+                return (
+                  <Card key={call.id} className="bg-muted/40">
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-medium">
+                            {isAnonymousCall(call.id) 
+                              ? 'Anonymous Call' 
+                              : `Call ${typeof call.id === 'string' ? call.id.substring(0, 8) : call.id}`}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">{formatDate(call.date)}</p>
+                        </div>
+                        {call.sentiment && (
+                          <Badge className={getSentimentColor(getAverageSentiment(call.sentiment))}>
+                            {getAverageSentiment(call.sentiment) > 0.66 ? 'Positive' : 
+                             getAverageSentiment(call.sentiment) > 0.33 ? 'Neutral' : 'Negative'}
+                          </Badge>
+                        )}
                       </div>
                       
-                      {call.talkRatio && (
+                      <div className="grid grid-cols-2 gap-4 mt-3">
                         <div className="flex items-center">
-                          <Mic className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
                           <span className="text-sm">
-                            Talk ratio: {Math.round(call.talkRatio.agent || 0)}% / {Math.round(call.talkRatio.customer || 0)}%
+                            Duration: {formatDuration(call.duration)}
                           </span>
                         </div>
-                      )}
-                    </div>
-                    
-                    {call.keyPhrases && call.keyPhrases.length > 0 && (
-                      <div className="mt-3">
-                        <h5 className="text-sm font-medium mb-1 flex items-center">
-                          <BarChart2 className="h-3 w-3 mr-1" />
-                          Key Phrases
-                        </h5>
-                        <div className="flex flex-wrap gap-1">
-                          {call.keyPhrases.slice(0, 5).map((phrase, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">
-                              {phrase}
-                            </Badge>
-                          ))}
-                          {call.keyPhrases.length > 5 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{call.keyPhrases.length - 5} more
-                            </Badge>
-                          )}
-                        </div>
+                        
+                        {typedCall.talkRatio && (
+                          <div className="flex items-center">
+                            <Mic className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="text-sm">
+                              Talk ratio: {Math.round(typedCall.talkRatio.agent || 0)}% / {Math.round(typedCall.talkRatio.customer || 0)}%
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      
+                      {typedCall.keyPhrases && typedCall.keyPhrases.length > 0 && (
+                        <div className="mt-3">
+                          <h5 className="text-sm font-medium mb-1">Key Phrases</h5>
+                          <div className="flex flex-wrap gap-1">
+                            {typedCall.keyPhrases.slice(0, 3).map((phrase, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {phrase.text}
+                              </Badge>
+                            ))}
+                            {typedCall.keyPhrases.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{typedCall.keyPhrases.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </ScrollArea>
         )}

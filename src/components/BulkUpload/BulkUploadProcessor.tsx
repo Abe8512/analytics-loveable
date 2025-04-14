@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/components/ui/use-toast";
 import { dispatchEvent } from '@/services/events/store';
 import { EventType } from '@/services/events/types';
-import { useBulkUploadService, BulkUploadFilter } from '@/services/BulkUploadService';
+import { useBulkUploadService } from '@/services/BulkUploadService';
+import { BulkUploadFilter } from '@/types/bulkUpload';
 import { Progress } from "@/components/ui/progress";
 
 interface CSVData {
@@ -187,7 +188,8 @@ const BulkUploadProcessor: React.FC = () => {
       toast({
         description: "Refreshing transcript data...",
       });
-      await refreshTranscripts({ force: force });
+      const filter: BulkUploadFilter = { force };
+      await refreshTranscripts(filter);
       toast({
         title: "Data refreshed",
         description: "Successfully refreshed transcript data.",

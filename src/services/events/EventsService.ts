@@ -10,25 +10,30 @@ import { useEventListener } from './hooks';
 
 // Create a proper EventsService class to match the imports in other files
 class EventsServiceClass {
+  // Map to store unsubscribe functions
+  private _unsubscribeFunctions = new Map<string, () => void>();
+
+  // Dispatch an event
   dispatchEvent(type: EventType, payload?: EventPayload) {
     return dispatchEventOriginal(type, payload);
   }
 
-  // This should return a string ID that can be used to remove the listener
-  addEventListener(type: EventType, listener: (payload: EventPayload) => void): string {
+  // Add an event listener and return a string ID
+  addEventListener(type: EventType, listener: (payload: EventPayload) => void): () => void {
     // The original function returns a function to unsubscribe
     const unsubscribe = addEventListenerOriginal(type, listener);
     
-    // Store the unsubscribe function in a map keyed by a unique ID
+    // Generate a unique ID for this listener
     const id = `listener-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store the unsubscribe function
     this._unsubscribeFunctions.set(id, unsubscribe);
     
-    return id;
+    // Return the unsubscribe function directly
+    return unsubscribe;
   }
 
-  // Map to store unsubscribe functions
-  private _unsubscribeFunctions = new Map<string, () => void>();
-
+  // Remove an event listener by ID (legacy)
   removeEventListener(id: string) {
     const unsubscribe = this._unsubscribeFunctions.get(id);
     if (unsubscribe) {
@@ -39,13 +44,9 @@ class EventsServiceClass {
     }
   }
 
+  // Use the hook for event listening
   useEventListener(type: EventType, callback: (payload: EventPayload) => void) {
     return useEventListener(type, callback);
-  }
-
-  listen(type: EventType, callback: (payload: EventPayload) => void): string {
-    // Return the ID from addEventListener
-    return this.addEventListener(type, callback);
   }
 }
 
