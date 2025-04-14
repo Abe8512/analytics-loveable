@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { RawMetricsRecord, MetricsFilters } from '@/types/metrics';
 import { format } from 'date-fns';
@@ -33,6 +34,57 @@ export const clearMetricsCache = (cacheKey?: string): void => {
   } else {
     metricsCache.clear();
     console.log('Cleared all metrics cache');
+  }
+};
+
+/**
+ * Checks if metrics data is available in the database
+ * @returns {Promise<boolean>} True if metrics data exists
+ */
+export const checkMetricsAvailability = async (): Promise<boolean> => {
+  try {
+    console.log('Checking for metrics data availability...');
+    
+    // Try call_metrics_summary first
+    const { data: metricsData, error: metricsError } = await supabase
+      .from('call_metrics_summary')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
+      
+    if (!metricsError && metricsData && (metricsData as any)?.count > 0) {
+      console.log(`Found ${(metricsData as any)?.count} metrics records`);
+      return true;
+    }
+    
+    // If no metrics summary, check if there are calls directly
+    const { data: callsData, error: callsError } = await supabase
+      .from('calls')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
+      
+    if (!callsError && callsData) {
+      const callCount = (callsData as any)?.count ?? 0;
+      console.log(`Found ${callCount} call records`);
+      return callCount > 0;
+    }
+    
+    // If no calls data, check if there are transcripts from Whisper
+    const { data: transcriptData, error: transcriptError } = await supabase
+      .from('call_transcripts')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
+      
+    if (!transcriptError && transcriptData) {
+      const transcriptCount = (transcriptData as any)?.count ?? 0;
+      console.log(`Found ${transcriptCount} transcript records`);
+      return transcriptCount > 0;
+    }
+    
+    console.log('No metrics data found in any table');
+    return false;
+  } catch (err) {
+    console.error('Exception in checkMetricsAvailability:', err);
+    return false;
   }
 };
 
@@ -210,58 +262,6 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
       setIsLoading(false);
     }
   }, [cacheKey, cacheDuration, filters]);
-  
-
-  /**
- * Checks if metrics data is available in the database
- * @returns {Promise<boolean>} True if metrics data exists
- */
-export const checkMetricsAvailability = async (): Promise<boolean> => {
-  try {
-    console.log('Checking for metrics data availability...');
-    
-    // Try call_metrics_summary first
-    const { data: metricsData, error: metricsError } = await supabase
-      .from('call_metrics_summary')
-      .select('count(*)', { count: 'exact' })
-      .limit(1);
-      
-    if (!metricsError && metricsData && (metricsData as any)?.count > 0) {
-      console.log(`Found ${(metricsData as any)?.count} metrics records`);
-      return true;
-    }
-    
-    // If no metrics summary, check if there are calls directly
-    const { data: callsData, error: callsError } = await supabase
-      .from('calls')
-      .select('count(*)', { count: 'exact' })
-      .limit(1);
-      
-    if (!callsError && callsData) {
-      const callCount = (callsData as any)?.count ?? 0;
-      console.log(`Found ${callCount} call records`);
-      return callCount > 0;
-    }
-    
-    // If no calls data, check if there are transcripts from Whisper
-    const { data: transcriptData, error: transcriptError } = await supabase
-      .from('call_transcripts')
-      .select('count(*)', { count: 'exact' })
-      .limit(1);
-      
-    if (!transcriptError && transcriptData) {
-      const transcriptCount = (transcriptData as any)?.count ?? 0;
-      console.log(`Found ${transcriptCount} transcript records`);
-      return transcriptCount > 0;
-    }
-    
-    console.log('No metrics data found in any table');
-    return false;
-  } catch (err) {
-    console.error('Exception in checkMetricsAvailability:', err);
-    return false;
-  }
-};
   
   // Handle real-time updates via Supabase subscription
   useEffect(() => {

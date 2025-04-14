@@ -3,13 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const createSalesInsightsTable = async () => {
   try {
-    // Check if the table exists using a more direct SQL approach instead of querying
+    // Check if the table exists using a more direct SQL approach
     const { error: checkError, data } = await supabase.rpc('execute_sql', { 
       query_text: "SELECT to_regclass('public.sales_insights');" 
     });
     
     // If there's an error or the table doesn't exist (null result)
-    if (checkError || (data && !data[0].to_regclass)) {
+    const tableExists = data && data.length > 0 && data[0] && data[0].to_regclass;
+    
+    if (checkError || !tableExists) {
       console.log('Sales insights table does not exist, trying to create it...');
       
       // Use SQL query to create the table
@@ -33,7 +35,7 @@ export const createSalesInsightsTable = async () => {
         return false;
       }
       
-      // Insert demo data directly via SQL to avoid type issues
+      // Insert demo data
       const demoInsights = [
         {
           title: 'Conversion Rate',
