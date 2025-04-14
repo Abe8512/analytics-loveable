@@ -1,5 +1,5 @@
 
-import { formatMetricsForDisplay } from './metricsUtils';
+import { formatMetricsForDisplay, createEmptyFormattedMetrics } from './metricsFormatter';
 import { 
   MetricsData, 
   RawMetricsRecord, 
@@ -17,12 +17,12 @@ export const processMetricsData = (
   hasError: boolean
 ): {
   metricsData: MetricsData,
-  formattedMetrics: FormattedMetrics | null,
+  formattedMetrics: FormattedMetrics,
   isUsingDemoData: boolean
 } => {
   // Default return values
   let metricsData: MetricsData = { ...initialMetricsData, isLoading };
-  let formattedMetrics: FormattedMetrics | null = null;
+  let formattedMetrics: FormattedMetrics = createEmptyFormattedMetrics();
   let isUsingDemoData = false;
   
   // If loading, return with appropriate flags
@@ -36,41 +36,36 @@ export const processMetricsData = (
       // Format data for UI display
       formattedMetrics = formatMetricsForDisplay(rawData);
       
-      if (formattedMetrics) {
-        // Convert formatted metrics to internal metrics format
-        metricsData = {
-          totalCalls: formattedMetrics.totalCalls,
-          avgDuration: formattedMetrics.avgDurationSeconds,
-          positiveSentiment: formattedMetrics.positiveSentimentPercent,
-          negativeSentiment: formattedMetrics.negativeSentimentPercent,
-          neutralSentiment: formattedMetrics.neutralSentimentPercent,
-          avgSentiment: formattedMetrics.avgSentiment,
-          callScore: formattedMetrics.callScore,
-          conversionRate: formattedMetrics.conversionRate,
-          agentTalkRatio: formattedMetrics.agentTalkRatio,
-          customerTalkRatio: formattedMetrics.customerTalkRatio,
-          topKeywords: formattedMetrics.topKeywords,
-          reportDate: formattedMetrics.reportDate,
-          lastUpdated: new Date(),
-          isLoading: false,
-          isUsingDemoData: false,
-          lastError: null
-        };
-      }
+      // Convert formatted metrics to internal metrics format
+      metricsData = {
+        totalCalls: formattedMetrics.totalCalls,
+        avgDuration: formattedMetrics.avgDurationSeconds,
+        positiveSentiment: formattedMetrics.positiveSentimentPercent,
+        negativeSentiment: formattedMetrics.negativeSentimentPercent,
+        neutralSentiment: formattedMetrics.neutralSentimentPercent,
+        avgSentiment: formattedMetrics.avgSentiment,
+        callScore: formattedMetrics.callScore,
+        conversionRate: formattedMetrics.conversionRate,
+        agentTalkRatio: formattedMetrics.agentTalkRatio,
+        customerTalkRatio: formattedMetrics.customerTalkRatio,
+        topKeywords: formattedMetrics.topKeywords,
+        reportDate: formattedMetrics.reportDate,
+        lastUpdated: new Date(),
+        isLoading: false,
+        isUsingDemoData: false,
+        lastError: null
+      };
     } else if (hasError || !rawData) {
-      // If we have an error or no data, use empty state with appropriate flags
-      console.log('No metrics data available, using default empty state');
+      console.log('No metrics data available');
       
       // Empty state with error flag
       metricsData = {
         ...initialMetricsData,
         isLoading: false,
-        isUsingDemoData: true,
+        isUsingDemoData: false,
         lastError: hasError ? 'Error fetching metrics' : 'No metrics data available',
         lastUpdated: new Date()
       };
-      
-      isUsingDemoData = true;
     }
   } catch (error) {
     console.error('Error processing metrics data:', error);
@@ -79,12 +74,10 @@ export const processMetricsData = (
     metricsData = {
       ...initialMetricsData,
       isLoading: false,
-      isUsingDemoData: true,
+      isUsingDemoData: false,
       lastError: error instanceof Error ? error.message : 'Unknown error processing metrics',
       lastUpdated: new Date()
     };
-    
-    isUsingDemoData = true;
   }
   
   return { metricsData, formattedMetrics, isUsingDemoData };
@@ -94,18 +87,7 @@ export const processMetricsData = (
  * Extracts key performance indicators from metrics data
  * for use in dashboard displays
  */
-export const extractDashboardKPIs = (metrics: FormattedMetrics | null) => {
-  if (!metrics) {
-    // Return default values if metrics is null or undefined
-    return {
-      totalCalls: 0,
-      avgDuration: 0,
-      positiveSentiment: 0,
-      callScore: 0,
-      conversionRate: 0
-    };
-  }
-  
+export const extractDashboardKPIs = (metrics: FormattedMetrics) => {
   return {
     totalCalls: metrics.totalCalls || 0,
     avgDuration: metrics.avgDurationMinutes || 0,

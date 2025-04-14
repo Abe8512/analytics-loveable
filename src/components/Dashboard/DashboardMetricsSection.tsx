@@ -9,7 +9,6 @@ import { useMetrics } from '@/contexts/MetricsContext';
 import { extractDashboardKPIs } from '@/utils/metricsProcessor';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from 'sonner';
 
 // Update to define the props interface
 interface DashboardMetricsSectionProps {
@@ -17,10 +16,18 @@ interface DashboardMetricsSectionProps {
 }
 
 const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({ isLoading: externalLoading }) => {
-  const { metricsData, isLoading: metricsLoading, refresh, error, isUsingDemoData, lastUpdated } = useMetrics();
+  const { 
+    metricsData, 
+    isLoading: metricsLoading, 
+    refresh, 
+    error, 
+    isUsingDemoData, 
+    lastUpdated,
+    isRefreshing 
+  } = useMetrics();
   
   // Combine external loading state with metrics loading state
-  const isLoading = externalLoading || metricsLoading;
+  const isLoading = externalLoading || metricsLoading || isRefreshing;
   
   // Extract the necessary metrics for the dashboard
   const dashboardStats = extractDashboardKPIs(metricsData);
@@ -41,15 +48,7 @@ const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({ isLoa
   
   const handleRefresh = async () => {
     if (isLoading) return; // Prevent multiple simultaneous refreshes
-    
-    try {
-      toast.loading("Refreshing metrics...");
-      await refresh(true); // Always force refresh when user explicitly requests it
-      toast.success("Metrics updated successfully");
-    } catch (err) {
-      toast.error("Failed to refresh metrics");
-      console.error("Error refreshing metrics:", err);
-    }
+    await refresh(true); // Always force refresh when user explicitly requests it
   };
   
   return (
@@ -87,7 +86,7 @@ const DashboardMetricsSection: React.FC<DashboardMetricsSectionProps> = ({ isLoa
             className="flex items-center gap-1 w-full sm:w-auto"
           >
             <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
           <Link to="/performance-metrics" className="w-full sm:w-auto">
             <Button variant="outline" size="sm" className="flex items-center gap-2 w-full">

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { useSharedFilters } from '@/contexts/SharedFilterContext';
@@ -8,14 +8,8 @@ import TrendingInsightsCard from '@/components/Performance/TrendingInsightsCard'
 import { PageHeader } from '@/components/ui/page-header';
 import { LineChart, RefreshCcw } from 'lucide-react';
 import { useMetrics } from '@/contexts/MetricsContext';
-import { 
-  generateDemoSalesInsights, 
-  generateDemoCoachingInsights, 
-  generateDemoOpportunityInsights 
-} from '@/services/DemoDataService';
-import { MetricsFilters } from '@/types/metrics';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
@@ -24,66 +18,112 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 const PerformanceMetrics = () => {
   const { filters } = useSharedFilters();
-  const { metricsData, refresh, isLoading: metricsLoading, error } = useMetrics();
+  const { 
+    refresh, 
+    isLoading: metricsLoading, 
+    error, 
+    isRefreshing 
+  } = useMetrics();
   
   const [salesInsights, setSalesInsights] = useState<any[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(true);
   const [insightsError, setInsightsError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchSalesInsights = async () => {
-      try {
-        setIsLoadingInsights(true);
-        setInsightsError(null);
-
-        // Simulating API call with timeout
-        setTimeout(() => {
-          setSalesInsights(generateDemoSalesInsights());
-          setIsLoadingInsights(false);
-        }, 800);
-      } catch (err) {
-        console.error("Failed to fetch sales insights:", err);
-        setInsightsError(err instanceof Error ? err.message : 'Error fetching insights');
-        // Fall back to demo data
-        setSalesInsights(generateDemoSalesInsights());
-        setIsLoadingInsights(false);
+  // Fetch sales insights from the API
+  const fetchSalesInsights = async () => {
+    setIsLoadingInsights(true);
+    setInsightsError(null);
+    
+    try {
+      // API call would go here
+      const response = await fetch('/api/sales-insights');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch sales insights');
       }
-    };
+      
+      const data = await response.json();
+      setSalesInsights(data);
+    } catch (err) {
+      console.error("Failed to fetch sales insights:", err);
+      setInsightsError(err instanceof Error ? err.message : 'Error fetching insights');
+      
+      // Provide default data
+      setSalesInsights([
+        { 
+          title: 'Call Volume Trending Up', 
+          description: 'Call volume increased by 15% compared to previous period',
+          category: 'positive',
+          date: new Date().toISOString()
+        },
+        {
+          title: 'Conversion Rate Improvement',
+          description: 'Team conversion rate has improved by 5% this month',
+          category: 'positive',
+          date: new Date().toISOString()
+        },
+        {
+          title: 'Call Duration Increasing',
+          description: 'Average call duration is up 2 minutes from last month',
+          category: 'neutral',
+          date: new Date().toISOString()
+        }
+      ]);
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  };
 
+  // React to filter changes
+  React.useEffect(() => {
     fetchSalesInsights();
   }, [filters]);
-
+  
   // Prepare insights for coaching and opportunities sections
-  const coachingInsights = generateDemoCoachingInsights();
-  const opportunityInsights = generateDemoOpportunityInsights();
+  const coachingInsights = [
+    {
+      title: 'More Discovery Questions Needed',
+      description: 'Top performers ask 40% more discovery questions',
+      category: 'action',
+      date: new Date().toISOString()
+    },
+    {
+      title: 'Objection Handling Opportunity',
+      description: 'Price objections are increasing by 20% this quarter',
+      category: 'warning',
+      date: new Date().toISOString()
+    }
+  ];
+  
+  const opportunityInsights = [
+    {
+      title: 'Feature Requests Trending',
+      description: 'Customers asking about advanced reporting features',
+      category: 'opportunity',
+      date: new Date().toISOString()
+    },
+    {
+      title: 'Integration Questions Rising',
+      description: '35% increase in API integration questions',
+      category: 'opportunity',
+      date: new Date().toISOString()
+    }
+  ];
   
   const handleRefresh = async () => {
     try {
-      setIsRefreshing(true);
-      toast({
-        title: "Refreshing metrics",
-        description: "Fetching the latest performance data..."
-      });
+      toast.loading("Refreshing metrics");
       
-      await refresh();
+      // Refresh both metrics and insights
+      await Promise.all([
+        refresh(true),
+        fetchSalesInsights()
+      ]);
       
-      // Also refresh insights
-      setSalesInsights(generateDemoSalesInsights());
-      
-      toast({
-        title: "Data Refreshed",
-        description: "Performance metrics have been updated with the latest data."
-      });
+      toast.success("Data refreshed successfully");
     } catch (err) {
-      console.error("Failed to refresh metrics:", err);
-      toast({
-        title: "Refresh Failed",
-        description: "Could not update performance metrics.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsRefreshing(false);
+      console.error("Failed to refresh data:", err);
+      toast.error("Could not update performance metrics");
     }
   };
 
