@@ -1,6 +1,10 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+interface RegClassResult {
+  to_regclass: string | null;
+}
+
 export const createSalesInsightsTable = async () => {
   try {
     // Check if the table exists using a more direct SQL approach
@@ -10,11 +14,12 @@ export const createSalesInsightsTable = async () => {
     
     // If there's an error or the table doesn't exist (null result)
     // Properly type check the response
-    const tableExists = data && 
-      Array.isArray(data) && 
-      data.length > 0 && 
-      data[0] && 
-      data[0].to_regclass !== null;
+    const results = data as RegClassResult[] | null;
+    const tableExists = results && 
+      Array.isArray(results) && 
+      results.length > 0 && 
+      results[0] && 
+      results[0].to_regclass !== null;
     
     if (checkError || !tableExists) {
       console.log('Sales insights table does not exist, trying to create it...');
