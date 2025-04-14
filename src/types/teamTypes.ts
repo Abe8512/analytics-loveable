@@ -1,21 +1,19 @@
 
+import { SentimentType } from './call';
+
 export interface TeamMember {
   id: string;
   name: string;
   email: string;
   role?: string;
   avatar?: string;
-  avatar_url?: string; // Add this to match what some components expect
+  avatar_url?: string;
   user_id: string;
-  member_id?: string;
   created_at?: string;
   updated_at?: string;
 }
 
-export interface TeamMemberResponse {
-  data: TeamMember | null;
-  error: any;
-}
+export type BulkUploadState = 'idle' | 'uploading' | 'complete' | 'error';
 
 export interface BulkUploadFilter {
   force?: boolean;
@@ -32,15 +30,23 @@ export interface TeamPerformanceMetric {
   change: number;
   trend: 'up' | 'down' | 'neutral';
   performance: 'good' | 'average' | 'poor';
+  rep_id?: string; // Added for compatibility
 }
 
-// Add TeamPerformance interface
 export interface TeamPerformance {
-  id: string;
-  name: string;
-  calls: number;
-  successRate: number;
-  avgSentiment: number;
-  conversionRate: number;
-  rep_id?: string; // Add this for compatibility
+  rep_id: string;
+  rep_name: string;
+  call_volume: number;
+  avg_call_duration: number;
+  sentiment_score: number;
+  success_rate: number;
+  avg_talk_ratio: number;
+  objection_handling_score: number;
+  positive_language_score: number;
+  top_keywords: string[];
+  last_call_date: string;
+}
+
+export interface TeamTranscriptActivityProps {
+  memberId: string | null;
 }

@@ -1,149 +1,71 @@
 
-import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useCallMetricsStore } from '@/store/useCallMetricsStore';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Clock, LineChart, BarChart, MessageSquare } from 'lucide-react';
-
-interface KeyPhrase {
-  text: string;
-  sentiment?: number;
-}
-
-const formatTime = (seconds: number) => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
-};
-
-const getSentimentLabel = (value: number) => {
-  if (value >= 0.7) return { label: 'Positive', color: 'bg-green-500' };
-  if (value <= 0.3) return { label: 'Negative', color: 'bg-red-500' };
-  return { label: 'Neutral', color: 'bg-blue-500' };
-};
 
 const LiveMetricsDisplay = () => {
   const { 
-    duration, 
-    talkRatio, 
+    callScore, 
     sentiment, 
-    isTalkingMap, 
-    keyPhrases,
+    keywords, 
+    talkRatio = { agent: 50, customer: 50 },
+    duration = 0
   } = useCallMetricsStore();
-  
-  // Handle the customer/client property mapping (client is in the type but we use customer in the UI)
-  const customerTalkRatio = talkRatio.client;
+
+  const [durationDisplay, setDurationDisplay] = useState('00:00');
+
+  useEffect(() => {
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    setDurationDisplay(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+  }, [duration]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Talk Ratio Card */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center">
-              <BarChart className="h-4 w-4 mr-2 text-blue-500" />
-              <span className="text-sm font-medium">Talk Ratio</span>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              Live
-            </Badge>
-          </div>
-          
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span>Agent</span>
-                <span>{talkRatio.agent}%</span>
-              </div>
-              <Progress value={talkRatio.agent} className="h-2 bg-blue-100" />
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span>Customer</span>
-                <span>{customerTalkRatio}%</span>
-              </div>
-              <Progress value={customerTalkRatio} className="h-2 bg-pink-100" />
-            </div>
+        <CardHeader className="py-2">
+          <CardTitle className="text-sm font-medium">Call Duration</CardTitle>
+        </CardHeader>
+        <CardContent className="py-2">
+          <div className="text-2xl font-bold">{durationDisplay}</div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader className="py-2">
+          <CardTitle className="text-sm font-medium">Sentiment</CardTitle>
+        </CardHeader>
+        <CardContent className="py-2">
+          <div className="text-2xl font-bold">
+            {typeof sentiment === 'number' 
+              ? `${(sentiment * 100).toFixed(0)}%` 
+              : sentiment || 'Neutral'}
           </div>
         </CardContent>
       </Card>
       
-      {/* Call Duration Card */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center">
-              <Clock className="h-4 w-4 mr-2 text-blue-500" />
-              <span className="text-sm font-medium">Call Duration</span>
+        <CardHeader className="py-2">
+          <CardTitle className="text-sm font-medium">Talk Ratio</CardTitle>
+        </CardHeader>
+        <CardContent className="py-2">
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs">
+              <span>Agent: {talkRatio.agent.toFixed(0)}%</span>
+              <span>Customer: {talkRatio.customer.toFixed(0)}%</span>
             </div>
-            <Badge variant="outline" className="text-xs">
-              Live
-            </Badge>
-          </div>
-          
-          <div className="flex items-center justify-center">
-            <div className="text-3xl font-bold">{formatTime(duration)}</div>
+            <Progress value={talkRatio.agent} className="h-2" />
           </div>
         </CardContent>
       </Card>
       
-      {/* Sentiment Card */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center">
-              <LineChart className="h-4 w-4 mr-2 text-blue-500" />
-              <span className="text-sm font-medium">Sentiment</span>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              Live
-            </Badge>
-          </div>
-          
-          <div className="space-y-3">
-            <Progress value={sentiment * 100} className="h-2" />
-            <div className="flex items-center justify-between">
-              <Badge 
-                variant="outline" 
-                className={`${getSentimentLabel(sentiment).color} text-white px-2 py-0.5`}
-              >
-                {getSentimentLabel(sentiment).label}
-              </Badge>
-              <span className="text-sm">{Math.round(sentiment * 100)}%</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Key Phrases Card */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center">
-              <MessageSquare className="h-4 w-4 mr-2 text-blue-500" />
-              <span className="text-sm font-medium">Key Phrases</span>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              Live
-            </Badge>
-          </div>
-          
-          <div className="space-y-2 max-h-[120px] overflow-y-auto">
-            {keyPhrases.length > 0 ? (
-              keyPhrases.map((phrase: KeyPhrase, index: number) => (
-                <div key={index} className="text-xs p-1 bg-gray-100 dark:bg-gray-800 rounded">
-                  {phrase.text}
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-gray-500 text-center py-2">
-                No key phrases detected yet
-              </div>
-            )}
-          </div>
+        <CardHeader className="py-2">
+          <CardTitle className="text-sm font-medium">Call Score</CardTitle>
+        </CardHeader>
+        <CardContent className="py-2">
+          <div className="text-2xl font-bold">{callScore || '0'}</div>
         </CardContent>
       </Card>
     </div>

@@ -1,52 +1,62 @@
 
-import React, {
-  createContext,
-  useState,
-  useEffect,
-  useContext,
-  useCallback,
-} from 'react';
-import {
-  CallTranscript,
-  CallTranscriptSegment,
-  CallSentiment,
-  SentimentType,
-  castToCallTranscript
-} from '@/types/call';
-import { useAuth } from './AuthContext';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { 
+  CallTranscript, 
+  SentimentType, 
+  castToCallTranscript 
+} from '@/types/call';
 import { EventsService } from '@/services/EventsService';
 import { EventType } from '@/services/events/types';
 
-interface TranscriptContextProps {
-  transcript: CallTranscript | null;
-  segments: CallTranscriptSegment[] | null;
-  sentiment: CallSentiment | null;
+interface TranscriptContextType {
+  currentTranscript: CallTranscript | null;
+  transcripts: CallTranscript[];
   isLoading: boolean;
   error: string | null;
-  loadTranscript: (id: string) => Promise<void>;
-  refreshTranscripts: () => Promise<void>;
-  transcripts?: CallTranscript[];
+  setCurrentTranscript: (transcript: CallTranscript | null) => void;
+  fetchTranscripts: () => Promise<void>;
+  updateTranscriptSentiment: (id: string, sentiment: SentimentType) => Promise<void>;
+  fetchTranscriptById: (id: string) => Promise<CallTranscript | null>;
 }
 
-const TranscriptContext = createContext<TranscriptContextProps | undefined>(
-  undefined
-);
+const TranscriptContext = createContext<TranscriptContextType | undefined>(undefined);
 
-export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [transcript, setTranscript] = useState<CallTranscript | null>(null);
-  const [segments, setSegments] = useState<CallTranscriptSegment[] | null>(null);
-  const [sentiment, setSentiment] = useState<CallSentiment | null>(null);
+export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentTranscript, setCurrentTranscript] = useState<CallTranscript | null>(null);
   const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
-  const { toast } = useToast();
 
-  const loadTranscript = useCallback(async (id: string) => {
+  const fetchTranscripts = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Safely cast the data to CallTranscript[] using our helper
+      const safeTranscripts = data?.map(transcript => castToCallTranscript(transcript)) || [];
+      setTranscripts(safeTranscripts);
+      
+      // Dispatch event to notify other components
+      EventsService.dispatchEvent('transcript-updated' as EventType, { 
+        transcripts: safeTranscripts 
+      });
+      
+    } catch (error) {
+      console.error('Error fetching transcripts:', error);
+      setError('Failed to fetch transcripts');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchTranscriptById = useCallback(async (id: string): Promise<CallTranscript | null> => {
     setIsLoading(true);
     setError(null);
     try {
@@ -56,125 +66,79 @@ export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({
         .eq('id', id)
         .single();
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        // Use our helper to safely cast the data
-        const safeTranscript = castToCallTranscript(data);
-        setTranscript(safeTranscript);
-        setSegments(safeTranscript.transcript_segments || []);
-        setSentiment(safeTranscript.sentiment_data || { agent: 0.5, customer: 0.5, overall: 0.5 });
-      } else {
-        setTranscript(null);
-        setSegments(null);
-        setSentiment(null);
-        setError('Transcript not found');
-      }
-    } catch (err: any) {
-      setError(err.message);
-      toast({
-        title: 'Error loading transcript',
-        description: err.message,
-        variant: 'destructive',
-      });
+      if (error) throw error;
+      
+      // Use our helper to safely cast the data
+      return data ? castToCallTranscript(data) : null;
+    } catch (error) {
+      console.error('Error fetching transcript by ID:', error);
+      setError('Failed to fetch transcript');
+      return null;
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
-  const refreshTranscripts = useCallback(async () => {
+  const updateTranscriptSentiment = useCallback(async (id: string, sentiment: SentimentType) => {
     setIsLoading(true);
     setError(null);
     try {
-      if (!user) {
-        setError('User not authenticated');
-        return;
-      }
-
-      // Fetch all transcripts for the current user
-      const { data: callTranscripts, error } = await supabase
+      const { error } = await supabase
         .from('call_transcripts')
-        .select('*')
-        .eq('user_id', user.id);
+        .update({ sentiment })
+        .eq('id', id);
 
-      if (error) {
-        throw new Error(error.message);
+      if (error) throw error;
+
+      // Update local state
+      setTranscripts(prev => 
+        prev.map(transcript => 
+          transcript.id === id ? { ...transcript, sentiment } : transcript
+        )
+      );
+
+      // If the current transcript is the one being updated, update it too
+      if (currentTranscript && currentTranscript.id === id) {
+        setCurrentTranscript({ ...currentTranscript, sentiment });
       }
 
-      if (callTranscripts) {
-        // Update the local state with the refreshed transcripts
-        console.log('Transcripts refreshed:', callTranscripts.length);
-        
-        // Map the transcripts to ensure they match our type
-        const safeTranscripts = callTranscripts.map(castToCallTranscript);
-        setTranscripts(safeTranscripts);
-        
-        // Dispatch an event for other components
-        EventsService.dispatchEvent('transcripts-refreshed' as EventType, { 
-          count: safeTranscripts.length 
-        });
-      } else {
-        console.log('No transcripts found for the current user.');
-      }
-    } catch (err: any) {
-      setError(err.message);
-      toast({
-        title: 'Error refreshing transcripts',
-        description: err.message,
-        variant: 'destructive',
-      });
+      // Dispatch event
+      EventsService.dispatchEvent('sentiment-updated' as EventType, { id, sentiment });
+    } catch (error) {
+      console.error('Error updating transcript sentiment:', error);
+      setError('Failed to update sentiment');
     } finally {
       setIsLoading(false);
     }
-  }, [toast, user]);
+  }, [currentTranscript]);
 
+  // Initial fetch
   useEffect(() => {
-    const unsubscribe1 = EventsService.addEventListener('transcript-selected' as EventType, (payload) => {
-      if (payload && payload.transcriptId) {
-        loadTranscript(payload.transcriptId);
-      }
-    });
-    
-    const unsubscribe2 = EventsService.addEventListener('transcript-updated' as EventType, () => refreshTranscripts());
-    const unsubscribe3 = EventsService.addEventListener('transcripts-updated' as EventType, () => refreshTranscripts());
-    const unsubscribe4 = EventsService.addEventListener('bulk-upload-completed' as EventType, () => refreshTranscripts());
+    fetchTranscripts();
+  }, [fetchTranscripts]);
 
-    // Make sure to properly cleanup in useEffect return function
-    return () => {
-      unsubscribe1();
-      unsubscribe2();
-      unsubscribe3();
-      unsubscribe4();
-    };
-  }, [loadTranscript, refreshTranscripts]);
-
-  const value: TranscriptContextProps = {
-    transcript,
-    segments,
-    sentiment,
+  const contextValue: TranscriptContextType = {
+    currentTranscript,
+    transcripts,
     isLoading,
     error,
-    loadTranscript,
-    refreshTranscripts,
-    transcripts,
+    setCurrentTranscript,
+    fetchTranscripts,
+    updateTranscriptSentiment,
+    fetchTranscriptById
   };
 
   return (
-    <TranscriptContext.Provider value={value}>
+    <TranscriptContext.Provider value={contextValue}>
       {children}
     </TranscriptContext.Provider>
   );
 };
 
-export const useTranscript = () => {
+export const useTranscripts = () => {
   const context = useContext(TranscriptContext);
-  if (!context) {
-    throw new Error('useTranscript must be used within a TranscriptProvider');
+  if (context === undefined) {
+    throw new Error('useTranscripts must be used within a TranscriptProvider');
   }
   return context;
 };
-
-// Add a hook with the same functionality for export compatibility
-export const useTranscripts = useTranscript;

@@ -58,7 +58,7 @@ export const useTranscriptDetails = (): UseTranscriptDetailsResult => {
     fetchTranscript();
   }, [fetchTranscript]);
 
-  const handleTranscriptUpdated = useCallback((payload) => {
+  const handleTranscriptUpdated = useCallback((payload: any) => {
     if (payload.id === transcriptId) {
       fetchTranscript();
     }

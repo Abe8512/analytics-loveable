@@ -11,6 +11,7 @@ export interface CallTranscriptSegment {
   end_time: number;
   speaker: 'agent' | 'customer';
   text: string;
+  sentiment?: SentimentType;
 }
 
 export interface CallTranscript {
@@ -19,7 +20,7 @@ export interface CallTranscript {
   assigned_to?: string;
   transcript_segments: CallTranscriptSegment[];
   sentiment: SentimentType;
-  text?: string; // Add text property
+  text?: string;
   keywords?: string[];
   key_phrases?: string[];
   sentiment_data?: SentimentSegment[];
@@ -90,4 +91,45 @@ export interface CallHistory {
 export interface TalkTimeRatio {
   agent: number;
   customer: number;
+}
+
+// Utility function to safely cast database records to CallTranscript
+export function castToCallTranscript(data: any): CallTranscript {
+  // Default segments as empty array if not present or not in correct format
+  let transcript_segments: CallTranscriptSegment[] = [];
+  
+  // Attempt to parse transcript_segments if it exists
+  if (data.transcript_segments) {
+    if (Array.isArray(data.transcript_segments)) {
+      transcript_segments = data.transcript_segments;
+    } else if (typeof data.transcript_segments === 'string') {
+      try {
+        transcript_segments = JSON.parse(data.transcript_segments);
+      } catch (e) {
+        console.error('Failed to parse transcript_segments', e);
+      }
+    }
+  }
+
+  // Create a well-formed CallTranscript object
+  const transcript: CallTranscript = {
+    id: data.id || '',
+    call_id: data.call_id || '',
+    transcript_segments: transcript_segments,
+    sentiment: (data.sentiment as SentimentType) || 'neutral',
+    text: data.text || '',
+    keywords: Array.isArray(data.keywords) ? data.keywords : [],
+    key_phrases: Array.isArray(data.key_phrases) ? data.key_phrases : [],
+    assigned_to: data.assigned_to,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    user_name: data.user_name,
+    customer_name: data.customer_name,
+    duration: data.duration,
+    call_score: data.call_score,
+    end_time: data.end_time,
+    filename: data.filename
+  };
+
+  return transcript;
 }
