@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 
 const AccountSettings = () => {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -19,7 +19,7 @@ const AccountSettings = () => {
           <CardContent>
             <div className="space-y-2">
               <div>
-                <span className="font-medium">Name:</span> {user?.name || 'Not provided'}
+                <span className="font-medium">Name:</span> {profile?.display_name || 'Not provided'}
               </div>
               <div>
                 <span className="font-medium">Email:</span> {user?.email}

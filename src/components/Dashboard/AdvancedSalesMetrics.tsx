@@ -37,12 +37,12 @@ const COLORS = {
 
 // Custom tooltip component
 const CustomTooltip = ({ active, payload, label }: any) => {
-  const { isDark } = useTheme();
+  const { isDarkMode } = useTheme();
   if (active && payload && payload.length) {
     return (
       <div className={cn(
         "px-3 py-2 rounded-lg shadow-md border",
-        isDark ? "bg-dark-purple border-white/10" : "bg-white border-gray-200"
+        isDarkMode ? "bg-dark-purple border-white/10" : "bg-white border-gray-200"
       )}>
         <p className="font-medium text-sm">{label}</p>
         {payload.map((entry: any, index: number) => (
@@ -58,7 +58,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const AdvancedSalesMetrics = () => {
-  const { isDark } = useTheme();
+  const { isDarkMode } = useTheme();
   
   // Get mock data
   const kpiData = useMemo(() => generateMockKPIData(), []);
@@ -66,7 +66,7 @@ const AdvancedSalesMetrics = () => {
   const funnelData = useMemo(() => generateMockSalesFunnelData(), []);
   
   // Customize the background color of cards based on theme
-  const cardBackground = isDark ? 
+  const cardBackground = isDarkMode ? 
     "bg-gradient-to-br from-dark-purple to-dark-purple/70" : 
     "bg-gradient-to-br from-white to-gray-50";
   
@@ -88,7 +88,7 @@ const AdvancedSalesMetrics = () => {
     <div className="space-y-6">
       <h2 className={cn(
         "text-xl font-bold flex items-center gap-2", 
-        isDark ? "text-white" : "text-gray-800"
+        isDarkMode ? "text-white" : "text-gray-800"
       )}>
         <Zap className="h-5 w-5 text-neon-purple" />
         Advanced Sales Performance Metrics

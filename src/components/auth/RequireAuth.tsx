@@ -4,10 +4,10 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const RequireAuth = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
   
-  if (loading) {
+  if (isLoading) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
   

@@ -1,8 +1,8 @@
 
 import { 
-  dispatchEvent, 
-  addEventListener, 
-  removeEventListener, 
+  dispatchEvent as dispatchEventOriginal, 
+  addEventListener as addEventListenerOriginal, 
+  removeEventListener as removeEventListenerOriginal,
   EVENT_TYPES
 } from './store';
 import type { EventType, EventPayload } from './types';
@@ -11,24 +11,24 @@ import { useEventListener } from './hooks';
 // Create a proper EventsService class to match the imports in other files
 class EventsServiceClass {
   dispatchEvent(type: EventType, payload?: EventPayload) {
-    return dispatchEvent(type, payload);
+    return dispatchEventOriginal(type, payload);
   }
 
-  addEventListener(type: EventType, listener: (payload: EventPayload) => void) {
-    return addEventListener(type, listener);
+  addEventListener(type: EventType, listener: (payload: EventPayload) => void): string {
+    return addEventListenerOriginal(type, listener);
   }
 
-  removeEventListener(type: EventType, listener: (payload: EventPayload) => void) {
-    removeEventListener(type, listener);
+  removeEventListener(id: string) {
+    removeEventListenerOriginal(id);
   }
 
   useEventListener(type: EventType, callback: (payload: EventPayload) => void) {
     return useEventListener(type, callback);
   }
 
-  listen(type: EventType, callback: (payload: EventPayload) => void) {
+  listen(type: EventType, callback: (payload: EventPayload) => void): string {
     // Return the unsubscribe function for easier cleanup
-    return addEventListener(type, callback);
+    return this.addEventListener(type, callback);
   }
 }
 

@@ -9,7 +9,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   const [listeners, setListeners] = useState<any[]>([]);
 
   const addListener = (type: EventType, callback: (payload: EventPayload) => void): string => {
-    return EventsService.addEventListener(type, callback);
+    const listenerId = EventsService.addEventListener(type, callback);
+    return listenerId;
   };
 
   const removeListener = (id: string) => {

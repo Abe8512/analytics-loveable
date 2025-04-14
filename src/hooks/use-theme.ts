@@ -15,7 +15,10 @@ export const useTheme = () => {
   
   return {
     ...context,
-    toggleDarkMode
+    toggleDarkMode,
+    // Add aliases for compatibility with components using isDark and toggleTheme
+    isDark: context.isDarkMode,
+    toggleTheme: toggleDarkMode
   };
 };
 

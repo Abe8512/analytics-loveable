@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 
 const CallActivity = () => {
-  const { isDark } = useTheme();
+  const { isDarkMode } = useTheme();
   const [activeTab, setActiveTab] = useState("recent-calls");
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
@@ -139,7 +139,7 @@ const CallActivity = () => {
         <div className="sticky top-0 z-10 pb-2 pt-1">
           <TabsList className={cn(
             "bg-background/80 backdrop-blur-md w-full p-1 rounded-lg",
-            isDark ? "border border-white/5" : "border border-gray-200/80"
+            isDarkMode ? "border border-white/5" : "border border-gray-200/80"
           )}>
             <TabsTrigger value="recent-calls" className="flex items-center gap-1.5">
               <Phone className="h-4 w-4" />

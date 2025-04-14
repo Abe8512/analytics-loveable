@@ -4,9 +4,9 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const RequireUnauth = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   
-  if (loading) {
+  if (isLoading) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
   
