@@ -73,7 +73,8 @@ serve(async (req) => {
           call_score: callScore,
           metadata: data.metadata || {},
           user_name: data.user_name || null,
-          customer_name: data.customer_name || null
+          customer_name: data.customer_name || null,
+          assigned_to: data.assigned_to || null
         })
       
       if (error) {
@@ -91,7 +92,8 @@ serve(async (req) => {
               text: cleanText || "No transcript available",
               filename: data.filename || 'unnamed_recording.mp3',
               user_name: data.user_name || null,
-              customer_name: data.customer_name || null
+              customer_name: data.customer_name || null,
+              assigned_to: data.assigned_to || null
             })
           
           if (minimalError) {

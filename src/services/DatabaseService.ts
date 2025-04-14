@@ -1,6 +1,7 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
+import { toast } from "sonner";
+import { SupabaseErrorHandler } from "@/integrations/supabase/errorHandling";
 
 interface CallTranscriptInput {
   text: string;
@@ -14,6 +15,7 @@ interface CallTranscriptInput {
   key_phrases?: string[];
   transcript_segments?: any;
   metadata?: any;
+  assigned_to?: string;
 }
 
 interface CallInput {
@@ -72,67 +74,105 @@ export class DatabaseService {
           key_phrases: input.key_phrases || [],
           transcript_segments: input.transcript_segments || null,
           metadata: input.metadata || {},
+          assigned_to: input.assigned_to || null,
           created_at: new Date().toISOString()
         })
         .select();
       
       if (error) {
-        console.error('Error saving call transcript:', error);
-        
-        // Try the edge function as a fallback
-        try {
-          console.log('Attempting to save via edge function...');
-          const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
-            body: { 
-              data: {
-                id: transcriptId,
-                user_id: input.user_id || 'anonymous',
-                text: input.text,
-                filename: input.filename,
-                duration: duration,
-                sentiment: input.sentiment || 'neutral',
-                keywords: input.keywords || [],
-                key_phrases: input.key_phrases || [],
-                call_score: callScore,
-                metadata: input.metadata || {},
-                created_at: new Date().toISOString()
-              }
-            }
-          });
+        // Check specifically for ON CONFLICT error
+        if (error.code === '42P10') {
+          console.error('ON CONFLICT specification error, using alternative insert method:', error);
           
-          // Improved error handling for edge function
-          if (edgeFunctionResult.error) {
-            console.error('Edge function error:', edgeFunctionResult.error);
-            throw new Error(`Edge function error: ${
-              edgeFunctionResult.error.message || JSON.stringify(edgeFunctionResult.error)
-            }`);
+          // Try again without the .select() which might be triggering the ON CONFLICT issue
+          const { error: retryError } = await supabase
+            .from('call_transcripts')
+            .insert({
+              id: transcriptId,
+              user_id: input.user_id || 'anonymous',
+              call_id: input.call_id,
+              filename: input.filename,
+              text: input.text,
+              duration: duration,
+              call_score: callScore,
+              sentiment: input.sentiment || 'neutral',
+              keywords: input.keywords || [],
+              key_phrases: input.key_phrases || [],
+              assigned_to: input.assigned_to || null,
+              created_at: new Date().toISOString()
+            });
+            
+          if (retryError) {
+            throw retryError;
           }
           
-          return edgeFunctionResult.data || { id: transcriptId };
-        } catch (edgeFunctionError) {
-          console.error('Edge function also failed:', edgeFunctionError);
+          return [{ id: transcriptId }];
+        } else {
+          console.error('Error saving call transcript:', error);
           
-          // Final fallback - try with minimal data
+          // Try the edge function as a fallback
           try {
-            console.log('Attempting minimal data insert...');
-            const { data: minimalData, error: minimalError } = await supabase
-              .from('call_transcripts')
-              .insert({
-                id: transcriptId,
-                user_id: input.user_id || 'anonymous',
-                text: input.text,
-                filename: input.filename || 'unknown.wav'
-              })
-              .select();
-              
-            if (minimalError) {
-              throw minimalError;
+            console.log('Attempting to save via edge function...');
+            const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
+              body: { 
+                data: {
+                  id: transcriptId,
+                  user_id: input.user_id || 'anonymous',
+                  text: input.text,
+                  filename: input.filename,
+                  duration: duration,
+                  sentiment: input.sentiment || 'neutral',
+                  keywords: input.keywords || [],
+                  key_phrases: input.key_phrases || [],
+                  call_score: callScore,
+                  metadata: input.metadata || {},
+                  assigned_to: input.assigned_to || null,
+                  created_at: new Date().toISOString()
+                }
+              }
+            });
+            
+            // Improved error handling for edge function
+            if (edgeFunctionResult.error) {
+              console.error('Edge function error:', edgeFunctionResult.error);
+              throw new Error(`Edge function error: ${
+                edgeFunctionResult.error.message || JSON.stringify(edgeFunctionResult.error)
+              }`);
             }
             
-            return minimalData;
-          } catch (finalError) {
-            console.error('All insertion attempts failed:', finalError);
-            throw finalError;
+            return edgeFunctionResult.data || { id: transcriptId };
+          } catch (edgeFunctionError) {
+            console.error('Edge function also failed:', edgeFunctionError);
+            
+            // Final fallback - try with minimal data
+            try {
+              console.log('Attempting minimal data insert...');
+              const { data: minimalData, error: minimalError } = await supabase
+                .from('call_transcripts')
+                .insert({
+                  id: transcriptId,
+                  user_id: input.user_id || 'anonymous',
+                  text: input.text,
+                  filename: input.filename || 'unknown.wav',
+                  assigned_to: input.assigned_to || null
+                });
+                
+              if (minimalError) {
+                throw minimalError;
+              }
+              
+              toast.success("Call transcript saved with minimal data");
+              return minimalData || [{ id: transcriptId }];
+            } catch (finalError) {
+              console.error('All insertion attempts failed:', finalError);
+              
+              // Display error to user
+              toast.error("Failed to save transcript", {
+                description: finalError instanceof Error ? finalError.message : "Database error"
+              });
+              
+              throw finalError;
+            }
           }
         }
       }
@@ -140,6 +180,13 @@ export class DatabaseService {
       return data;
     } catch (error) {
       console.error('Error in saveCallTranscript:', error);
+      
+      // Handle error with the error handler
+      SupabaseErrorHandler.handlePostgrestError(
+        error as any, 
+        'DatabaseService.saveCallTranscript'
+      );
+      
       throw error;
     }
   }
