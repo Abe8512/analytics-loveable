@@ -3,14 +3,14 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 import { CallTranscript } from '@/types/call';
-import { useTranscripts } from '@/contexts/TranscriptContext';
+import { useTranscript } from '@/contexts/TranscriptContext';
 import { formatDistanceToNow } from 'date-fns';
 import { LineChart, BarChart, MessageSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 const RecentTranscriptInsights: React.FC = () => {
-  const { transcripts, isLoading } = useTranscripts();
+  const { transcripts, isLoading } = useTranscript();
   const navigate = useNavigate();
   const [recentTranscripts, setRecentTranscripts] = useState<CallTranscript[]>([]);
   
@@ -83,7 +83,7 @@ const RecentTranscriptInsights: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {recentTranscripts.length > 0 ? (
+        {recentTranscripts && recentTranscripts.length > 0 ? (
           <div className="space-y-4">
             {recentTranscripts.map(transcript => (
               <div 

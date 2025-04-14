@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { EventsService } from '@/services/EventsService';
 import { EventType, EventPayload, EventsState } from '@/services/events/types';
 
@@ -12,7 +12,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   const addListener = (type: EventType, callback: (payload: EventPayload) => void) => {
     // Get the unsubscribe function from EventsService
     const unsubscribe = EventsService.addEventListener(type, callback);
-    // Return this unsubscribe function directly to match the expected return type
+    // Return this unsubscribe function directly
     return unsubscribe;
   };
 

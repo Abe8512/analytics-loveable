@@ -1,7 +1,9 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { User, Session } from '@supabase/supabase-js';
+import { Profile } from '@/types/profile';
 
 export interface AuthError {
   message: string;
@@ -11,20 +13,18 @@ export interface AuthResult {
   error: AuthError | null;
 }
 
-export interface UserProfile {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  role: string;
-}
-
 export interface AuthState {
   user: User | null;
   session: Session | null;
-  profile: UserProfile | null;
+  profile: Profile | null;
   isLoading: boolean;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  isManager: boolean;
+  login: (email: string, password: string) => Promise<AuthResult>;
+  signup: (email: string, password: string, name: string) => Promise<AuthResult>;
+  logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<AuthResult>;
 }
 
 export const useAuthClient = () => {
@@ -33,9 +33,16 @@ export const useAuthClient = () => {
     session: null,
     profile: null,
     isLoading: true,
+    isAuthenticated: false,
+    isAdmin: false,
+    isManager: false,
+    login: async () => ({ error: null }),
+    signup: async () => ({ error: null }),
+    logout: async () => {},
+    resetPassword: async () => ({ error: null }),
   });
 
-  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  const fetchUserProfile = async (userId: string): Promise<Profile | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -48,7 +55,7 @@ export const useAuthClient = () => {
         return null;
       }
       
-      return data as UserProfile;
+      return data as Profile;
     } catch (err) {
       console.error("Exception fetching user profile:", err);
       return null;
@@ -64,6 +71,7 @@ export const useAuthClient = () => {
               ...prevState,
               session: currentSession,
               user: currentSession?.user || null,
+              isAuthenticated: !!currentSession?.user,
             }));
             
             if (currentSession?.user) {
@@ -72,12 +80,17 @@ export const useAuthClient = () => {
                 setState(prevState => ({
                   ...prevState,
                   profile: userProfile,
+                  isAdmin: userProfile?.role === 'admin',
+                  isManager: userProfile?.role === 'admin' || userProfile?.role === 'manager',
                 }));
               }, 0);
             } else {
               setState(prevState => ({
                 ...prevState,
                 profile: null,
+                isAdmin: false,
+                isManager: false,
+                isAuthenticated: false,
               }));
             }
           }
@@ -90,6 +103,7 @@ export const useAuthClient = () => {
           session: initialSession,
           user: initialSession?.user || null,
           isLoading: false,
+          isAuthenticated: !!initialSession?.user,
         }));
         
         if (initialSession?.user) {
@@ -97,6 +111,8 @@ export const useAuthClient = () => {
           setState(prevState => ({
             ...prevState,
             profile: userProfile,
+            isAdmin: userProfile?.role === 'admin',
+            isManager: userProfile?.role === 'admin' || userProfile?.role === 'manager',
           }));
         }
         
@@ -129,6 +145,15 @@ export const useAuthClient = () => {
       }
       
       toast.success("Login successful", { description: "Welcome back!" });
+      
+      // Update state with the user and session
+      setState(prevState => ({
+        ...prevState,
+        user: data.user,
+        session: data.session,
+        isAuthenticated: !!data.user,
+      }));
+      
       return { error: null };
     } catch (error: any) {
       console.error("Login exception:", error);
@@ -176,6 +201,17 @@ export const useAuthClient = () => {
     try {
       await supabase.auth.signOut();
       toast.success("Logged out successfully");
+      
+      // Update state after successful logout
+      setState(prevState => ({
+        ...prevState,
+        user: null,
+        session: null,
+        profile: null,
+        isAuthenticated: false,
+        isAdmin: false,
+        isManager: false,
+      }));
     } catch (error: any) {
       console.error("Error logging out:", error.message);
       toast.error("Error logging out");
@@ -211,8 +247,5 @@ export const useAuthClient = () => {
     signup,
     logout,
     resetPassword,
-    isAuthenticated: !!state.user,
-    isAdmin: state.profile?.role === 'admin',
-    isManager: state.profile?.role === 'admin' || state.profile?.role === 'manager',
   };
 };

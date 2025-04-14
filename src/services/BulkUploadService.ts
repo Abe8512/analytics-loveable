@@ -2,29 +2,63 @@
 // Re-export from the new file structure
 import { useBulkUpload } from './bulk-upload/BulkUploadHooks';
 export * from './bulk-upload/BulkUploadUtils';
-export type { BulkUploadFilter } from '@/types/team';
+export type { BulkUploadFilter } from '@/types/teamTypes';
+
+// Type for files being uploaded 
+export interface BulkUploadFile {
+  id: string;
+  file: File;
+  status: 'pending' | 'uploading' | 'processing' | 'complete' | 'error';
+  progress: number;
+  error?: string;
+}
+
+// Store interface
+export interface BulkUploadStore {
+  files: BulkUploadFile[];
+  isProcessing: boolean;
+  uploadHistory: any[];
+  hasLoadedHistory: boolean;
+  
+  // Actions
+  processQueue: () => void;
+  addFiles: (files: File[]) => void;
+  refreshTranscripts: (filters?: BulkUploadFilter) => Promise<any[]>;
+  setAssignedUserId: (userId: string) => void;
+  
+  // For bulk upload hooks
+  acquireProcessingLock: () => boolean;
+  releaseProcessingLock: () => void;
+  setProcessing: (processing: boolean) => void;
+  loadUploadHistory: () => Promise<void>;
+  
+  // Additional methods from BulkUploadHooks
+  start: () => void;
+  complete: () => void;
+  setProgress: (progress: number) => void;
+  addTranscript: (transcript: any) => void;
+  setFileCount: (count: number) => void;
+}
 
 // Create a wrapper for useBulkUpload that adds additional functionality
-export const useBulkUploadService = () => {
+export const useBulkUploadService = (): BulkUploadStore => {
   const bulkUploadHook = useBulkUpload();
   const store = useBulkUploadStore();
   
-  // Add additional methods that may be used by components
   return {
     ...bulkUploadHook,
+    ...store,
     files: store.files,
     isProcessing: store.isProcessing,
     uploadHistory: store.uploadHistory,
     hasLoadedHistory: store.hasLoadedHistory,
     processQueue: () => {
       if (store.acquireProcessingLock()) {
-        bulkUploadHook.startUpload();
-        // Process files logic would go here
+        bulkUploadHook.start();
         store.setProcessing(true);
-        // After processing
         setTimeout(() => {
           store.releaseProcessingLock();
-          bulkUploadHook.completeUpload();
+          bulkUploadHook.complete();
         }, 1000);
       }
     },
@@ -34,7 +68,6 @@ export const useBulkUploadService = () => {
       return store.uploadHistory;
     },
     setAssignedUserId: (userId: string) => {
-      // Implementation would depend on how you track assigned user
       console.log('Setting assigned user ID:', userId);
     }
   };

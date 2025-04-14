@@ -9,20 +9,21 @@ import GlowingCard from "../ui/GlowingCard";
 import { useCallMetricsStore } from "@/store/useCallMetricsStore";
 import { useSharedTeamMetrics } from "@/services/SharedDataService";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
+import { useTheme } from "@/hooks/use-theme";
 
 interface LiveMetricsDisplayProps {
   isCallActive?: boolean;
 }
 
 const LiveMetricsDisplay = ({ isCallActive }: LiveMetricsDisplayProps) => {
-  const { isDarkMode } = useContext(ThemeContext);
+  const { isDarkMode } = useTheme();
   const { 
     isRecording, 
-    duration: callDuration, 
-    talkRatio, 
-    sentiment, 
-    isTalkingMap, 
-    keyPhrases 
+    callDuration: duration, 
+    talkRatioData: talkRatio, 
+    sentimentData: sentiment, 
+    speakerActivity: isTalkingMap, 
+    keyPhrasesList: keyPhrases 
   } = useCallMetricsStore();
   
   // Use shared team metrics for consistent data across components
@@ -51,7 +52,7 @@ const LiveMetricsDisplay = ({ isCallActive }: LiveMetricsDisplayProps) => {
                 <div className="text-2xl font-bold mt-1 flex items-center">
                   <Clock className={`h-5 w-5 mr-2 ${isDarkMode ? "text-neon-blue" : "text-blue-500"}`} />
                   <AnimatedNumber 
-                    value={callDuration} 
+                    value={duration} 
                     formatter={formatDuration}
                   />
                 </div>
@@ -83,11 +84,11 @@ const LiveMetricsDisplay = ({ isCallActive }: LiveMetricsDisplayProps) => {
                 <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-neon-pink rounded-full" 
-                    style={{ width: `${talkRatio.customer}%` }}
+                    style={{ width: `${talkRatio.client}%` }}
                   ></div>
                 </div>
                 <span className="text-xs font-semibold w-8 text-end">
-                  {Math.round(talkRatio.customer)}%
+                  {Math.round(talkRatio.client)}%
                 </span>
               </div>
             </div>
@@ -115,121 +116,52 @@ const LiveMetricsDisplay = ({ isCallActive }: LiveMetricsDisplayProps) => {
                 <span className={`text-xs ${isDarkMode ? "text-neon-pink" : "text-pink-500"}`}>Customer</span>
                 <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div 
-                    className={`h-full ${sentiment.customer > 0.7 ? "bg-green-500" : sentiment.customer > 0.4 ? "bg-yellow-500" : "bg-red-500"} rounded-full`}
-                    style={{ width: `${sentiment.customer * 100}%` }}
+                    className={`h-full ${sentiment.client > 0.7 ? "bg-green-500" : sentiment.client > 0.4 ? "bg-yellow-500" : "bg-red-500"} rounded-fu`}
+                    style={{ width: `${sentiment.client * 100}%` }}
                   ></div>
                 </div>
                 <span className="text-xs font-semibold w-8 text-end">
-                  {Math.round(sentiment.customer * 100)}%
+                  {Math.round(sentiment.client * 100)}%
                 </span>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        {/* Speech Pace */}
+        {/* Key Phrases */}
         <Card className={`${isDarkMode ? "border-amber-500/20 bg-black/20" : "border-amber-100 bg-amber-50"}`}>
           <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Speech Pace</p>
-                <div className="text-2xl font-bold mt-1 flex items-center">
-                  <Volume2 className={`h-5 w-5 mr-2 ${isDarkMode ? "text-amber-400" : "text-amber-500"}`} />
-                  <AnimatedNumber 
-                    value={showMetrics ? 140 + Math.random() * 30 : 0} 
-                    formatter={(val) => val.toFixed(0)}
-                    suffix=" wpm"
-                  />
-                </div>
+            <div className="flex flex-col h-full">
+              <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Key Phrases</p>
+              <div className="mt-2 flex-1 overflow-hidden">
+                {keyPhrases && keyPhrases.length > 0 ? (
+                  <div className="text-sm space-y-1">
+                    {keyPhrases.slice(0, 3).map((phrase, index) => (
+                      <div 
+                        key={index} 
+                        className={`px-2 py-1 rounded ${
+                          isDarkMode ? "bg-gray-800 text-gray-200" : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {phrase && typeof phrase === 'object' && 'text' in phrase ? phrase.text : String(phrase)}
+                      </div>
+                    ))}
+                    {keyPhrases.length > 3 && (
+                      <div className="text-xs text-muted-foreground mt-1 text-right">
+                        +{keyPhrases.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground flex items-center justify-center h-full">
+                    {isRecording ? "Listening for key phrases..." : "No key phrases detected yet"}
+                  </div>
+                )}
               </div>
-              {showMetrics && <Activity className={`h-6 w-6 ${isDarkMode ? "text-amber-400" : "text-amber-500"}`} />}
             </div>
           </CardContent>
         </Card>
       </div>
-      
-      {/* Key Phrases and Stats */}
-      {showMetrics && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <GlowingCard gradient="purple" className="col-span-1 md:col-span-2">
-            <h3 className="text-white text-lg font-semibold mb-2">Real-time Keywords</h3>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {keyPhrases.map((phrase, index) => {
-                // Make sure we render the text correctly based on the data structure
-                const phraseText = typeof phrase === 'string' ? phrase : phrase.text;
-                return (
-                  <span 
-                    key={index} 
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/10 text-white"
-                  >
-                    {phraseText}
-                  </span>
-                );
-              })}
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-neon-blue/30 text-white">
-                pricing
-              </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-neon-pink/30 text-white">
-                feature request
-              </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-neon-green/30 text-white">
-                integration
-              </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-neon-purple/30 text-white">
-                timeline
-              </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-500/30 text-white">
-                competitors
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-gray-400 mt-4">
-              <AIWaveform color="pink" barCount={8} className="h-5" />
-              <p>AI analyzing speech patterns...</p>
-            </div>
-          </GlowingCard>
-          
-          <Card className={`${isDarkMode ? "border-white/10 bg-black/20" : "border-gray-200 bg-gray-50"}`}>
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <h3 className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-gray-800"}`}>Call Analytics</h3>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                      <MessageSquare className="h-4 w-4 inline mr-1" /> Questions Asked
-                    </span>
-                    <span className="font-medium">
-                      <AnimatedNumber value={7} />
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                      <TrendingUp className="h-4 w-4 inline mr-1" /> Engagement Score
-                    </span>
-                    <span className="font-medium">
-                      <AnimatedNumber value={sharedMetrics ? sharedMetrics.performanceScore : 82} suffix="%" />
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                      <Activity className="h-4 w-4 inline mr-1" /> Energy Level
-                    </span>
-                    <span className="font-medium">
-                      <AnimatedNumber value={76} suffix="%" />
-                    </span>
-                  </div>
-                </div>
-                
-                <div className={`mt-3 p-2 rounded text-sm ${isDarkMode ? "bg-neon-green/10 text-neon-green" : "bg-green-100 text-green-700"}`}>
-                  <strong>AI Analysis:</strong> High engagement, positive trends detected
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 };

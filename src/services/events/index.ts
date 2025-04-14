@@ -26,5 +26,5 @@ export {
 export type { EventType, EventPayload };
 
 // Also export the store object itself, but rename it to avoid collision
-import { EventsStore as EventsStoreOriginal } from './store';
-export { EventsStoreOriginal as EventsStore };
+import { EventsStore } from './store';
+export { EventsStore };

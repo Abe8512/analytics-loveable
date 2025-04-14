@@ -10,14 +10,14 @@ import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const BulkUploadHistory = () => {
-  const { uploadHistory, hasLoadedHistory, loadUploadHistory } = useBulkUploadService();
+  const { uploadHistory, hasLoadedHistory, refreshTranscripts } = useBulkUploadService();
   const navigate = useNavigate();
   
   useEffect(() => {
     if (!hasLoadedHistory) {
-      loadUploadHistory();
+      refreshTranscripts();
     }
-  }, [hasLoadedHistory, loadUploadHistory]);
+  }, [hasLoadedHistory, refreshTranscripts]);
   
   const formatDate = (dateString: string) => {
     try {

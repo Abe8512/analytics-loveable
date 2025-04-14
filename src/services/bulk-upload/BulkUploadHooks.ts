@@ -1,91 +1,80 @@
 
-import { useState, useEffect } from 'react';
-import { useBulkUploadStore } from '@/store/useBulkUploadStore';
+import { useState, useEffect, useCallback } from 'react';
 import { BulkUploadState } from '@/types/team';
-import { CallTranscript } from '@/types/call';
-import { EventsStore } from '@/services/events/store';
+import { EventsService } from '@/services/EventsService';
 import { EventType } from '@/services/events/types';
+import { BulkUploadStore } from '@/services/BulkUploadService';
 
-interface BulkUploadHookResult {
-  uploadState: BulkUploadState;
-  transcripts: CallTranscript[];
-  progress: number;
-  fileCount: number;
-  startUpload: () => void;
-  completeUpload: () => void;
-  updateProgress: (progress: number) => void;
-  addTranscript: (transcript: CallTranscript) => void;
+export interface BulkUploadHooksResult {
+  start: () => void;
+  complete: () => void;
+  setProgress: (progress: number) => void;
+  addTranscript: (transcript: any) => void;
   setFileCount: (count: number) => void;
+  uploadState: BulkUploadState;
+  progress: number;
+  transcripts: any[];
+  fileCount: number;
 }
 
-export const useBulkUpload = (): BulkUploadHookResult => {
+/**
+ * Custom hook to manage bulk upload state and events
+ */
+export const useBulkUpload = (): BulkUploadHooksResult => {
   const [uploadState, setUploadState] = useState<BulkUploadState>('idle');
-  const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);
-  const [progress, setProgress] = useState<number>(0);
-  const [fileCount, setFileCount] = useState<number>(0);
+  const [progress, setProgress] = useState(0);
+  const [transcripts, setTranscripts] = useState<any[]>([]);
+  const [fileCount, setFileCount] = useState(0);
 
-  // Use store methods directly without wrapping
-  const store = useBulkUploadStore();
-
-  // Local actions
-  const startUpload = () => {
+  // Start the upload process
+  const start = useCallback(() => {
     setUploadState('uploading');
-    // Use setProcessing instead of start
-    store.setProcessing(true);
-    EventsStore.dispatchEvent('bulk-upload-started' as EventType);
-  };
+    setProgress(0);
+    
+    // Dispatch event to notify other components
+    EventsService.addEventListener('bulk-upload-started' as EventType, { timestamp: Date.now() });
+  }, []);
 
-  const completeUpload = () => {
+  // Mark the upload as complete
+  const complete = useCallback(() => {
     setUploadState('complete');
-    // Use setProcessing instead of complete
-    store.setProcessing(false);
-    EventsStore.dispatchEvent('bulk-upload-completed' as EventType, { data: { fileCount } });
-  };
-
-  const updateProgress = (progress: number) => {
-    setProgress(progress);
-    // We don't have direct setProgress access, so update files instead
-    if (store.files.length > 0) {
-      store.files.forEach(file => {
-        store.updateFileStatus(file.id, file.status, progress, file.result, file.error, file.transcriptId);
-      });
-    }
-    EventsStore.dispatchEvent('bulk-upload-progress' as EventType, { data: { progress } });
-  };
-
-  const addTranscript = (transcript: CallTranscript) => {
-    setTranscripts((prev) => [...prev, transcript]);
-    // No direct addTranscript in the store
-  };
-
-  const setFileCountAction = (count: number) => {
-    setFileCount(count);
-    // No direct setFileCount in the store
-  };
-
-  // Subscribe to Zustand state changes
-  useEffect(() => {
-    const unsubscribe = useBulkUploadStore.subscribe((state) => {
-      setUploadState(state.isProcessing ? 'uploading' : state.files.some(f => f.status === 'error') ? 'error' : 'idle');
-      setProgress(state.files.length ? state.files.reduce((avg, file) => avg + file.progress, 0) / state.files.length : 0);
-      // No direct access to transcripts in the store
-      setFileCount(state.files.length);
+    setProgress(100);
+    
+    // Dispatch event to notify other components
+    EventsService.addEventListener('bulk-upload-completed' as EventType, {
+      timestamp: Date.now(),
+      transcriptsCount: transcripts.length
     });
+    
+    // Create a custom event for compatibility with old code
+    const customEvent = new CustomEvent('bulk-upload-completed');
+    window.dispatchEvent(customEvent);
+  }, [transcripts.length]);
 
+  // Add a new transcript to the list
+  const addTranscript = useCallback((transcript: any) => {
+    setTranscripts(prev => [...prev, transcript]);
+  }, []);
+
+  // Reset state when component unmounts
+  useEffect(() => {
     return () => {
-      unsubscribe();
+      // Clean up or save state if needed
     };
   }, []);
 
   return {
-    uploadState,
-    transcripts,
-    progress,
-    fileCount,
-    startUpload,
-    completeUpload,
-    updateProgress,
+    // Methods
+    start,
+    complete,
+    setProgress,
     addTranscript,
-    setFileCount: setFileCountAction,
+    setFileCount,
+    
+    // State
+    uploadState,
+    progress,
+    transcripts,
+    fileCount
   };
 };
