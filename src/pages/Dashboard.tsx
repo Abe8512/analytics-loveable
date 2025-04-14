@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import DashboardHeader from '../components/Dashboard/DashboardHeader';
 import { toast } from 'sonner';
@@ -23,6 +23,20 @@ const Dashboard = () => {
   const { transcripts, fetchTranscripts } = useCallTranscripts();
   const { toast: toastNotification } = useToast();
   const { refresh: refreshMetrics } = useMetrics();
+  
+  // Add effect to listen for bulk upload completion events
+  useEffect(() => {
+    const handleBulkUploadCompleted = () => {
+      console.log('Dashboard detected bulk-upload-completed event');
+      refreshData();
+    };
+    
+    window.addEventListener('bulk-upload-completed', handleBulkUploadCompleted);
+    
+    return () => {
+      window.removeEventListener('bulk-upload-completed', handleBulkUploadCompleted);
+    };
+  }, []);
   
   const handleFixSentiments = async () => {
     setIsUpdating(true);
@@ -88,7 +102,7 @@ const Dashboard = () => {
             .then(() => {
               // Clear metrics cache and refresh metrics data
               clearMetricsCache();
-              refreshMetrics(); // Fixed: removed the argument
+              refreshMetrics();
               
               setIsLoading(false);
               if (bulkUploadService.files.some(f => f.status === 'complete')) {
@@ -108,6 +122,8 @@ const Dashboard = () => {
     setIsLoading(true);
     toast.loading("Refreshing dashboard data...");
     
+    console.log("Dashboard - manually refreshing all data");
+    
     // Clear metrics cache to ensure fresh data
     clearMetricsCache();
     
@@ -117,7 +133,7 @@ const Dashboard = () => {
         fetchTranscripts({ force: true })
           .then(() => {
             // Refresh metrics with force flag to bypass cache
-            refreshMetrics(); // Fixed: removed the argument
+            refreshMetrics();
             setIsLoading(false);
             toast.success('Dashboard data refreshed');
           });
@@ -144,8 +160,8 @@ const Dashboard = () => {
           onClose={handleBulkUploadClose} 
         />
         
-        {/* Metrics Section - now uses the central metrics context */}
-        <DashboardMetricsSection />
+        {/* Metrics Section - uses the central metrics context */}
+        <DashboardMetricsSection isLoading={isLoading} />
         
         {/* Content Section */}
         <DashboardContentSection isLoading={isLoading} />

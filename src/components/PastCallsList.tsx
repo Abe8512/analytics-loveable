@@ -29,10 +29,25 @@ const PastCallsList = () => {
     handleRefresh();
   });
   
+  // Add a manual event listener for the DOM event
+  useEffect(() => {
+    const handleBulkUploadCompleted = () => {
+      console.log('DOM event bulk-upload-completed received, refreshing past calls');
+      handleRefresh();
+    };
+    
+    window.addEventListener('bulk-upload-completed', handleBulkUploadCompleted);
+    
+    return () => {
+      window.removeEventListener('bulk-upload-completed', handleBulkUploadCompleted);
+    };
+  }, []);
+  
   const handleRefresh = () => {
     setRefreshing(true);
     try {
-      loadPastCalls();
+      console.log('Manually refreshing past calls list');
+      loadPastCalls(true); // Pass true to force refresh
     } catch (error) {
       console.error("Error refreshing calls:", error);
     }
@@ -83,6 +98,11 @@ const PastCallsList = () => {
   const isAnonymousCall = (id: string) => {
     return id && (id.startsWith('anonymous-') || id.startsWith('demo-') || id.startsWith('call-'));
   };
+  
+  // Add debug output to check what data we're getting
+  useEffect(() => {
+    console.log('PastCallsList - Current call history:', callHistory);
+  }, [callHistory]);
   
   return (
     <Card>

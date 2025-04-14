@@ -58,7 +58,7 @@ serve(async (req) => {
     const transcriptId = data.id || crypto.randomUUID()
     
     try {
-      // Simple insert with no ON CONFLICT clause at all
+      // First try inserting into call_transcripts
       const { data: insertData, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -108,17 +108,6 @@ serve(async (req) => {
           }
           
           console.log('Simplified insert succeeded with ID:', transcriptId)
-          
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: 'Call transcript saved with minimal data',
-              id: transcriptId
-            }),
-            { 
-              headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-            }
-          )
         } catch (fallbackError) {
           console.error('All insert attempts failed:', fallbackError)
           return new Response(
@@ -131,23 +120,42 @@ serve(async (req) => {
         }
       }
       
-      // If we get here, try to store keywords separately in keyword_analytics table which has more relaxed permissions
+      // If we get here, try to store keywords separately in tables with public access
       if (data.keywords && data.keywords.length > 0) {
         try {
-          // Process each keyword individually
+          // First try keyword_trends
           for (const keyword of data.keywords) {
             if (!keyword) continue;
             
-            await supabase
-              .from('keyword_analytics')
-              .insert({
-                keyword,
-                category: data.sentiment || 'neutral',
-                last_used: new Date().toISOString()
-              })
-              .single();
+            try {
+              await supabase
+                .from('keyword_trends')
+                .insert({
+                  keyword,
+                  category: data.sentiment || 'neutral',
+                  last_used: new Date().toISOString()
+                })
+                .single();
+            } catch (trendError) {
+              console.error('Error saving to keyword_trends:', trendError);
+              
+              // Fall back to keyword_analytics if keyword_trends fails
+              try {
+                await supabase
+                  .from('keyword_analytics')
+                  .insert({
+                    keyword,
+                    category: data.sentiment || 'neutral',
+                    last_used: new Date().toISOString()
+                  })
+                  .single();
+              } catch (analyticsError) {
+                console.error('Error saving to keyword_analytics:', analyticsError);
+                // Continue with next keyword even if this one failed
+              }
+            }
           }
-          console.log('Keywords saved to analytics table successfully');
+          console.log('Keywords saved to analytics tables successfully');
         } catch (keywordError) {
           // Just log this error without failing the whole process
           console.error('Error saving keywords to analytics:', keywordError);

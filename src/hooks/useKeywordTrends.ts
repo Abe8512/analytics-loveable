@@ -40,6 +40,7 @@ export function useKeywordTrends() {
     }
     
     setIsLoading(true);
+    console.log('Fetching keyword trends data...');
     
     try {
       // Try to fetch from keyword_trends first
@@ -122,6 +123,7 @@ export function useKeywordTrends() {
         grouped.all = allKeywords.sort((a, b) => b.count - a.count);
       }
       
+      console.log(`Processed ${grouped.all.length} keywords across categories`);
       setKeywordTrends(grouped);
       setLastUpdated(new Date());
     } catch (error) {
@@ -136,13 +138,13 @@ export function useKeywordTrends() {
   useEffect(() => {
     fetchKeywordTrends();
     
-    // Set up real-time subscription with proper cleanup
-    const channel = supabase
+    // Set up real-time subscription for keyword trends updates
+    const trendChannel = supabase
       .channel('keyword-trends-changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'keyword_trends' },
-        () => {
-          console.log('Real-time keyword trends update received');
+        (payload) => {
+          console.log('Real-time keyword trends update received:', payload);
           fetchKeywordTrends();
         }
       )
@@ -154,8 +156,46 @@ export function useKeywordTrends() {
         }
       });
     
+    // Also subscribe to the fallback table
+    const analyticsChannel = supabase
+      .channel('keyword-analytics-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'keyword_analytics' },
+        (payload) => {
+          console.log('Real-time keyword analytics update received:', payload);
+          fetchKeywordTrends();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to keyword_analytics table');
+        }
+      });
+      
+    // Also listen for transcript creation events which should trigger keyword updates
+    const transcriptChannel = supabase
+      .channel('transcript-changes')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'call_transcripts' },
+        (payload) => {
+          console.log('New transcript detected, refreshing keyword trends:', payload);
+          fetchKeywordTrends();
+        }
+      )
+      .subscribe();
+    
+    // Listen to custom bulk upload events
+    window.addEventListener('bulk-upload-completed', () => {
+      console.log('Bulk upload completed event received, refreshing keyword trends');
+      fetchKeywordTrends();
+    });
+    
+    // Clean up the subscriptions
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(trendChannel);
+      supabase.removeChannel(analyticsChannel);
+      supabase.removeChannel(transcriptChannel);
+      window.removeEventListener('bulk-upload-completed', fetchKeywordTrends);
     };
   }, [fetchKeywordTrends]);
   
@@ -177,6 +217,39 @@ export function useKeywordTrends() {
         
       if (checkError) {
         console.error('Error checking existing keyword:', checkError);
+        // Try fallback table
+        const { data: existingAnalytics, error: analyticsError } = await supabase
+          .from('keyword_analytics')
+          .select('*')
+          .eq('keyword', keyword)
+          .eq('category', category)
+          .maybeSingle();
+          
+        if (!analyticsError && existingAnalytics) {
+          // Update existing analytics entry
+          await supabase
+            .from('keyword_analytics')
+            .update({
+              count: (existingAnalytics.count || 1) + 1,
+              last_used: new Date().toISOString()
+            })
+            .eq('id', existingAnalytics.id);
+            
+          fetchKeywordTrends();
+          return;
+        }
+        
+        // Insert into analytics instead
+        await supabase
+          .from('keyword_analytics')
+          .insert({
+            keyword,
+            category,
+            count: 1,
+            last_used: new Date().toISOString()
+          });
+          
+        fetchKeywordTrends();
         return;
       }
       
@@ -194,6 +267,15 @@ export function useKeywordTrends() {
           
         if (updateError) {
           console.error('Error updating keyword count:', updateError);
+          // If primary table update fails, try fallback
+          await supabase
+            .from('keyword_analytics')
+            .insert({
+              keyword,
+              category,
+              count: 1,
+              last_used: now
+            });
         }
       } else {
         // Insert new keyword
@@ -208,6 +290,15 @@ export function useKeywordTrends() {
           
         if (insertError) {
           console.error('Error saving new keyword:', insertError);
+          // If primary insert fails, try fallback
+          await supabase
+            .from('keyword_analytics')
+            .insert({
+              keyword,
+              category,
+              count: 1,
+              last_used: now
+            });
         }
       }
       
