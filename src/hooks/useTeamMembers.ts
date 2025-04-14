@@ -41,20 +41,20 @@ export const useTeamMembers = (limit?: number) => {
     fetchTeamMembers();
     
     // Listen for team member events to refresh the table
-    const removeTeamMemberAdded = EventsService.addEventListener('TEAM_MEMBER_ADDED', fetchTeamMembers);
-    const removeTeamMemberRemoved = EventsService.addEventListener('TEAM_MEMBER_REMOVED', fetchTeamMembers);
+    const teamMemberAddedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_ADDED', fetchTeamMembers);
+    const teamMemberRemovedUnsubscribe = EventsService.addEventListener('TEAM_MEMBER_REMOVED', fetchTeamMembers);
     
     // Also listen for newer event naming convention
-    const removeTeamMemberAddedHyphen = EventsService.addEventListener('team-member-added', fetchTeamMembers);
-    const removeTeamMemberRemovedHyphen = EventsService.addEventListener('team-member-removed', fetchTeamMembers);
+    const teamMemberAddedHyphenUnsubscribe = EventsService.addEventListener('team-member-added', fetchTeamMembers);
+    const teamMemberRemovedHyphenUnsubscribe = EventsService.addEventListener('team-member-removed', fetchTeamMembers);
     
     // Clean up
     return () => {
       mountedRef.current = false;
-      removeTeamMemberAdded();
-      removeTeamMemberRemoved();
-      removeTeamMemberAddedHyphen();
-      removeTeamMemberRemovedHyphen();
+      teamMemberAddedUnsubscribe();
+      teamMemberRemovedUnsubscribe();
+      teamMemberAddedHyphenUnsubscribe();
+      teamMemberRemovedHyphenUnsubscribe();
     };
   }, [fetchTeamMembers]);
   

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CallTranscript } from '@/types/call';
 import { useCallTranscripts } from '@/services/CallTranscriptService';
@@ -61,16 +60,16 @@ export function TranscriptProvider({ children }: { children: React.ReactNode }) 
   // Set up listeners for transcript events
   useEffect(() => {
     // Listen for transcript updates from other components
-    const removeTranscriptCreated = EventsService.addEventListener('transcript-created' as EventType, () => refreshTranscripts(true));
-    const removeTranscriptUpdated = EventsService.addEventListener('transcript-updated' as EventType, () => refreshTranscripts(true));
-    const removeTranscriptDeleted = EventsService.addEventListener('transcript-deleted' as EventType, () => refreshTranscripts(true));
-    const removeBulkUploadCompleted = EventsService.addEventListener('bulk-upload-completed' as EventType, () => refreshTranscripts(true));
+    const unsubscribeCreated = EventsService.addEventListener('transcript-created' as EventType, () => refreshTranscripts(true));
+    const unsubscribeUpdated = EventsService.addEventListener('transcript-updated' as EventType, () => refreshTranscripts(true));
+    const unsubscribeDeleted = EventsService.addEventListener('transcript-deleted' as EventType, () => refreshTranscripts(true));
+    const unsubscribeUploaded = EventsService.addEventListener('bulk-upload-completed' as EventType, () => refreshTranscripts(true));
     
     return () => {
-      removeTranscriptCreated();
-      removeTranscriptUpdated();
-      removeTranscriptDeleted();
-      removeBulkUploadCompleted();
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+      unsubscribeUploaded();
     };
   }, [refreshTranscripts]);
 

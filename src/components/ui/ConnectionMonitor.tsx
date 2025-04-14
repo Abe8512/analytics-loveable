@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useConnectionStatus, CONNECTION_EVENTS } from '@/services/ConnectionMonitorService';
 import { Wifi, WifiOff } from 'lucide-react';
-import { useEventsStore } from '@/services/events';
+import { EventsStore } from '@/services/events/store';
 import { connectionUtils } from '@/utils/connectionUtils';
 
 /**
@@ -12,7 +12,6 @@ import { connectionUtils } from '@/utils/connectionUtils';
  */
 const ConnectionMonitor: React.FC = () => {
   const { isConnected } = useConnectionStatus();
-  const { addEventListener } = useEventsStore();
   
   // Track previous connection state to detect changes
   const prevConnectedRef = React.useRef<boolean | null>(null);
@@ -41,11 +40,11 @@ const ConnectionMonitor: React.FC = () => {
   
   useEffect(() => {
     // Subscribe to connection events from the event system
-    const unsubscribeRestore = addEventListener(CONNECTION_EVENTS.RESTORED, () => {
+    const unsubscribeRestore = EventsStore.addEventListener(CONNECTION_EVENTS.RESTORED, () => {
       console.log('Connection restored event received');
     });
     
-    const unsubscribeLost = addEventListener(CONNECTION_EVENTS.LOST, () => {
+    const unsubscribeLost = EventsStore.addEventListener(CONNECTION_EVENTS.LOST, () => {
       console.log('Connection lost event received');
     });
     
@@ -53,7 +52,7 @@ const ConnectionMonitor: React.FC = () => {
       unsubscribeRestore();
       unsubscribeLost();
     };
-  }, [addEventListener]);
+  }, []);
   
   // This component doesn't render anything visible
   return null;

@@ -8,13 +8,15 @@ const EventsContext = createContext<EventsState | undefined>(undefined);
 export function EventsProvider({ children }: { children: React.ReactNode }) {
   const [listeners, setListeners] = useState<any[]>([]);
 
-  const addListener = (type: EventType, callback: (payload: EventPayload) => void): string => {
-    const listenerId = EventsService.addEventListener(type, callback);
-    return listenerId;
+  const addListener = (type: EventType, callback: (payload: EventPayload) => void) => {
+    const unsubscribe = EventsService.addEventListener(type, callback);
+    return unsubscribe;
   };
 
-  const removeListener = (id: string) => {
-    EventsService.removeEventListener(id);
+  const removeListener = (unsubscribeFn: () => void) => {
+    if (typeof unsubscribeFn === 'function') {
+      unsubscribeFn();
+    }
   };
 
   const dispatchEvent = (type: EventType, payload?: EventPayload) => {
@@ -23,8 +25,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
 
   // Provide a subscription function that returns an unsubscribe function
   const subscribeToEvent = (type: EventType, callback: (payload: EventPayload) => void) => {
-    const listenerId = addListener(type, callback);
-    return () => removeListener(listenerId);
+    return addListener(type, callback);
   };
 
   const value = {

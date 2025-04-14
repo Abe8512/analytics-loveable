@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { EventType, EventPayload } from './types';
-import { useEventsStore } from './store';
+import { EventsStore } from './store';
 import { safeCall } from '@/utils/safeFunctions';
 
 /**
@@ -15,10 +15,6 @@ export function useEventListener(
   dependencies: any[] = []
 ): void {
   const callbackRef = useRef(callback);
-  const { addEventListener, removeEventListener } = useEventsStore(state => ({
-    addEventListener: state.addEventListener,
-    removeEventListener: state.removeEventListener
-  }));
 
   // Keep the callback ref up to date
   useEffect(() => {
@@ -33,13 +29,13 @@ export function useEventListener(
     };
 
     // Add event listener
-    const unsubscribe = addEventListener(type, eventHandler);
+    const unsubscribe = EventsStore.addEventListener(type, eventHandler);
 
     // Cleanup on unmount
     return () => {
       unsubscribe();
     };
-  }, [type, addEventListener, removeEventListener]);
+  }, [type]);
 }
 
 /**
@@ -47,13 +43,11 @@ export function useEventListener(
  * @returns Function to dispatch an event
  */
 export function useEventDispatcher() {
-  const dispatchEvent = useEventsStore(state => state.dispatchEvent);
-  
   return useCallback(
     (type: EventType, payload?: EventPayload) => {
-      dispatchEvent(type, payload);
+      EventsStore.dispatchEvent(type, payload);
     },
-    [dispatchEvent]
+    []
   );
 }
 
@@ -63,7 +57,7 @@ export function useEventDispatcher() {
  * @returns Array of event payloads
  */
 export function useEventHistory(types?: EventType[]) {
-  const eventHistory = useEventsStore(state => state.eventHistory);
+  const eventHistory = EventsStore.getEventHistory();
   
   return types 
     ? eventHistory.filter(event => types.includes(event.type as EventType))

@@ -1,11 +1,11 @@
 
 import { EventType } from './types';
-import { useEventsStore } from './store';
+import { EventsStore } from './store';
 
 // Helper to create an event emitter for a specific component
 export const createEventEmitter = (prefix: string) => {
   const emitter = (type: string, data?: any) => {
-    useEventsStore.getState().dispatchEvent(`${prefix}-${type}` as EventType, data);
+    EventsStore.dispatchEvent(`${prefix}-${type}` as EventType, data);
   };
   
   return emitter;

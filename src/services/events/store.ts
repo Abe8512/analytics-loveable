@@ -10,17 +10,25 @@ type ListenerRecord = {
 };
 
 const listeners: ListenerRecord[] = [];
+const eventHistory: {type: EventType, payload: EventPayload}[] = [];
 
 /**
  * Register an event listener
  * @param type The event type to listen for
  * @param callback The callback to invoke when the event occurs
- * @returns A unique ID that can be used to remove the listener
+ * @returns A function to unregister the listener
  */
-export const addEventListener = (type: EventType, callback: (payload: EventPayload) => void): string => {
+export const addEventListener = (type: EventType, callback: (payload: EventPayload) => void): () => void => {
   const id = uuidv4();
   listeners.push({ id, type, callback });
-  return id;
+  
+  // Return a function to unsubscribe
+  return () => {
+    const index = listeners.findIndex(listener => listener.id === id);
+    if (index !== -1) {
+      listeners.splice(index, 1);
+    }
+  };
 };
 
 /**
@@ -40,15 +48,41 @@ export const removeEventListener = (id: string): void => {
  * @param payload Optional payload to pass to event handlers
  */
 export const dispatchEvent = (type: EventType, payload?: EventPayload): void => {
+  const eventPayload = payload || {};
+  
+  // Store in history
+  eventHistory.push({
+    type, 
+    payload: eventPayload
+  });
+  
+  // Limit history to 100 events
+  if (eventHistory.length > 100) {
+    eventHistory.shift();
+  }
+  
+  // Notify listeners
   listeners
     .filter(listener => listener.type === type)
     .forEach(listener => {
       try {
-        listener.callback(payload || {});
+        listener.callback(eventPayload);
       } catch (error) {
         console.error(`Error in event listener for ${type}:`, error);
       }
     });
+};
+
+// Create an events store singleton object
+export const EventsStore = {
+  addEventListener,
+  removeEventListener,
+  dispatchEvent,
+  getListeners: () => [...listeners],
+  getEventHistory: () => [...eventHistory],
+  clearEventHistory: () => {
+    eventHistory.length = 0;
+  }
 };
 
 // Re-export event constants

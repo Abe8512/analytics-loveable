@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CallTranscript } from '@/types/call';
 import { useTranscripts } from '@/contexts/TranscriptContext';
-import { onTranscriptSelected } from '@/services/events/transcriptEvents';
+import { EventsService } from '@/services/EventsService';
 
 export const useTranscriptDetails = (transcriptId?: string) => {
   const { transcripts, getTranscriptById } = useTranscripts();
@@ -54,13 +54,20 @@ export const useTranscriptDetails = (transcriptId?: string) => {
   
   // Listen for transcript selection events
   useEffect(() => {
-    const unsubscribe = onTranscriptSelected((selectedTranscript) => {
+    // Handler function for transcript selection events
+    const handleTranscriptSelected = (selectedTranscript: any) => {
       if (selectedTranscript) {
         setTranscript(selectedTranscript);
       }
-    });
+    };
     
-    return unsubscribe;
+    // Subscribe to transcript selection events
+    const unsubscribe = EventsService.addEventListener('transcript-selected', handleTranscriptSelected);
+    
+    // Clean up subscription when component unmounts
+    return () => {
+      unsubscribe();
+    };
   }, []);
   
   return { transcript, isLoading, error };

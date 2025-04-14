@@ -112,7 +112,7 @@ const AdvancedSalesMetrics = () => {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className={isDark ? "text-gray-400" : "text-gray-500"}>Score</span>
+                  <span className={isDarkMode ? "text-gray-400" : "text-gray-500"}>Score</span>
                   <span className="text-2xl font-bold">{kpiData.objectionHandlingScore}%</span>
                 </div>
                 <Progress value={kpiData.objectionHandlingScore} className="h-2" />
@@ -152,7 +152,7 @@ const AdvancedSalesMetrics = () => {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className={isDark ? "text-gray-400" : "text-gray-500"}>Rate</span>
+                  <span className={isDarkMode ? "text-gray-400" : "text-gray-500"}>Rate</span>
                   <span className="text-2xl font-bold">{kpiData.discoveryQuestionsRate}</span>
                 </div>
                 <div className="pt-4 h-32">
@@ -197,7 +197,7 @@ const AdvancedSalesMetrics = () => {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className={isDark ? "text-gray-400" : "text-gray-500"}>Score</span>
+                  <span className={isDarkMode ? "text-gray-400" : "text-gray-500"}>Score</span>
                   <span className="text-2xl font-bold">{kpiData.closingTechniquesScore}%</span>
                 </div>
                 <Progress value={kpiData.closingTechniquesScore} className="h-2" />
@@ -205,7 +205,7 @@ const AdvancedSalesMetrics = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius={60} data={chartData.keywordOccurrenceData}>
                       <PolarGrid />
-                      <PolarAngleAxis dataKey="subject" tick={{ fill: isDark ? '#ccc' : '#666', fontSize: 10 }} />
+                      <PolarAngleAxis dataKey="subject" tick={{ fill: isDarkMode ? '#ccc' : '#666', fontSize: 10 }} />
                       <Radar name="Keywords" dataKey="A" stroke={COLORS.accent2} fill={COLORS.accent2} fillOpacity={0.6} />
                       <Tooltip content={<CustomTooltip />} />
                     </RadarChart>
@@ -232,7 +232,7 @@ const AdvancedSalesMetrics = () => {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className={isDark ? "text-gray-400" : "text-gray-500"}>Score</span>
+                  <span className={isDarkMode ? "text-gray-400" : "text-gray-500"}>Score</span>
                   <span className="text-2xl font-bold">{kpiData.clientEngagementScore}%</span>
                 </div>
                 <Progress value={kpiData.clientEngagementScore} className="h-2" />

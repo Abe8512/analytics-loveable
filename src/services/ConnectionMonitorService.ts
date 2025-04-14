@@ -1,19 +1,19 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { checkSupabaseConnection, isConnected as checkSupabaseConnected } from '@/integrations/supabase/client';
-import { useEventsStore, EVENT_TYPES } from '@/services/events';
+import { EventsStore } from '@/services/events/store';
 import { errorHandler } from './ErrorHandlingService';
+import { EVENT_TYPES } from './events/types';
 
 // Define consistent event names as constants
 export const CONNECTION_EVENTS = {
-  RESTORED: EVENT_TYPES.CONNECTION_RESTORED,
-  LOST: EVENT_TYPES.CONNECTION_LOST,
+  RESTORED: 'CONNECTION_RESTORED',
+  LOST: 'CONNECTION_LOST',
 }
 
 export const useConnectionStatus = () => {
   const [isConnected, setIsConnected] = useState<boolean>(checkSupabaseConnected());
   const [lastChecked, setLastChecked] = useState<number | null>(null);
-  const dispatchEvent = useEventsStore.getState().dispatchEvent;
 
   const checkConnection = useCallback(async () => {
     try {
@@ -38,28 +38,28 @@ export const useConnectionStatus = () => {
       console.log('Browser reports online status');
       setIsConnected(true);
       setLastChecked(Date.now());
-      dispatchEvent(CONNECTION_EVENTS.RESTORED);
+      EventsStore.dispatchEvent(CONNECTION_EVENTS.RESTORED);
     };
 
     const handleOffline = () => {
       console.log('Browser reports offline status');
       setIsConnected(false);
       setLastChecked(Date.now());
-      dispatchEvent(CONNECTION_EVENTS.LOST);
+      EventsStore.dispatchEvent(CONNECTION_EVENTS.LOST);
     };
 
     const handleSupabaseConnectionRestored = () => {
       console.log('Supabase connection restored');
       setIsConnected(true);
       setLastChecked(Date.now());
-      dispatchEvent(CONNECTION_EVENTS.RESTORED);
+      EventsStore.dispatchEvent(CONNECTION_EVENTS.RESTORED);
     };
 
     const handleSupabaseConnectionLost = () => {
       console.log('Supabase connection lost');
       setIsConnected(false);
       setLastChecked(Date.now());
-      dispatchEvent(CONNECTION_EVENTS.LOST);
+      EventsStore.dispatchEvent(CONNECTION_EVENTS.LOST);
     };
 
     // Listen for browser online/offline events
@@ -78,9 +78,9 @@ export const useConnectionStatus = () => {
         
         // Dispatch appropriate event using standardized event names
         if (online) {
-          dispatchEvent(CONNECTION_EVENTS.RESTORED);
+          EventsStore.dispatchEvent(CONNECTION_EVENTS.RESTORED);
         } else {
-          dispatchEvent(CONNECTION_EVENTS.LOST);
+          EventsStore.dispatchEvent(CONNECTION_EVENTS.LOST);
         }
       }
     });
@@ -93,7 +93,7 @@ export const useConnectionStatus = () => {
       window.removeEventListener('supabase-connection-lost', handleSupabaseConnectionLost);
       unsubscribe();
     };
-  }, [dispatchEvent, isConnected]);
+  }, [isConnected]);
 
   return { isConnected, lastChecked, checkConnection };
 };

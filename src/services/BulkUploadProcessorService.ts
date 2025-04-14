@@ -1,6 +1,5 @@
-
 import { useWhisperService } from "./WhisperService";
-import { useEventsStore } from "./events";
+import { EventsStore } from "./events/store";
 import { errorHandler } from "./ErrorHandlingService";
 import { getSentimentScore } from "./AIService";
 import { v4 as uuidv4 } from 'uuid';
@@ -145,8 +144,7 @@ export class BulkUploadProcessorService {
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
         // Dispatch event for other components
-        const eventsStore = useEventsStore.getState();
-        eventsStore.dispatchEvent('call-uploaded', {
+        EventsStore.dispatchEvent('call-uploaded', {
           transcriptId,
           fileName: file.name,
           assignedTo: this.assignedUserId,
@@ -178,8 +176,7 @@ export class BulkUploadProcessorService {
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
           // Dispatch event for other components
-          const eventsStore = useEventsStore.getState();
-          eventsStore.dispatchEvent('call-uploaded', {
+          EventsStore.dispatchEvent('call-uploaded', {
             transcriptId,
             fileName: file.name,
             assignedTo: this.assignedUserId,
@@ -212,8 +209,7 @@ export class BulkUploadProcessorService {
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
             // Dispatch event for other components
-            const eventsStore = useEventsStore.getState();
-            eventsStore.dispatchEvent('call-uploaded', {
+            EventsStore.dispatchEvent('call-uploaded', {
               transcriptId,
               fileName: file.name,
               assignedTo: this.assignedUserId,
