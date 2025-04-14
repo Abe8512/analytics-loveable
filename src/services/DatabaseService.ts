@@ -56,7 +56,7 @@ export class DatabaseService {
       // Generate a transcript ID
       const transcriptId = uuidv4();
       
-      // Simple insert with no ON CONFLICT clause (removed to fix error)
+      // Simple insert with no ON CONFLICT clause - explicitly removed to fix the error
       const { data, error } = await supabase
         .from('call_transcripts')
         .insert({
@@ -81,6 +81,7 @@ export class DatabaseService {
         
         // Try the edge function as a fallback
         try {
+          console.log('Attempting to save via edge function...');
           const edgeFunctionResult = await supabase.functions.invoke('save-call-transcript', {
             body: { 
               data: {
@@ -113,6 +114,7 @@ export class DatabaseService {
           
           // Final fallback - try with minimal data
           try {
+            console.log('Attempting minimal data insert...');
             const { data: minimalData, error: minimalError } = await supabase
               .from('call_transcripts')
               .insert({
