@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,15 @@ const AdvancedCallMetrics: React.FC<AdvancedCallMetricsProps> = ({ transcriptId,
   const [transcript, setTranscript] = useState<CallTranscript | null>(propTranscript || null);
   
   const [talkRatioMetrics, setTalkRatioMetrics] = useState<TalkRatioMetrics>({
+    agentRatio: 0.5,
+    prospectRatio: 0.5,
+    dominanceScore: 1,
+    agentTalkTime: 0,
+    prospectTalkTime: 0,
+    silenceTime: 0,
+    interruptionCount: 0,
+    
+    // snake_case aliases for component compatibility
     agent_ratio: 0.5,
     prospect_ratio: 0.5,
     dominance_score: 1,
@@ -32,6 +42,13 @@ const AdvancedCallMetrics: React.FC<AdvancedCallMetricsProps> = ({ transcriptId,
   const [sentimentHeatmap, setSentimentHeatmap] = useState<SentimentHeatmapPoint[]>([]);
   
   const [objectionMetrics, setObjectionMetrics] = useState<ObjectionHandlingMetrics>({
+    objectionCount: 0,
+    successfullyAddressedCount: 0,
+    successRate: 0,
+    avgResponseTime: 0,
+    commonObjections: [],
+    
+    // snake_case aliases for component compatibility
     total_objections: 0,
     handled_objections: 0,
     effectiveness: 0,
@@ -82,16 +99,16 @@ const AdvancedCallMetrics: React.FC<AdvancedCallMetricsProps> = ({ transcriptId,
   
   const generateMetrics = (transcriptData: CallTranscript) => {
     try {
-      // Calculate enhanced talk ratio metrics
-      const talkRatio = AdvancedMetricsService.calculateTalkRatios(transcriptData);
+      // Calculate enhanced talk ratio metrics - use calculateTalkRatio instead of calculateTalkRatios
+      const talkRatio = AdvancedMetricsService.calculateTalkRatio(transcriptData);
       setTalkRatioMetrics(talkRatio);
       
       // Generate sentiment heatmap
       const heatmap = AdvancedMetricsService.generateSentimentHeatmap(transcriptData);
       setSentimentHeatmap(heatmap);
       
-      // Calculate objection handling metrics
-      const objectionHandling = AdvancedMetricsService.calculateObjectionHandling(transcriptData);
+      // Calculate objection handling metrics - use calculateObjectionHandlingMetrics instead of calculateObjectionHandling
+      const objectionHandling = AdvancedMetricsService.calculateObjectionHandlingMetrics(transcriptData);
       setObjectionMetrics(objectionHandling);
       
       setIsLoading(false);

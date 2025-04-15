@@ -1,30 +1,52 @@
-import { CallTranscriptSegment } from "@/types/call";
+import { CallTranscript, CallTranscriptSegment } from "@/types/call";
 import { safeNumber } from "@/utils/safeFunctions";
 
 export interface TalkRatioMetrics {
-  totalDuration: number;
+  // Keep camelCase properties for TypeScript standards
+  agentRatio: number;
+  prospectRatio: number;
+  dominanceScore: number;
   agentTalkTime: number;
-  customerTalkTime: number;
-  agentTalkPercentage: number;
-  customerTalkPercentage: number;
+  prospectTalkTime: number;
   silenceTime: number;
-  silencePercentage: number;
-  longestMonologue: number;
-  monologueSpeaker: string;
+  interruptionCount: number;
+  
+  // Add snake_case aliases for component compatibility
+  agent_ratio: number;
+  prospect_ratio: number;
+  dominance_score: number;
+  agent_talk_time: number;
+  prospect_talk_time: number;
+  silence_time: number;
+  interruption_count: number;
 }
 
 export interface ObjectionHandlingMetrics {
+  // Keep camelCase properties for TypeScript standards
   objectionCount: number;
   successfullyAddressedCount: number;
   successRate: number;
   avgResponseTime: number;
   commonObjections: string[];
+  
+  // Add snake_case aliases for component compatibility
+  total_objections: number;
+  handled_objections: number;
+  effectiveness: number;
+  details: Array<{
+    text: string;
+    time: number;
+    handled: boolean;
+  }>;
 }
 
 export interface SentimentHeatmapPoint {
   time: number;
   agent: number;
   customer: number;
+  score: number;
+  label: string;
+  text_snippet: string;
 }
 
 export interface AdvancedMetric {
@@ -33,9 +55,264 @@ export interface AdvancedMetric {
   unit: string;
   description: string;
   improvement?: string;
+  callVolume?: number;
+  sentiment?: number;
+  conversion?: number;
 }
 
 export class AdvancedMetricsServiceClass {
+  // Method to get advanced metrics for the chart component
+  getAdvancedMetrics(options: { period?: string; groupBy?: string; }): Promise<AdvancedMetric[]> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Sample data for demonstration
+        const metrics: AdvancedMetric[] = [
+          { name: 'Week 1', callVolume: 42, sentiment: 0.75, conversion: 18, value: 42, unit: 'calls', description: 'Weekly call volume' },
+          { name: 'Week 2', callVolume: 38, sentiment: 0.68, conversion: 15, value: 38, unit: 'calls', description: 'Weekly call volume' },
+          { name: 'Week 3', callVolume: 56, sentiment: 0.82, conversion: 24, value: 56, unit: 'calls', description: 'Weekly call volume' },
+          { name: 'Week 4', callVolume: 64, sentiment: 0.79, conversion: 28, value: 64, unit: 'calls', description: 'Weekly call volume' },
+        ];
+        resolve(metrics);
+      }, 500);
+    });
+  }
+
+  // Talk ratio analysis methods
+  calculateTalkRatio(transcript: CallTranscript): TalkRatioMetrics {
+    // Default values if calculation fails
+    const defaultMetrics: TalkRatioMetrics = {
+      agentRatio: 0.5,
+      prospectRatio: 0.5,
+      dominanceScore: 1.0,
+      agentTalkTime: 0,
+      prospectTalkTime: 0,
+      silenceTime: 0,
+      interruptionCount: 0,
+      
+      // Snake case aliases
+      agent_ratio: 0.5,
+      prospect_ratio: 0.5,
+      dominance_score: 1.0,
+      agent_talk_time: 0,
+      prospect_talk_time: 0,
+      silence_time: 0,
+      interruption_count: 0
+    };
+    
+    try {
+      if (!transcript || !transcript.transcript_segments || !Array.isArray(transcript.transcript_segments)) {
+        return defaultMetrics;
+      }
+      
+      const segments = transcript.transcript_segments;
+      let totalDuration = 0;
+      let agentTime = 0;
+      let customerTime = 0;
+      let silenceTime = 0;
+      let interruptions = 0;
+      
+      // Calculate talk times
+      segments.forEach((segment) => {
+        const duration = (segment.end || 0) - (segment.start || 0);
+        if (duration <= 0) return;
+        
+        totalDuration += duration;
+        
+        if (segment.speaker?.toLowerCase().includes('agent')) {
+          agentTime += duration;
+        } else if (segment.speaker?.toLowerCase().includes('customer')) {
+          customerTime += duration;
+        } else {
+          silenceTime += duration;
+        }
+      });
+      
+      // Count interruptions (simplified logic)
+      for (let i = 1; i < segments.length; i++) {
+        const prevSegment = segments[i-1];
+        const currSegment = segments[i];
+        if (prevSegment.speaker !== currSegment.speaker && 
+            (currSegment.start || 0) - (prevSegment.end || 0) < 0.5) {
+          interruptions++;
+        }
+      }
+      
+      // Calculate ratios
+      const totalSpeakingTime = agentTime + customerTime;
+      const agentRatio = totalSpeakingTime > 0 ? agentTime / totalSpeakingTime : 0.5;
+      const prospectRatio = totalSpeakingTime > 0 ? customerTime / totalSpeakingTime : 0.5;
+      
+      // Calculate dominance score (agent talk time / customer talk time)
+      const dominanceScore = customerTime > 0 ? agentTime / customerTime : 
+                            (agentTime > 0 ? 2.0 : 1.0);
+      
+      return {
+        agentRatio,
+        prospectRatio,
+        dominanceScore,
+        agentTalkTime: agentTime,
+        prospectTalkTime: customerTime,
+        silenceTime,
+        interruptionCount: interruptions,
+        
+        // Snake case aliases for component compatibility
+        agent_ratio: agentRatio,
+        prospect_ratio: prospectRatio,
+        dominance_score: dominanceScore,
+        agent_talk_time: agentTime,
+        prospect_talk_time: customerTime,
+        silence_time: silenceTime,
+        interruption_count: interruptions
+      };
+    } catch (error) {
+      console.error("Error calculating talk ratio:", error);
+      return defaultMetrics;
+    }
+  }
+  
+  // Alias for component compatibility
+  calculateTalkRatios(transcript: CallTranscript): TalkRatioMetrics {
+    return this.calculateTalkRatio(transcript);
+  }
+  
+  generateSentimentHeatmap(transcript: CallTranscript): SentimentHeatmapPoint[] {
+    try {
+      if (!transcript || !transcript.transcript_segments || !Array.isArray(transcript.transcript_segments)) {
+        return [];
+      }
+      
+      const segments = transcript.transcript_segments;
+      const heatmapPoints: SentimentHeatmapPoint[] = [];
+      
+      segments.forEach((segment, index) => {
+        // Skip segments without sentiment data
+        if (segment.sentiment === undefined) return;
+        
+        const segmentTime = segment.start || 0;
+        const sentimentScore = typeof segment.sentiment === 'number' ? segment.sentiment : 0.5;
+        
+        // Determine sentiment label based on score
+        let label = 'NEUTRAL';
+        if (sentimentScore > 0.6) label = 'POSITIVE';
+        if (sentimentScore < 0.4) label = 'NEGATIVE';
+        
+        heatmapPoints.push({
+          time: segmentTime,
+          agent: sentimentScore,
+          customer: sentimentScore,
+          score: sentimentScore,
+          label,
+          text_snippet: segment.text?.substring(0, 50) || ''
+        });
+      });
+      
+      return heatmapPoints;
+    } catch (error) {
+      console.error("Error generating sentiment heatmap:", error);
+      return [];
+    }
+  }
+  
+  calculateObjectionHandlingMetrics(transcript: CallTranscript): ObjectionHandlingMetrics {
+    const defaultMetrics: ObjectionHandlingMetrics = {
+      objectionCount: 0,
+      successfullyAddressedCount: 0,
+      successRate: 0,
+      avgResponseTime: 0,
+      commonObjections: [],
+      
+      // Snake case aliases
+      total_objections: 0,
+      handled_objections: 0,
+      effectiveness: 0,
+      details: []
+    };
+    
+    try {
+      if (!transcript || !transcript.transcript_segments || !Array.isArray(transcript.transcript_segments)) {
+        return defaultMetrics;
+      }
+      
+      const segments = transcript.transcript_segments;
+      let objections = 0;
+      let handledObjections = 0;
+      let totalResponseTime = 0;
+      const objectionDetails: Array<{text: string; time: number; handled: boolean}> = [];
+      
+      // Objection keywords
+      const objectionKeywords = [
+        'no', 'not interested', 'too expensive', 'can\'t afford', 
+        'not now', 'competitor', 'think about', 'not sure'
+      ];
+      
+      // Detect objections and responses
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        const text = segment.text?.toLowerCase() || '';
+        
+        // Check if this segment contains an objection
+        const isObjection = objectionKeywords.some(keyword => text.includes(keyword));
+        
+        if (isObjection && segment.speaker?.toLowerCase().includes('customer')) {
+          objections++;
+          const time = segment.start || 0;
+          
+          // Check if the objection was addressed in the next segments
+          let handled = false;
+          let responseTime = 0;
+          
+          // Look at the next 3 segments for a response
+          for (let j = i+1; j < i+4 && j < segments.length; j++) {
+            const responseSegment = segments[j];
+            
+            if (responseSegment.speaker?.toLowerCase().includes('agent')) {
+              handled = true;
+              responseTime = (responseSegment.start || 0) - time;
+              break;
+            }
+          }
+          
+          if (handled) {
+            handledObjections++;
+            totalResponseTime += responseTime;
+          }
+          
+          objectionDetails.push({
+            text: segment.text || '',
+            time: time,
+            handled
+          });
+        }
+      }
+      
+      // Calculate effectiveness and avg response time
+      const effectiveness = objections > 0 ? handledObjections / objections : 0;
+      const avgResponseTime = handledObjections > 0 ? totalResponseTime / handledObjections : 0;
+      
+      return {
+        objectionCount: objections,
+        successfullyAddressedCount: handledObjections,
+        successRate: effectiveness * 100,
+        avgResponseTime,
+        commonObjections: [],
+        
+        // Snake case aliases
+        total_objections: objections,
+        handled_objections: handledObjections,
+        effectiveness,
+        details: objectionDetails
+      };
+    } catch (error) {
+      console.error("Error calculating objection handling metrics:", error);
+      return defaultMetrics;
+    }
+  }
+  
+  // Alias for component compatibility
+  calculateObjectionHandling(transcript: CallTranscript): ObjectionHandlingMetrics {
+    return this.calculateObjectionHandlingMetrics(transcript);
+  }
+  
   /**
    * Calculates the talk time for each speaker role (agent and customer) in a list of transcript segments.
    *
@@ -124,6 +401,9 @@ export class AdvancedMetricsServiceClass {
             time: segment.start,
             agent: segment.sentiment,
             customer: segment.sentiment,
+            score: segment.sentiment,
+            label: segment.sentiment > 0.6 ? 'POSITIVE' : segment.sentiment < 0.4 ? 'NEGATIVE' : 'NEUTRAL',
+            text_snippet: segment.text?.substring(0, 50) || ''
           });
         }
       });
@@ -244,174 +524,6 @@ export class AdvancedMetricsServiceClass {
       console.error("Error calculating longest monologue:", error);
     }
     return { duration: longestMonologue, speaker: monologueSpeaker };
-  }
-
-  /**
-   * Calculates the talk ratio between the agent and the customer during a call from a list of transcript segments.
-   *
-   * @param {CallTranscriptSegment[]} segments - An array of transcript segments, each containing speaker and duration information.
-   * @returns {{ totalDuration: number; agentTalkTime: number; customerTalkTime: number; agentTalkPercentage: number; customerTalkPercentage: number; silenceTime: number; silencePercentage: number; longestMonologue: number; monologueSpeaker: string }} An object containing the total duration of the call, talk time for the agent and customer, talk percentages, silence time and percentage, and the longest monologue.
-   * Returns an object with all values set to 0 if the input is invalid or no talk time could be calculated.
-   */
-  calculateTalkRatio(segments: CallTranscriptSegment[]): TalkRatioMetrics {
-    if (!segments || !Array.isArray(segments)) {
-      console.error("Invalid input: segments must be a non-empty array.");
-      return {
-        totalDuration: 0,
-        agentTalkTime: 0,
-        customerTalkTime: 0,
-        agentTalkPercentage: 0,
-        customerTalkPercentage: 0,
-        silenceTime: 0,
-        silencePercentage: 0,
-        longestMonologue: 0,
-        monologueSpeaker: '',
-      };
-    }
-
-    let totalDuration = 0;
-    let agentTalkTime = 0;
-    let customerTalkTime = 0;
-    let silenceTime = 0;
-
-    try {
-      segments.forEach((segment) => {
-        if (typeof segment.start !== 'number' || typeof segment.end !== 'number') {
-          console.warn("Skipping segment due to missing or invalid start/end:", segment);
-          return;
-        }
-
-        const duration = segment.end - segment.start;
-        if (duration <= 0) {
-          console.warn("Skipping segment due to non-positive duration:", segment);
-          return;
-        }
-
-        totalDuration += duration;
-
-        if (segment.speaker && typeof segment.speaker === 'string') {
-          const speaker = segment.speaker.toLowerCase();
-          if (speaker === 'agent') {
-            agentTalkTime += duration;
-          } else if (speaker === 'customer') {
-            customerTalkTime += duration;
-          } else if (speaker === 'silence') {
-            silenceTime += duration;
-          }
-        }
-      });
-
-      const speakerTalkTime = this.calculateTalkTimeByRole(segments) || { agent: 0, customer: 0 };
-      const agentTalkTime = speakerTalkTime.agent || 0;
-      const customerTalkTime = speakerTalkTime.customer || 0;
-
-      const agentTalkPercentage = totalDuration > 0 ? (agentTalkTime / totalDuration) * 100 : 0;
-      const customerTalkPercentage = totalDuration > 0 ? (customerTalkTime / totalDuration) * 100 : 0;
-      const silencePercentage = totalDuration > 0 ? (silenceTime / totalDuration) * 100 : 0;
-
-      const longestMonologueData = this.calculateLongestMonologue(segments);
-
-      return {
-        totalDuration,
-        agentTalkTime,
-        customerTalkTime,
-        agentTalkPercentage,
-        customerTalkPercentage,
-        silenceTime,
-        silencePercentage,
-        longestMonologue: longestMonologueData.duration,
-        monologueSpeaker: longestMonologueData.speaker,
-      };
-    } catch (error) {
-      console.error("Error calculating talk ratio:", error);
-      return {
-        totalDuration: 0,
-        agentTalkTime: 0,
-        customerTalkTime: 0,
-        agentTalkPercentage: 0,
-        customerTalkPercentage: 0,
-        silenceTime: 0,
-        silencePercentage: 0,
-        longestMonologue: 0,
-        monologueSpeaker: '',
-      };
-    }
-  }
-
-  /**
-   * Calculates metrics related to objection handling during a call from a list of transcript segments.
-   *
-   * @param {CallTranscriptSegment[]} segments - An array of transcript segments to analyze for objections and responses.
-   * @returns {{ objectionCount: number; successfullyAddressedCount: number; successRate: number; avgResponseTime: number; commonObjections: string[] }} An object containing the total number of objections, the number of successfully addressed objections, the success rate, the average response time, and a list of common objections.
-   * Returns an object with all values set to 0 if the input is invalid or no objections could be identified.
-   */
-  calculateObjectionHandlingMetrics(segments: CallTranscriptSegment[]): ObjectionHandlingMetrics {
-    if (!segments || !Array.isArray(segments)) {
-      console.error("Invalid input: segments must be a non-empty array.");
-      return {
-        objectionCount: 0,
-        successfullyAddressedCount: 0,
-        successRate: 0,
-        avgResponseTime: 0,
-        commonObjections: [],
-      };
-    }
-
-    let objectionCount = 0;
-    let successfullyAddressedCount = 0;
-    let totalResponseTime = 0;
-    const objections: string[] = [];
-
-    try {
-      segments.forEach((segment, index) => {
-        if (segment.text && typeof segment.text === 'string') {
-          const lowerCaseText = segment.text.toLowerCase();
-          if (lowerCaseText.includes("i disagree") || lowerCaseText.includes("i don't agree") || lowerCaseText.includes("that won't work for me")) {
-            objectionCount++;
-            objections.push(segment.text);
-
-            // Check if the next segment addresses the objection
-            if (index < segments.length - 1) {
-              const nextSegment = segments[index + 1];
-              if (nextSegment.speaker === 'agent' && nextSegment.text && typeof nextSegment.text === 'string') {
-                successfullyAddressedCount++;
-                totalResponseTime += nextSegment.start - segment.start;
-              }
-            }
-          }
-        }
-      });
-
-      const successRate = objectionCount > 0 ? (successfullyAddressedCount / objectionCount) * 100 : 0;
-      const avgResponseTime = successfullyAddressedCount > 0 ? totalResponseTime / successfullyAddressedCount : 0;
-
-      // Get common objections
-      const objectionCounts: { [objection: string]: number } = {};
-      objections.forEach((objection) => {
-        objectionCounts[objection] = (objectionCounts[objection] || 0) + 1;
-      });
-
-      const commonObjections = Object.keys(objectionCounts)
-        .sort((a, b) => objectionCounts[b] - objectionCounts[a])
-        .slice(0, 5);
-
-      return {
-        objectionCount,
-        successfullyAddressedCount,
-        successRate,
-        avgResponseTime,
-        commonObjections,
-      };
-    } catch (error) {
-      console.error("Error calculating objection handling metrics:", error);
-      return {
-        objectionCount: 0,
-        successfullyAddressedCount: 0,
-        successRate: 0,
-        avgResponseTime: 0,
-        commonObjections: [],
-      };
-    }
   }
 }
 

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useCallMetricsStore } from '@/store/useCallMetricsStore';
@@ -7,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Clock, Mic, BarChart2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEventListener } from '@/services/events/hooks';
+import { EventType } from '@/services/events/types';
 
 const PastCallsList = () => {
   const { callHistory, loadPastCalls } = useCallMetricsStore();

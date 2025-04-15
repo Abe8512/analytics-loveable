@@ -67,3 +67,7 @@ export function castToCallTranscript(data: any): CallTranscript {
     metadata: data.metadata || {}
   };
 }
+
+// Alias for consistency with component usage
+export const safeCallTranscriptCast = castToCallTranscript;
+
