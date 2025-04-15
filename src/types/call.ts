@@ -1,66 +1,69 @@
 
-import { CallTranscriptSegment, safeSegmentCast } from './metrics';
-
-export type SentimentType = 'positive' | 'negative' | 'neutral';
-
 export interface CallTranscript {
   id: string;
   text: string;
-  duration: number;
-  sentiment: number | SentimentType;
-  created_at: string;
+  created_at?: string;
+  updated_at?: string;
   filename?: string;
-  customer_name?: string;
-  user_name?: string;
-  call_id?: string;
-  call_score?: number;
-  start_time?: string;
-  end_time?: string;
-  speaker_count?: number;
-  user_id?: string;
+  duration?: number;
+  sentiment?: string | SentimentScore;
   keywords?: string[];
   key_phrases?: string[];
+  call_score?: number;
+  transcript_segments?: CallTranscriptSegment[];
+  user_name?: string;
+  customer_name?: string;
   assigned_to?: string;
   metadata?: any;
-  transcript_segments?: CallTranscriptSegment[];
 }
 
-// Helper function to safely cast a database record to CallTranscript with proper typing
-export function safeCallTranscriptCast(data: any): CallTranscript {
-  // Handle segments properly - either parse from JSON or map if already an array
-  let segments: CallTranscriptSegment[] = [];
-  
-  if (data.transcript_segments) {
-    if (typeof data.transcript_segments === 'string') {
-      try {
-        segments = JSON.parse(data.transcript_segments).map(safeSegmentCast);
-      } catch (e) {
-        console.error('Error parsing transcript segments:', e);
-      }
-    } else if (Array.isArray(data.transcript_segments)) {
-      segments = data.transcript_segments.map(safeSegmentCast);
-    }
-  }
-  
+export interface CallTranscriptSegment {
+  id?: string;
+  transcript_id?: string;
+  speaker: string;
+  text: string;
+  start: number;
+  end: number;
+  confidence?: number;
+  sentiment?: number;
+}
+
+export type SentimentType = 'positive' | 'negative' | 'neutral';
+
+export interface SentimentScore {
+  agent: number;
+  customer: number;
+}
+
+export interface CallHistory {
+  id: string;
+  date: string;
+  duration: number;
+  sentiment?: SentimentScore;
+  talkRatio?: {
+    agent: number;
+    customer: number;
+  };
+  keyPhrases?: any[];
+}
+
+// Helper function to safely cast data to CallTranscript
+export function castToCallTranscript(data: any): CallTranscript {
   return {
     id: data.id || '',
     text: data.text || '',
-    duration: typeof data.duration === 'number' ? data.duration : parseFloat(data.duration || '0'),
-    sentiment: data.sentiment || 'neutral',
-    created_at: data.created_at || new Date().toISOString(),
+    created_at: data.created_at,
+    updated_at: data.updated_at,
     filename: data.filename,
-    customer_name: data.customer_name,
-    user_name: data.user_name,
-    call_id: data.call_id,
-    call_score: data.call_score,
-    start_time: data.start_time,
-    end_time: data.end_time,
-    speaker_count: data.speaker_count,
-    user_id: data.user_id,
+    duration: typeof data.duration === 'number' ? data.duration : 0,
+    sentiment: data.sentiment,
     keywords: Array.isArray(data.keywords) ? data.keywords : [],
     key_phrases: Array.isArray(data.key_phrases) ? data.key_phrases : [],
+    call_score: typeof data.call_score === 'number' ? data.call_score : 0,
+    transcript_segments: Array.isArray(data.transcript_segments) ? data.transcript_segments : [],
+    user_name: data.user_name || '',
+    customer_name: data.customer_name || 'Customer',
     assigned_to: data.assigned_to,
-    metadata: data.metadata || {},
-    transcript_segments: segments
+    metadata: data.metadata || {}
   };
 }

@@ -1,4 +1,3 @@
-
 // Sentiment analysis interfaces and services
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,17 +116,17 @@ export const useSentimentTrends = () => {
   }, [fetchSentimentTrends]);
 
   // Listen for events that should trigger a refresh
-  useEventListener('sentiment-updated', () => {
+  useEventListener('sentiment-updated' as EventType, (payload) => {
     console.log('Sentiment updated, refreshing trends...');
     fetchSentimentTrends();
   });
 
-  useEventListener('transcript-created', () => {
+  useEventListener('transcript-created' as EventType, (payload) => {
     console.log('New transcript created, refreshing sentiment trends...');
     fetchSentimentTrends();
   });
 
-  useEventListener('bulk-upload-completed', () => {
+  useEventListener('bulk-upload-completed' as EventType, () => {
     console.log('Bulk upload completed, refreshing sentiment trends...');
     fetchSentimentTrends();
   });

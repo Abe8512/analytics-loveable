@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
@@ -10,7 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { EventsStore } from '@/services/events/store';
 import { EventType, EVENT_TYPES } from '@/services/events/types';
 import { useBulkUploadService } from '@/hooks/useBulkUploadService';
-import { BulkUploadFilter } from '@/types/bulkUpload';
+import { BulkUploadFilter } from '@/types/teamTypes';
 import { Progress } from "@/components/ui/progress";
 
 interface CSVData {
@@ -40,7 +39,6 @@ const BulkUploadProcessor: React.FC = () => {
         header: true,
         complete: (results) => {
           if (results.data && results.data.length > 0) {
-            // Type assertion to CSVData[]
             setCsvData(results.data as CSVData[]);
           } else {
             toast({
@@ -86,7 +84,7 @@ const BulkUploadProcessor: React.FC = () => {
 
     setIsUploading(true);
     setUploadProgress(0);
-    EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_STARTED, {
+    EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_STARTED as EventType, {
       timestamp: new Date().toISOString()
     });
 
@@ -96,17 +94,16 @@ const BulkUploadProcessor: React.FC = () => {
 
       for (const data of csvData) {
         try {
-          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS, { 
+          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS as EventType, { 
             progress: (uploadedCount / totalRows) * 100,
             timestamp: new Date().toISOString()
           });
           setUploadProgress((uploadedCount / totalRows) * 100);
 
-          // Mock upload functionality since we don't have the actual uploadTranscript method
           await new Promise(resolve => setTimeout(resolve, 500)); // Simulate upload time
 
           uploadedCount++;
-          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS, { 
+          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS as EventType, { 
             progress: (uploadedCount / totalRows) * 100,
             timestamp: new Date().toISOString()
           });
@@ -118,7 +115,7 @@ const BulkUploadProcessor: React.FC = () => {
             title: "Upload error",
             description: `Failed to upload row: ${data.filename || 'Unknown'}. ${uploadError?.message || 'Unknown error'}`
           });
-          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR, { 
+          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR as EventType, { 
             error: uploadError,
             timestamp: new Date().toISOString()
           });
@@ -127,7 +124,7 @@ const BulkUploadProcessor: React.FC = () => {
 
       setIsUploading(false);
       setUploadProgress(100);
-      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_COMPLETED, {
+      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_COMPLETED as EventType, {
         timestamp: new Date().toISOString()
       });
       toast({
@@ -137,7 +134,7 @@ const BulkUploadProcessor: React.FC = () => {
     } catch (error: any) {
       console.error('Bulk upload process failed:', error);
       setIsUploading(false);
-      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR, { 
+      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR as EventType, { 
         error,
         timestamp: new Date().toISOString()
       });
@@ -168,7 +165,6 @@ const BulkUploadProcessor: React.FC = () => {
           });
           setProcessingProgress((processedCount / totalRows) * 100);
 
-          // Mock processing functionality
           await new Promise(resolve => setTimeout(resolve, 800)); // Simulate processing time
 
           processedCount++;

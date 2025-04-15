@@ -18,7 +18,12 @@ export type EventType =
   | 'processing-progress'
   | 'processing-completed'
   | 'processing-error'
-  | 'CALL_UPLOADED';
+  | 'CALL_UPLOADED'
+  | 'transcript-created'
+  | 'bulk-upload-completed'
+  | 'transcripts-refreshed'
+  | 'sentiment-updated'
+  | 'metrics-refreshed';
 
 export type TeamEventType = 
   | 'team-member-added'

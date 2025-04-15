@@ -35,6 +35,11 @@ class EventsStoreClass {
   dispatchEvent(type: EventType, payload: EventPayload = {}): void {
     console.log(`[EventsStore] Dispatching event: ${type}`, payload);
     
+    // Ensure timestamp is always present
+    if (!payload.timestamp) {
+      payload.timestamp = new Date().toISOString();
+    }
+    
     // Add to event history
     this.eventHistory.push({
       type,
@@ -71,8 +76,14 @@ export const EventsStore = new EventsStoreClass();
 export { EVENT_TYPES };
 
 // Export the core functions
-export const dispatchEvent = (type: EventType, payload?: EventPayload) => 
-  EventsStore.dispatchEvent(type, payload);
+export const dispatchEvent = (type: EventType, payload?: EventPayload) => {
+  // Ensure payload always has timestamp
+  const completePayload: EventPayload = {
+    ...(payload || {}),
+    timestamp: (payload?.timestamp || new Date().toISOString())
+  };
+  return EventsStore.dispatchEvent(type, completePayload);
+};
 
 export const addEventListener = (type: EventType, callback: (payload: EventPayload) => void) => 
   EventsStore.addEventListener(type, callback);

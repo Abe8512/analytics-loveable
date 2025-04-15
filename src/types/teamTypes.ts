@@ -6,6 +6,7 @@ export interface TeamMember {
   role?: string;
   user_id?: string;
   avatar_url?: string;
+  avatar?: string;
 }
 
 export interface TeamPerformance {
@@ -35,7 +36,16 @@ export function safeTeamMemberCast(member: any): TeamMember {
     name: member.name || '',
     email: member.email || '',
     role: member.role || 'sales-rep',
-    user_id: member.user_id || undefined,
-    avatar_url: member.avatar_url
+    user_id: member.user_id,
+    avatar_url: member.avatar_url,
+    avatar: member.avatar
   };
+}
+
+export interface BulkUploadFilter {
+  force?: boolean;
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
 }

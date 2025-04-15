@@ -1,316 +1,417 @@
-
-// Import the necessary types
-import { CallTranscript } from '@/types/call';
-import { calculateSilence, calculateTalkRatio } from '@/utils/metricCalculations';
-
-// Export the types needed by other components
-export interface AdvancedMetric {
-  name: string;
-  callVolume: number;
-  sentiment: number;
-  conversion: number;
-  date?: string;
-}
+import { CallTranscriptSegment } from "@/types/call";
+import { safeNumber } from "@/utils/safeFunctions";
 
 export interface TalkRatioMetrics {
-  agent_ratio: number;
-  prospect_ratio: number;
-  dominance_score: number;
-  agent_talk_time: number;
-  prospect_talk_time: number;
-  silence_time: number;
-  interruption_count: number;
+  totalDuration: number;
+  agentTalkTime: number;
+  customerTalkTime: number;
+  agentTalkPercentage: number;
+  customerTalkPercentage: number;
+  silenceTime: number;
+  silencePercentage: number;
+  longestMonologue: number;
+  monologueSpeaker: string;
+}
+
+export interface ObjectionHandlingMetrics {
+  objectionCount: number;
+  successfullyAddressedCount: number;
+  successRate: number;
+  avgResponseTime: number;
+  commonObjections: string[];
 }
 
 export interface SentimentHeatmapPoint {
   time: number;
-  score: number;
-  label: string;
-  text_snippet: string;
+  agent: number;
+  customer: number;
 }
 
-export interface ObjectionDetail {
-  time: number;
-  text: string;
-  handled: boolean;
+export interface AdvancedMetric {
+  name: string;
+  value: number;
+  unit: string;
+  description: string;
+  improvement?: string;
 }
 
-export interface ObjectionHandlingMetrics {
-  total_objections: number;
-  handled_objections: number;
-  effectiveness: number;
-  details: ObjectionDetail[];
-}
+export class AdvancedMetricsServiceClass {
+  /**
+   * Calculates the talk time for each speaker role (agent and customer) in a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments, each containing speaker and duration information.
+   * @returns {{ [speaker: string]: number } | {}} An object where keys are speaker roles ('agent' or 'customer') and values are the total talk time in seconds.
+   * Returns an empty object if the input is invalid or no talk time could be calculated.
+   */
+  calculateTalkTimeByRole(segments: CallTranscriptSegment[]): { [speaker: string]: number } | {} {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return {};
+    }
 
-class AdvancedMetricsServiceClass {
-  // Helper to safely process segments
-  private processSegments(transcript: CallTranscript) {
-    const segments = transcript.transcript_segments || [];
-    
-    // Skip if no segments are available
-    if (!Array.isArray(segments) || segments.length === 0) {
-      console.log('No segments to process for transcript:', transcript.id);
-      return {
-        speakerTimeMap: {},
-        speakerWordCounts: {},
-        totalDuration: transcript.duration || 0,
-        silencePercentage: 0,
-        agentInterruptions: 0,
-        customerInterruptions: 0,
-        sentiment: {
-          agent: transcript.sentiment || 0.5,
-          customer: transcript.sentiment || 0.5
+    const talkTimeByRole: { [speaker: string]: number } = {};
+
+    try {
+      segments.forEach((segment) => {
+        if (!segment.speaker || typeof segment.start !== 'number' || typeof segment.end !== 'number') {
+          console.warn("Skipping segment due to missing or invalid speaker/start/end:", segment);
+          return;
         }
+
+        const duration = segment.end - segment.start;
+        if (duration <= 0) {
+          console.warn("Skipping segment due to non-positive duration:", segment);
+          return;
+        }
+
+        const speaker = segment.speaker.toLowerCase();
+        talkTimeByRole[speaker] = (talkTimeByRole[speaker] || 0) + duration;
+      });
+
+      return talkTimeByRole;
+    } catch (error) {
+      console.error("Error calculating talk time by role:", error);
+      return {};
+    }
+  }
+
+  /**
+   * Identifies and counts objections raised during a call from a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments to analyze for objections.
+   * @returns {number} The total number of objections identified in the segments.
+   */
+  countObjections(segments: CallTranscriptSegment[]): number {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return 0;
+    }
+
+    let objectionCount = 0;
+    try {
+      segments.forEach((segment) => {
+        if (segment.text && typeof segment.text === 'string') {
+          const lowerCaseText = segment.text.toLowerCase();
+          if (lowerCaseText.includes("i disagree") || lowerCaseText.includes("i don't agree") || lowerCaseText.includes("that won't work for me")) {
+            objectionCount++;
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error counting objections:", error);
+    }
+    return objectionCount;
+  }
+
+  /**
+   * Calculates sentiment trends over time from a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments, each containing a sentiment score and timestamp.
+   * @returns {{ time: number; agent: number; customer: number }[]} An array of objects, each representing a sentiment data point with time, agent sentiment, and customer sentiment.
+   * Returns an empty array if the input is invalid or no sentiment data could be extracted.
+   */
+  calculateSentimentTrends(segments: CallTranscriptSegment[]): SentimentHeatmapPoint[] {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return [];
+    }
+
+    const sentimentTrends: SentimentHeatmapPoint[] = [];
+    try {
+      segments.forEach((segment) => {
+        if (typeof segment.start === 'number' && typeof segment.sentiment === 'number') {
+          sentimentTrends.push({
+            time: segment.start,
+            agent: segment.sentiment,
+            customer: segment.sentiment,
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Error calculating sentiment trends:", error);
+    }
+    return sentimentTrends;
+  }
+
+  /**
+   * Analyzes the frequency and types of questions asked during a call from a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments to analyze for questions.
+   * @returns {{ [question: string]: number }} An object where keys are questions and values are the frequency of each question.
+   * Returns an empty object if the input is invalid or no questions could be identified.
+   */
+  analyzeQuestionFrequency(segments: CallTranscriptSegment[]): { [question: string]: number } {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return {};
+    }
+
+    const questionFrequency: { [question: string]: number } = {};
+    try {
+      segments.forEach((segment) => {
+        if (segment.text && typeof segment.text === 'string' && segment.text.includes("?")) {
+          const question = segment.text.trim();
+          questionFrequency[question] = (questionFrequency[question] || 0) + 1;
+        }
+      });
+    } catch (error) {
+      console.error("Error analyzing question frequency:", error);
+    }
+    return questionFrequency;
+  }
+
+  /**
+   * Identifies and counts key phrases or keywords used during a call from a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments to analyze for key phrases or keywords.
+   * @returns {{ [keyword: string]: number }} An object where keys are keywords and values are the frequency of each keyword.
+   * Returns an empty object if the input is invalid or no keywords could be identified.
+   */
+  identifyKeyPhrases(segments: CallTranscriptSegment[]): { [keyword: string]: number } {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return {};
+    }
+
+    const keyPhrases: { [keyword: string]: number } = {};
+    try {
+      segments.forEach((segment) => {
+        if (segment.text && typeof segment.text === 'string') {
+          const words = segment.text.toLowerCase().split(/\s+/);
+          words.forEach((word) => {
+            keyPhrases[word] = (keyPhrases[word] || 0) + 1;
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Error identifying key phrases:", error);
+    }
+    return keyPhrases;
+  }
+
+  /**
+   * Calculates the duration of the longest monologue (uninterrupted speech) during a call from a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments to analyze for monologues.
+   * @returns {{ duration: number; speaker: string }} An object containing the duration of the longest monologue in seconds and the speaker.
+   * Returns an object with duration 0 and empty speaker if the input is invalid or no monologues could be identified.
+   */
+  calculateLongestMonologue(segments: CallTranscriptSegment[]): { duration: number; speaker: string } {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return { duration: 0, speaker: '' };
+    }
+
+    let longestMonologue = 0;
+    let monologueSpeaker = '';
+    try {
+      let currentMonologueStart = 0;
+      let currentMonologueSpeaker = '';
+      let currentMonologueDuration = 0;
+
+      segments.forEach((segment, index) => {
+        if (!segment.speaker || typeof segment.start !== 'number' || typeof segment.end !== 'number') {
+          console.warn("Skipping segment due to missing or invalid speaker/start/end:", segment);
+          return;
+        }
+
+        if (index === 0) {
+          currentMonologueStart = segment.start;
+          currentMonologueSpeaker = segment.speaker;
+          currentMonologueDuration = segment.end - segment.start;
+        } else {
+          const previousSegment = segments[index - 1];
+          if (previousSegment.speaker === segment.speaker) {
+            currentMonologueDuration += segment.end - segment.start;
+          } else {
+            if (currentMonologueDuration > longestMonologue) {
+              longestMonologue = currentMonologueDuration;
+              monologueSpeaker = currentMonologueSpeaker;
+            }
+            currentMonologueStart = segment.start;
+            currentMonologueSpeaker = segment.speaker;
+            currentMonologueDuration = segment.end - segment.start;
+          }
+        }
+      });
+
+      // Check if the last monologue is the longest
+      if (currentMonologueDuration > longestMonologue) {
+        longestMonologue = currentMonologueDuration;
+        monologueSpeaker = currentMonologueSpeaker;
+      }
+    } catch (error) {
+      console.error("Error calculating longest monologue:", error);
+    }
+    return { duration: longestMonologue, speaker: monologueSpeaker };
+  }
+
+  /**
+   * Calculates the talk ratio between the agent and the customer during a call from a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments, each containing speaker and duration information.
+   * @returns {{ totalDuration: number; agentTalkTime: number; customerTalkTime: number; agentTalkPercentage: number; customerTalkPercentage: number; silenceTime: number; silencePercentage: number; longestMonologue: number; monologueSpeaker: string }} An object containing the total duration of the call, talk time for the agent and customer, talk percentages, silence time and percentage, and the longest monologue.
+   * Returns an object with all values set to 0 if the input is invalid or no talk time could be calculated.
+   */
+  calculateTalkRatio(segments: CallTranscriptSegment[]): TalkRatioMetrics {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return {
+        totalDuration: 0,
+        agentTalkTime: 0,
+        customerTalkTime: 0,
+        agentTalkPercentage: 0,
+        customerTalkPercentage: 0,
+        silenceTime: 0,
+        silencePercentage: 0,
+        longestMonologue: 0,
+        monologueSpeaker: '',
       };
     }
-    
-    // Initialize data structures
-    const speakerTimeMap: { [speaker: string]: number } = {};
-    const speakerWordCounts: { [speaker: string]: number } = {};
-    let agentInterruptions = 0;
-    let customerInterruptions = 0;
-    
-    // Process each segment
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      // Make sure the segment object has the required properties
-      if (typeof segment === 'object' && segment !== null) {
-        const speaker = typeof segment.speaker === 'string' ? segment.speaker : 'unknown';
-        const words = typeof segment.text === 'string' ? segment.text.split(/\s+/) : [];
-        const start = typeof segment.start === 'number' ? segment.start : 0;
-        const end = typeof segment.end === 'number' ? segment.end : 0;
-        const duration = end - start;
-        
-        // Update speaker time
-        speakerTimeMap[speaker] = (speakerTimeMap[speaker] || 0) + duration;
-        
-        // Update speaker word count
-        speakerWordCounts[speaker] = (speakerWordCounts[speaker] || 0) + words.length;
-        
-        // Check for interruptions
-        if (i > 0) {
-          const prevSegment = segments[i - 1];
-          if (typeof prevSegment === 'object' && prevSegment !== null) {
-            const prevSpeaker = typeof prevSegment.speaker === 'string' ? prevSegment.speaker : 'unknown';
-            
-            if (prevSpeaker !== speaker) {
-              if (speaker === 'agent' && prevSpeaker === 'customer') {
-                agentInterruptions++;
-              } else if (speaker === 'customer' && prevSpeaker === 'agent') {
-                customerInterruptions++;
+
+    let totalDuration = 0;
+    let agentTalkTime = 0;
+    let customerTalkTime = 0;
+    let silenceTime = 0;
+
+    try {
+      segments.forEach((segment) => {
+        if (typeof segment.start !== 'number' || typeof segment.end !== 'number') {
+          console.warn("Skipping segment due to missing or invalid start/end:", segment);
+          return;
+        }
+
+        const duration = segment.end - segment.start;
+        if (duration <= 0) {
+          console.warn("Skipping segment due to non-positive duration:", segment);
+          return;
+        }
+
+        totalDuration += duration;
+
+        if (segment.speaker && typeof segment.speaker === 'string') {
+          const speaker = segment.speaker.toLowerCase();
+          if (speaker === 'agent') {
+            agentTalkTime += duration;
+          } else if (speaker === 'customer') {
+            customerTalkTime += duration;
+          } else if (speaker === 'silence') {
+            silenceTime += duration;
+          }
+        }
+      });
+
+      const speakerTalkTime = this.calculateTalkTimeByRole(segments) || { agent: 0, customer: 0 };
+      const agentTalkTime = speakerTalkTime.agent || 0;
+      const customerTalkTime = speakerTalkTime.customer || 0;
+
+      const agentTalkPercentage = totalDuration > 0 ? (agentTalkTime / totalDuration) * 100 : 0;
+      const customerTalkPercentage = totalDuration > 0 ? (customerTalkTime / totalDuration) * 100 : 0;
+      const silencePercentage = totalDuration > 0 ? (silenceTime / totalDuration) * 100 : 0;
+
+      const longestMonologueData = this.calculateLongestMonologue(segments);
+
+      return {
+        totalDuration,
+        agentTalkTime,
+        customerTalkTime,
+        agentTalkPercentage,
+        customerTalkPercentage,
+        silenceTime,
+        silencePercentage,
+        longestMonologue: longestMonologueData.duration,
+        monologueSpeaker: longestMonologueData.speaker,
+      };
+    } catch (error) {
+      console.error("Error calculating talk ratio:", error);
+      return {
+        totalDuration: 0,
+        agentTalkTime: 0,
+        customerTalkTime: 0,
+        agentTalkPercentage: 0,
+        customerTalkPercentage: 0,
+        silenceTime: 0,
+        silencePercentage: 0,
+        longestMonologue: 0,
+        monologueSpeaker: '',
+      };
+    }
+  }
+
+  /**
+   * Calculates metrics related to objection handling during a call from a list of transcript segments.
+   *
+   * @param {CallTranscriptSegment[]} segments - An array of transcript segments to analyze for objections and responses.
+   * @returns {{ objectionCount: number; successfullyAddressedCount: number; successRate: number; avgResponseTime: number; commonObjections: string[] }} An object containing the total number of objections, the number of successfully addressed objections, the success rate, the average response time, and a list of common objections.
+   * Returns an object with all values set to 0 if the input is invalid or no objections could be identified.
+   */
+  calculateObjectionHandlingMetrics(segments: CallTranscriptSegment[]): ObjectionHandlingMetrics {
+    if (!segments || !Array.isArray(segments)) {
+      console.error("Invalid input: segments must be a non-empty array.");
+      return {
+        objectionCount: 0,
+        successfullyAddressedCount: 0,
+        successRate: 0,
+        avgResponseTime: 0,
+        commonObjections: [],
+      };
+    }
+
+    let objectionCount = 0;
+    let successfullyAddressedCount = 0;
+    let totalResponseTime = 0;
+    const objections: string[] = [];
+
+    try {
+      segments.forEach((segment, index) => {
+        if (segment.text && typeof segment.text === 'string') {
+          const lowerCaseText = segment.text.toLowerCase();
+          if (lowerCaseText.includes("i disagree") || lowerCaseText.includes("i don't agree") || lowerCaseText.includes("that won't work for me")) {
+            objectionCount++;
+            objections.push(segment.text);
+
+            // Check if the next segment addresses the objection
+            if (index < segments.length - 1) {
+              const nextSegment = segments[index + 1];
+              if (nextSegment.speaker === 'agent' && nextSegment.text && typeof nextSegment.text === 'string') {
+                successfullyAddressedCount++;
+                totalResponseTime += nextSegment.start - segment.start;
               }
             }
           }
         }
-      }
-    }
-    
-    // Calculate total duration and silence
-    const totalDuration = transcript.duration || 0;
-    
-    // Convert segments to the format expected by calculateSilence
-    const formattedSegments = segments
-      .filter(seg => typeof seg === 'object' && seg !== null)
-      .map(seg => ({
-        start: typeof seg.start === 'number' ? seg.start : 0,
-        end: typeof seg.end === 'number' ? seg.end : 0,
-        speaker: typeof seg.speaker === 'string' ? seg.speaker : 'unknown'
-      }));
-    
-    const silencePercentage = (calculateSilence(formattedSegments, totalDuration) / totalDuration) * 100;
-    
-    // Calculate sentiment scores
-    const agentSentiment = typeof transcript.sentiment === 'number' ? transcript.sentiment : 0.5;
-    const customerSentiment = typeof transcript.sentiment === 'number' ? transcript.sentiment : 0.5;
-    
-    return {
-      speakerTimeMap,
-      speakerWordCounts,
-      totalDuration,
-      silencePercentage,
-      agentInterruptions,
-      customerInterruptions,
-      sentiment: {
-        agent: agentSentiment,
-        customer: customerSentiment
-      }
-    };
-  }
-
-  // Get advanced metrics for chart display
-  getAdvancedMetrics(options: { period: string, groupBy: string }): Promise<AdvancedMetric[]> {
-    // This would normally fetch from an API or database
-    // For now, return mock data
-    return Promise.resolve([
-      { name: 'Jan', callVolume: 65, sentiment: 0.78, conversion: 24 },
-      { name: 'Feb', callVolume: 59, sentiment: 0.65, conversion: 18 },
-      { name: 'Mar', callVolume: 80, sentiment: 0.72, conversion: 26 },
-      { name: 'Apr', callVolume: 81, sentiment: 0.78, conversion: 29 },
-      { name: 'May', callVolume: 56, sentiment: 0.64, conversion: 15 },
-      { name: 'Jun', callVolume: 55, sentiment: 0.70, conversion: 20 },
-      { name: 'Jul', callVolume: 40, sentiment: 0.75, conversion: 22 }
-    ]);
-  }
-
-  // Calculate talk ratios from a transcript
-  calculateTalkRatios(transcript: CallTranscript): TalkRatioMetrics {
-    const segmentMetrics = this.processSegments(transcript);
-    
-    const agentTalkTime = segmentMetrics.speakerTimeMap.agent || 0;
-    const prospectTalkTime = segmentMetrics.speakerTimeMap.customer || 0;
-    const totalTalkTime = agentTalkTime + prospectTalkTime;
-    
-    // Calculate ratios (avoid division by zero)
-    const agentRatio = totalTalkTime > 0 ? agentTalkTime / totalTalkTime : 0.5;
-    const prospectRatio = totalTalkTime > 0 ? prospectTalkTime / totalTalkTime : 0.5;
-    
-    // Calculate dominance score - a measure of how much one party dominates
-    const dominanceScore = totalTalkTime > 0 
-      ? Math.max(agentRatio, prospectRatio) / Math.min(Math.max(agentRatio, prospectRatio), 0.001)
-      : 1;
-    
-    return {
-      agent_ratio: agentRatio,
-      prospect_ratio: prospectRatio,
-      dominance_score: dominanceScore,
-      agent_talk_time: agentTalkTime,
-      prospect_talk_time: prospectTalkTime,
-      silence_time: calculateSilence(
-        Array.isArray(transcript.transcript_segments) 
-          ? transcript.transcript_segments
-              .filter(seg => typeof seg === 'object' && seg !== null)
-              .map(seg => ({
-                start: typeof seg.start === 'number' ? seg.start : 0,
-                end: typeof seg.end === 'number' ? seg.end : 0,
-                speaker: typeof seg.speaker === 'string' ? seg.speaker : 'unknown'
-              }))
-          : [],
-        transcript.duration || 0
-      ),
-      interruption_count: segmentMetrics.agentInterruptions + segmentMetrics.customerInterruptions
-    };
-  }
-
-  // Generate a heatmap of sentiment over time
-  generateSentimentHeatmap(transcript: CallTranscript): SentimentHeatmapPoint[] {
-    // This would normally analyze transcript segments for sentiment
-    // For now, return mock data based on transcript duration
-    if (!transcript || !transcript.duration) {
-      return [];
-    }
-    
-    const duration = transcript.duration;
-    const segments = Array.isArray(transcript.transcript_segments) ? transcript.transcript_segments : [];
-    
-    // If no segments, generate mock data
-    if (segments.length === 0) {
-      const points: SentimentHeatmapPoint[] = [];
-      const segmentCount = 6; // Generate 6 points
-      
-      for (let i = 0; i < segmentCount; i++) {
-        const time = (duration / segmentCount) * i;
-        const score = Math.random() * 0.5 + 0.4; // Random score between 0.4 and 0.9
-        const sentiment = score > 0.7 ? 'POSITIVE' : score < 0.4 ? 'NEGATIVE' : 'NEUTRAL';
-        
-        points.push({
-          time,
-          score,
-          label: sentiment,
-          text_snippet: `Sample text for ${sentiment.toLowerCase()} sentiment...`
-        });
-      }
-      
-      return points;
-    }
-    
-    // Use actual segments to generate heatmap
-    const heatmapPoints: SentimentHeatmapPoint[] = [];
-    const safeSegments = segments.filter(seg => typeof seg === 'object' && seg !== null);
-    
-    for (let i = 0; i < safeSegments.length; i += Math.ceil(safeSegments.length / 6)) {
-      const segment = safeSegments[i];
-      if (!segment) continue;
-      
-      // Generate a sentiment score (would normally be analyzed from text)
-      const score = Math.random() * 0.5 + 0.4;
-      const sentiment = score > 0.7 ? 'POSITIVE' : score < 0.4 ? 'NEGATIVE' : 'NEUTRAL';
-      
-      heatmapPoints.push({
-        time: typeof segment.start === 'number' ? segment.start : 0,
-        score,
-        label: sentiment,
-        text_snippet: typeof segment.text === 'string' ? segment.text : 'No text available'
       });
-    }
-    
-    return heatmapPoints;
-  }
 
-  // Calculate objection handling metrics
-  calculateObjectionHandling(transcript: CallTranscript): ObjectionHandlingMetrics {
-    // This would normally analyze the transcript for objections
-    // For now, return mock data
-    const objectionCount = Math.floor(Math.random() * 4) + 1; // 1-4 objections
-    const handledCount = Math.floor(Math.random() * objectionCount) + 1; // At least 1 handled
-    
-    const details = [];
-    const duration = transcript.duration || 300;
-    
-    // Generate mock objection details
-    for (let i = 0; i < objectionCount; i++) {
-      const time = Math.floor(Math.random() * duration);
-      const handled = i < handledCount;
-      
-      details.push({
-        time,
-        text: `Customer raised concern about ${handled ? 'pricing' : 'product features'}`,
-        handled
+      const successRate = objectionCount > 0 ? (successfullyAddressedCount / objectionCount) * 100 : 0;
+      const avgResponseTime = successfullyAddressedCount > 0 ? totalResponseTime / successfullyAddressedCount : 0;
+
+      // Get common objections
+      const objectionCounts: { [objection: string]: number } = {};
+      objections.forEach((objection) => {
+        objectionCounts[objection] = (objectionCounts[objection] || 0) + 1;
       });
-    }
-    
-    return {
-      total_objections: objectionCount,
-      handled_objections: handledCount,
-      effectiveness: objectionCount > 0 ? handledCount / objectionCount : 0,
-      details
-    };
-  }
 
-  // Analyze transcript to extract metrics
-  analyzeTranscript(transcript: CallTranscript) {
-    // Ensure transcript exists
-    if (!transcript) return null;
-    
-    // Get basic metrics
-    const duration = transcript.duration || 0;
-    const segments = transcript.transcript_segments || [];
-    
-    // Process segments if available
-    const segmentMetrics = this.processSegments(transcript);
-    
-    // Calculate talk ratio
-    const totalTalkTime = 
-      (segmentMetrics.speakerTimeMap.agent || 0) + 
-      (segmentMetrics.speakerTimeMap.customer || 0);
-      
-    const talkRatio = {
-      agent: totalTalkTime > 0 
-        ? Math.round((segmentMetrics.speakerTimeMap.agent || 0) / totalTalkTime * 100) 
-        : 50,
-      customer: totalTalkTime > 0 
-        ? Math.round((segmentMetrics.speakerTimeMap.customer || 0) / totalTalkTime * 100) 
-        : 50
-    };
-    
-    return {
-      id: transcript.id,
-      duration,
-      talkRatio,
-      silencePercentage: segmentMetrics.silencePercentage,
-      agentInterruptions: segmentMetrics.agentInterruptions,
-      customerInterruptions: segmentMetrics.customerInterruptions,
-      sentiment: segmentMetrics.sentiment
-    };
+      const commonObjections = Object.keys(objectionCounts)
+        .sort((a, b) => objectionCounts[b] - objectionCounts[a])
+        .slice(0, 5);
+
+      return {
+        objectionCount,
+        successfullyAddressedCount,
+        successRate,
+        avgResponseTime,
+        commonObjections,
+      };
+    } catch (error) {
+      console.error("Error calculating objection handling metrics:", error);
+      return {
+        objectionCount: 0,
+        successfullyAddressedCount: 0,
+        successRate: 0,
+        avgResponseTime: 0,
+        commonObjections: [],
+      };
+    }
   }
 }
 

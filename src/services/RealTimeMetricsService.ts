@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { TeamPerformanceMetric, TeamPerformance } from '@/types/teamTypes';
 import { EventsService } from './EventsService';
@@ -124,7 +123,9 @@ export const useTeamMetrics = (): {
       const newMetrics = generateMockTeamMetrics();
       setMetrics(newMetrics);
       setError(null);
-      EventsService.dispatchEvent('metrics-refreshed');
+      EventsService.dispatchEvent('metrics-refreshed' as EventType, {
+        timestamp: new Date().toISOString()
+      });
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to refresh team metrics'));
     } finally {

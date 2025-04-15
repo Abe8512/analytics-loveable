@@ -46,7 +46,10 @@ const WhisperButton = ({ recordingId }: WhisperButtonProps) => {
         });
         
         // Dispatch an event to notify other components
-        dispatchEvent('transcript-created' as EventType, { transcript: transcription });
+        dispatchEvent('transcript-created' as EventType, { 
+          transcript: transcription,
+          timestamp: new Date().toISOString()
+        });
         
         // Navigate to the transcript view with the ID
         navigate(`/transcripts?id=${transcription.id}`);

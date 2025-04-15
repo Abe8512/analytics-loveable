@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { EventsStore } from './events/store';
 import { EventType } from './events/types';
@@ -58,7 +57,7 @@ class BulkUploadServiceClass {
         filename: file.name,
         size: file.size,
         type: file.type,
-        uploadedAt: new Date().toISOString(),
+        uploadedAt: new Date().toISOString(), // Convert Date to string
         assignedTo: this.assignedUserId || undefined
       };
 

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -45,7 +44,8 @@ export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Dispatch event to notify other components
       EventsService.dispatchEvent('transcript-updated' as EventType, { 
-        transcripts: safeTranscripts 
+        transcripts: safeTranscripts,
+        timestamp: new Date().toISOString()
       });
       
     } catch (error) {
@@ -103,7 +103,11 @@ export const TranscriptProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       // Dispatch event
-      EventsService.dispatchEvent('sentiment-updated' as EventType, { id, sentiment });
+      EventsService.dispatchEvent('sentiment-updated' as EventType, { 
+        id, 
+        sentiment,
+        timestamp: new Date().toISOString() 
+      });
     } catch (error) {
       console.error('Error updating transcript sentiment:', error);
       setError('Failed to update sentiment');

@@ -145,11 +145,12 @@ export class BulkUploadProcessorService {
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
         // Dispatch event for other components
-        EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED, {
+        EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED as EventType, {
           transcriptId,
           fileName: file.name,
           assignedTo: this.assignedUserId,
-          userName: userName
+          userName: userName,
+          timestamp: new Date().toISOString()
         });
         
         return;
@@ -177,11 +178,12 @@ export class BulkUploadProcessorService {
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
           // Dispatch event for other components
-          EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED, {
+          EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED as EventType, {
             transcriptId,
             fileName: file.name,
             assignedTo: this.assignedUserId,
-            userName: userName
+            userName: userName,
+            timestamp: new Date().toISOString()
           });
           
           return;
@@ -210,11 +212,12 @@ export class BulkUploadProcessorService {
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
             // Dispatch event for other components
-            EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED, {
+            EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED as EventType, {
               transcriptId,
               fileName: file.name,
               assignedTo: this.assignedUserId,
-              userName: userName
+              userName: userName,
+              timestamp: new Date().toISOString()
             });
             
             return;

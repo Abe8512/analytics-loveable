@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useCallMetricsStore } from '@/store/useCallMetricsStore';
@@ -14,17 +13,17 @@ const PastCallsList = () => {
   const [refreshing, setRefreshing] = useState(false);
   
   // Listen for events that should trigger a refresh
-  useEventListener('transcript-created', () => {
+  useEventListener('transcript-created' as EventType, () => {
     console.log('New transcript created, refreshing past calls...');
     handleRefresh();
   });
   
-  useEventListener('bulk-upload-completed', () => {
+  useEventListener('bulk-upload-completed' as EventType, () => {
     console.log('Bulk upload completed, refreshing past calls...');
     handleRefresh();
   });
   
-  useEventListener('transcripts-refreshed', () => {
+  useEventListener('transcripts-refreshed' as EventType, () => {
     console.log('Transcripts refreshed, updating past calls...');
     handleRefresh();
   });
