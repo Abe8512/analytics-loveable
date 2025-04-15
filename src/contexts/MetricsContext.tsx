@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useSharedFilters } from './SharedFilterContext';
 import { useMetricsFetcher } from '@/hooks/useMetricsFetcher';
@@ -107,3 +106,8 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 // Custom hook to use the metrics context
 export const useMetrics = () => useContext(MetricsContext);
+
+// Data filters interface
+interface DataFilters extends MetricsFilters {
+  // Any additional filter properties specific to this context
+}

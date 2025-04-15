@@ -1,313 +1,244 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  RawMetricsRecord, 
-  FormattedMetrics, 
-  MetricsData, 
-  TeamMetricsData, 
-  RepMetricsData, 
-  MetricsFilters 
-} from '@/types/metrics';
-import { formatMetricsForDisplay } from '@/utils/metricsUtils';
-import { useCallback, useEffect, useState } from 'react';
-import { generateDemoCallMetrics, generateDemoRepMetricsData } from '@/services/DemoDataService';
+import { generateDemoRepMetricsData } from '@/services/DemoDataService';
+import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
+import { createEmptyMetrics, createEmptyCallMetrics, createEmptyCallQualityMetrics } from '@/utils/emptyStateUtils';
 
 /**
- * Service class for metrics-related operations
+ * Checks if metrics data is available in the database
+ * @returns {Promise<boolean>} True if metrics data exists
  */
-export class MetricsService {
-  /**
-   * Fetches the latest metrics for the specified date range
-   * @param filters Optional filters for the metrics query
-   * @returns Promise with the fetched metrics
-   */
-  static async fetchMetrics(filters?: MetricsFilters): Promise<RawMetricsRecord | null> {
-    try {
-      console.log('Fetching metrics with filters:', filters);
+export const checkMetricsAvailability = async (): Promise<boolean> => {
+  try {
+    console.log('Checking for metrics data availability...');
+    
+    // Try call_metrics_summary first
+    const { data: metricsData, error: metricsError } = await supabase
+      .from('call_metrics_summary')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
       
-      let query = supabase
-        .from('call_metrics_summary')
+    if (!metricsError && metricsData && (metricsData as any)?.count > 0) {
+      console.log(`Found ${(metricsData as any)?.count} metrics records`);
+      return true;
+    }
+    
+    // If no metrics summary, check if there are calls directly
+    const { data: callsData, error: callsError } = await supabase
+      .from('calls')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
+      
+    if (!callsError && callsData) {
+      const callCount = (callsData as any)?.count ?? 0;
+      console.log(`Found ${callCount} call records`);
+      return callCount > 0;
+    }
+    
+    // If no calls data, check if there are transcripts from Whisper
+    const { data: transcriptData, error: transcriptError } = await supabase
+      .from('call_transcripts')
+      .select('count(*)', { count: 'exact' })
+      .limit(1);
+      
+    if (!transcriptError && transcriptData) {
+      const transcriptCount = (transcriptData as any)?.count ?? 0;
+      console.log(`Found ${transcriptCount} transcript records`);
+      return transcriptCount > 0;
+    }
+    
+    console.log('No metrics data found in any table');
+    return false;
+  } catch (err) {
+    console.error('Exception in checkMetricsAvailability:', err);
+    return false;
+  }
+};
+
+/**
+ * Gets metrics data from the database
+ * @param {number} days Number of days to retrieve
+ * @returns {Promise<RawMetricsRecord[]>} Metrics data array
+ */
+export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
+  try {
+    console.log(`Fetching metrics data for last ${days} days...`);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const { data, error } = await supabase
+      .from('call_metrics_summary')
+      .select('*')
+      .gte('report_date', startDate.toISOString().split('T')[0])
+      .order('report_date', { ascending: false });
+      
+    if (error) {
+      console.error('Error fetching metrics data:', error);
+      console.log('Trying to generate metrics data from calls table...');
+      
+      // Try to calculate metrics directly from calls table
+      const { data: callsData, error: callsError } = await supabase
+        .from('calls')
         .select('*')
-        .order('report_date', { ascending: false });
-      
-      // Apply date range filter if provided
-      if (filters?.dateRange?.from && filters?.dateRange?.to) {
-        const fromDate = filters.dateRange.from.toISOString().split('T')[0];
-        const toDate = filters.dateRange.to.toISOString().split('T')[0];
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false });
         
-        query = query
-          .gte('report_date', fromDate)
-          .lte('report_date', toDate);
+      if (callsError || !callsData || callsData.length === 0) {
+        console.log('No calls data found, trying transcripts...');
+        
+        // Try to use transcript data from Whisper
+        const { data: transcriptData, error: transcriptError } = await supabase
+          .from('call_transcripts')
+          .select('*')
+          .gte('created_at', startDate.toISOString())
+          .order('created_at', { ascending: false });
+          
+        if (transcriptError || !transcriptData || transcriptData.length === 0) {
+          console.log('No transcript data found, using demo data');
+          return [createEmptyMetrics()] as RawMetricsRecord[];
+        }
+        
+        // Convert transcript data to metrics format
+        console.log(`Converting ${transcriptData.length} transcripts to metrics`);
+        const metrics: RawMetricsRecord = {
+          report_date: new Date().toISOString().split('T')[0],
+          total_calls: transcriptData.length,
+          avg_duration: transcriptData.reduce((sum, t) => sum + (t.duration || 0), 0) / transcriptData.length,
+          positive_sentiment_count: transcriptData.filter(t => t.sentiment === 'positive').length,
+          negative_sentiment_count: transcriptData.filter(t => t.sentiment === 'negative').length,
+          neutral_sentiment_count: transcriptData.filter(t => t.sentiment === 'neutral').length,
+          avg_sentiment: transcriptData.reduce((sum, t) => {
+            let sentimentValue = 0.5; // Default neutral
+            if (t.sentiment === 'positive') sentimentValue = 0.8;
+            if (t.sentiment === 'negative') sentimentValue = 0.2;
+            return sum + sentimentValue;
+          }, 0) / transcriptData.length,
+          performance_score: transcriptData.reduce((sum, t) => sum + (t.call_score || 50), 0) / transcriptData.length
+        };
+        
+        return [metrics];
       }
       
-      const { data, error } = await query.limit(1);
+      // Calculate metrics from calls data
+      console.log(`Converting ${callsData.length} calls to metrics`);
+      const metrics: RawMetricsRecord = {
+        report_date: new Date().toISOString().split('T')[0],
+        total_calls: callsData.length,
+        avg_duration: callsData.reduce((sum, call) => sum + (call.duration || 0), 0) / callsData.length,
+        positive_sentiment_count: callsData.filter(call => (call.sentiment_agent || 0) > 0.66).length,
+        negative_sentiment_count: callsData.filter(call => (call.sentiment_agent || 0) < 0.33).length,
+        neutral_sentiment_count: callsData.filter(call => {
+          const sentiment = call.sentiment_agent || 0.5;
+          return sentiment >= 0.33 && sentiment <= 0.66;
+        }).length,
+        avg_sentiment: callsData.reduce((sum, call) => sum + (call.sentiment_agent || 0.5), 0) / callsData.length,
+        agent_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_agent || 50), 0) / callsData.length,
+        customer_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_customer || 50), 0) / callsData.length
+      };
       
-      if (error) {
-        console.error('Error fetching metrics:', error);
-        return null;
-      }
-      
-      if (!data || data.length === 0) {
-        console.log('No metrics data found');
-        return null;
-      }
-      
-      return data[0] as RawMetricsRecord;
-    } catch (err) {
-      console.error('Exception in fetchMetrics:', err);
-      return null;
-    }
-  }
-  
-  /**
-   * Fetches rep metrics for the specified filters
-   * @param filters Optional filters for the rep metrics query
-   * @param limit Maximum number of records to return
-   * @returns Promise with the fetched rep metrics
-   */
-  static async fetchRepMetrics(filters?: MetricsFilters, limit: number = 10): Promise<RepMetricsData[]> {
-    try {
-      console.log('Fetching rep metrics with filters:', filters);
-      
-      let query = supabase
-        .from('rep_metrics_summary')
-        .select('*')
-        .order('call_volume', { ascending: false });
-      
-      // Apply rep filter if provided
-      if (filters?.repIds && filters.repIds.length > 0) {
-        query = query.in('rep_id', filters.repIds);
-      }
-      
-      const { data, error } = await query.limit(limit);
-      
-      if (error) {
-        console.error('Error fetching rep metrics:', error);
-        return generateDemoRepMetricsData(limit);
-      }
-      
-      if (!data || data.length === 0) {
-        console.log('No rep metrics data found');
-        return generateDemoRepMetricsData(limit);
-      }
-      
-      // Transform to RepMetricsData format
-      return data.map(rep => ({
-        id: rep.rep_id,
-        name: rep.rep_name || 'Unknown Rep',
-        callVolume: rep.call_volume || 0,
-        successRate: rep.success_rate || 0,
-        sentiment: rep.sentiment_score || 0.5,
-        insights: rep.insights || []
-      }));
-    } catch (err) {
-      console.error('Exception in fetchRepMetrics:', err);
-      return generateDemoRepMetricsData(limit);
-    }
-  }
-  
-  /**
-   * Fetches and formats team metrics data
-   * @param filters Optional filters for the team metrics query
-   * @returns Promise with the team metrics data
-   */
-  static async fetchTeamMetrics(filters?: MetricsFilters): Promise<TeamMetricsData | null> {
-    const rawMetrics = await this.fetchMetrics(filters);
-    
-    if (!rawMetrics) {
-      console.log('No team metrics available, returning null');
-      return null;
+      return [metrics];
     }
     
-    return {
-      performanceScore: rawMetrics.performance_score,
-      totalCalls: rawMetrics.total_calls,
-      conversionRate: rawMetrics.conversion_rate,
-      avgSentiment: rawMetrics.avg_sentiment,
-      topKeywords: rawMetrics.top_keywords,
-      avgTalkRatio: {
-        agent: rawMetrics.agent_talk_ratio || 50,
-        customer: rawMetrics.customer_talk_ratio || 50
-      }
-    };
+    if (!data || data.length === 0) {
+      console.log('No metrics data found, using demo data');
+      return [createEmptyMetrics()] as RawMetricsRecord[];
+    }
+    
+    console.log(`Successfully retrieved ${data.length} metrics records`);
+    return data as RawMetricsRecord[];
+  } catch (err) {
+    console.error('Exception in getMetricsData:', err);
+    console.log('Falling back to demo data');
+    return [createEmptyMetrics()] as RawMetricsRecord[];
   }
-  
-  /**
-   * Subscribes to real-time updates for metrics data
-   * @param callback Function to call when metrics are updated
-   * @returns Subscription object that can be used to unsubscribe
-   */
-  static subscribeToMetricsUpdates(callback: (metrics: RawMetricsRecord) => void) {
-    return supabase
-      .channel('metrics-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'call_metrics_summary' }, 
-        payload => {
-          console.log('Metrics data updated in database:', payload);
-          callback(payload.new as RawMetricsRecord);
-        })
-      .subscribe();
-  }
-}
+};
 
 /**
- * Custom hook to access metrics data with filters
- * @param filters Optional filters for the metrics
- * @returns Object containing metrics data and loading state
+ * Gets rep metrics data or falls back to demo data
+ * @param {number} count Number of reps to retrieve
+ * @returns {Promise<any[]>} Rep metrics data array
  */
-export const useMetricsData = (filters?: MetricsFilters) => {
-  const [data, setData] = useState<FormattedMetrics | null>(null);
-  const [rawData, setRawData] = useState<RawMetricsRecord | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  
-  const fetchData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+export const getRepMetricsData = async (count = 5) => {
+  try {
+    console.log('Fetching rep metrics data...');
+    const { data, error } = await supabase
+      .from('rep_metrics_summary')
+      .select('*')
+      .order('call_volume', { ascending: false })
+      .limit(count);
       
-      const metricsData = await MetricsService.fetchMetrics(filters);
-      
-      if (metricsData) {
-        setRawData(metricsData);
-        setData(formatMetricsForDisplay(metricsData));
-      } else {
-        console.log('No metrics data found, using demo data');
-        const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
-        setRawData(demoData);
-        setData(formatMetricsForDisplay(demoData));
-      }
-    } catch (err) {
-      console.error('Error in useMetricsData:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-      
-      // Use demo data as fallback
-      const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
-      setRawData(demoData);
-      setData(formatMetricsForDisplay(demoData));
-    } finally {
-      setIsLoading(false);
+    if (error) {
+      console.error('Error fetching rep metrics data:', error);
+      console.log('Falling back to demo rep data');
+      return generateDemoRepMetricsData(count);
     }
-  }, [filters]);
+    
+    if (!data || data.length === 0) {
+      console.log('No rep metrics data found, using demo data');
+      return generateDemoRepMetricsData(count);
+    }
+    
+    console.log(`Successfully retrieved ${data.length} rep metrics records`);
+    return data;
+  } catch (err) {
+    console.error('Exception in getRepMetricsData:', err);
+    console.log('Falling back to demo rep data');
+    return generateDemoRepMetricsData(count);
+  }
+};
+
+/**
+ * Formats metrics for display
+ * @param {RawMetricsRecord} metrics Raw metrics data
+ * @returns {FormattedMetrics | null} Formatted metrics
+ */
+export const formatMetricsForDisplay = (metrics: RawMetricsRecord): FormattedMetrics | null => {
+  if (!metrics) return null;
   
-  useEffect(() => {
-    fetchData();
+  // Format duration from seconds to minutes and seconds
+  const formatDuration = (seconds: number = 0) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+  
+  // Calculate sentiment percentages safely
+  const totalSentiment = 
+    (metrics.positive_sentiment_count || 0) + 
+    (metrics.neutral_sentiment_count || 0) + 
+    (metrics.negative_sentiment_count || 0);
     
-    // Subscribe to real-time updates
-    const subscription = MetricsService.subscribeToMetricsUpdates((updatedMetrics: RawMetricsRecord) => {
-      console.log('Received real-time metrics update:', updatedMetrics);
-      setRawData(updatedMetrics);
-      setData(formatMetricsForDisplay(updatedMetrics));
-    });
+  const positiveSentimentPercent = totalSentiment > 0 
+    ? Math.round((metrics.positive_sentiment_count || 0) / totalSentiment * 100) 
+    : 33;
     
-    return () => {
-      // Clean up subscription
-      subscription.unsubscribe();
-    };
-  }, [fetchData]);
+  const negativeSentimentPercent = totalSentiment > 0 
+    ? Math.round((metrics.negative_sentiment_count || 0) / totalSentiment * 100) 
+    : 33;
+    
+  // Ensure the total is exactly 100%
+  const neutralSentimentPercent = totalSentiment > 0 
+    ? 100 - positiveSentimentPercent - negativeSentimentPercent
+    : 34;
   
   return {
-    data,
-    rawData,
-    isLoading,
-    error,
-    refresh: fetchData
+    totalCalls: metrics.total_calls || 0,
+    avgDuration: formatDuration(metrics.avg_duration),
+    avgDurationSeconds: metrics.avg_duration || 0,
+    avgDurationMinutes: Math.round((metrics.avg_duration || 0) / 60),
+    totalDuration: metrics.total_duration || 0,
+    positiveCallsCount: metrics.positive_sentiment_count || 0,
+    negativeCallsCount: metrics.negative_sentiment_count || 0,
+    neutralCallsCount: metrics.neutral_sentiment_count || 0,
+    positiveSentimentPercent,
+    negativeSentimentPercent,
+    neutralSentimentPercent,
+    avgSentiment: metrics.avg_sentiment || 0.5,
+    avgSentimentPercent: Math.round((metrics.avg_sentiment || 0.5) * 100),
+    callScore: metrics.performance_score || 70,
+    conversionRate: metrics.conversion_rate ? Math.round(metrics.conversion_rate * 100) : 0,
+    agentTalkRatio: Math.round(metrics.agent_talk_ratio || 50),
+    customerTalkRatio: Math.round(metrics.customer_talk_ratio || 50),
+    topKeywords: metrics.top_keywords || [],
+    reportDate: metrics.report_date || new Date().toISOString().split('T')[0]
   };
-};
-
-/**
- * Custom hook to access team metrics data
- * @param filters Optional filters for the team metrics
- * @returns Object containing team metrics data and loading state
- */
-export const useTeamMetricsData = (filters?: MetricsFilters) => {
-  const [metrics, setMetrics] = useState<TeamMetricsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  
-  const fetchData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const teamMetricsData = await MetricsService.fetchTeamMetrics(filters);
-      
-      if (teamMetricsData) {
-        setMetrics(teamMetricsData);
-      } else {
-        // Fall back to a default TeamMetricsData object
-        setMetrics({
-          performanceScore: 75,
-          totalCalls: 0,
-          conversionRate: 0,
-          avgSentiment: 0.5,
-          topKeywords: [],
-          avgTalkRatio: {
-            agent: 50,
-            customer: 50
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Error in useTeamMetricsData:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-      
-      // Fall back to a default TeamMetricsData object
-      setMetrics({
-        performanceScore: 75,
-        totalCalls: 0,
-        conversionRate: 0,
-        avgSentiment: 0.5,
-        topKeywords: [],
-        avgTalkRatio: {
-          agent: 50,
-          customer: 50
-        }
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters]);
-  
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-  
-  return { metrics, isLoading, error, refresh: fetchData };
-};
-
-/**
- * Custom hook to access rep metrics data
- * @param filters Optional filters for the rep metrics
- * @param limit Maximum number of records to return
- * @returns Object containing rep metrics data and loading state
- */
-export const useRepMetricsData = (filters?: MetricsFilters, limit: number = 10) => {
-  const [metrics, setMetrics] = useState<RepMetricsData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  
-  const fetchData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const repMetricsData = await MetricsService.fetchRepMetrics(filters, limit);
-      setMetrics(repMetricsData);
-    } catch (err) {
-      console.error('Error in useRepMetricsData:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-      
-      // Fall back to demo data
-      setMetrics(generateDemoRepMetricsData(limit));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters, limit]);
-  
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-  
-  return { metrics, isLoading, error, refresh: fetchData };
 };

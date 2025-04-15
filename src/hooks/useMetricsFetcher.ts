@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RawMetricsRecord, MetricsFilters } from '@/types/metrics';
 import { format } from 'date-fns';
-import { generateDemoCallMetrics } from '@/services/DemoDataService';
 import { supabase } from '@/integrations/supabase/client';
 import { formatError } from '@/utils/errorUtils';
 
@@ -130,7 +129,7 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
           console.log(`Using cached metrics data for key: ${cacheKey}`);
           setData(cachedData.data);
           setLastUpdated(cachedData.lastUpdated);
-          setIsUsingDemoData(cachedData.data === null);
+          setIsUsingDemoData(false);
           setIsLoading(false);
           return;
         }
@@ -170,7 +169,8 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
       
       if (metricsData && metricsData.length > 0) {
         console.log('Successfully fetched metrics data');
-        const metrics = metricsData[0] as RawMetricsRecord;
+        // Use type assertion to cast to RawMetricsRecord
+        const metrics = metricsData[0] as unknown as RawMetricsRecord;
         setData(metrics);
         setLastUpdated(now);
         setIsUsingDemoData(false);
@@ -212,8 +212,7 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
               }).length,
               avg_sentiment: callsData.reduce((sum, call) => sum + (call.sentiment_agent || 0.5), 0) / callsData.length,
               agent_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_agent || 50), 0) / callsData.length,
-              customer_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_customer || 50), 0) / callsData.length,
-              report_date: new Date().toISOString().split('T')[0]
+              customer_talk_ratio: callsData.reduce((sum, call) => sum + (call.talk_ratio_customer || 50), 0) / callsData.length
             };
             
             setData(rawMetrics);
@@ -231,19 +230,17 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
           }
         } catch (callsError) {
           console.error('Error fetching from calls table:', callsError);
-          // Continue to fallback to demo data
         }
         
-        console.log('No metrics or calls data found, using demo data');
-        // Use demo data if no metrics found
-        const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
-        setData(demoData);
+        console.log('No metrics or calls data found');
+        // Return empty data instead of demo data
+        setData(null);
         setLastUpdated(now);
-        setIsUsingDemoData(true);
+        setIsUsingDemoData(false);
         
-        // Cache the demo data too
+        // Cache the empty result too
         metricsCache.set(cacheKey, {
-          data: demoData,
+          data: null,
           timestamp: Date.now(),
           lastUpdated: now
         });
@@ -252,12 +249,9 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
       console.error('Error fetching metrics:', err);
       setIsError(true);
       setError(formatError(err));
-      
-      // Use demo data in case of error
-      const demoData = generateDemoCallMetrics()[0] as RawMetricsRecord;
-      setData(demoData);
+      setData(null);
       setLastUpdated(new Date());
-      setIsUsingDemoData(true);
+      setIsUsingDemoData(false);
     } finally {
       setIsLoading(false);
     }
@@ -276,7 +270,7 @@ export const useMetricsFetcher = (options: UseMetricsFetcherOptions = {}) => {
           console.log('Received real-time metrics update:', payload);
           
           // Update local state and cache with new data
-          const newData = payload.new as RawMetricsRecord;
+          const newData = payload.new as unknown as RawMetricsRecord;
           const now = new Date();
           
           setData(newData);

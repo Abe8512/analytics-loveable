@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for safe operations and null checks
  */
@@ -84,3 +83,16 @@ export function safeArrayAccess<T>(
   }
   return array[index];
 }
+
+/**
+ * Safely convert a value to a number, with fallback
+ * @param value Value to convert
+ * @param defaultValue Default value if conversion fails
+ * @returns Number
+ */
+export const safeNumber = (value: any, defaultValue: number = 0): number => {
+  if (value === undefined || value === null) return defaultValue;
+  
+  const num = Number(value);
+  return isNaN(num) ? defaultValue : num;
+};

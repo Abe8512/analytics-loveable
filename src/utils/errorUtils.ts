@@ -1,4 +1,3 @@
-
 /**
  * Error Utilities
  * 
@@ -76,4 +75,14 @@ export const safeAsync = async <T>(
     }
     return { data: null, error };
   }
+};
+
+/**
+ * Handle empty data states gracefully instead of using demo data
+ * @param componentName Name of the component for logging
+ * @returns Empty data object of the appropriate type
+ */
+export const handleEmptyData = (componentName: string) => {
+  console.log(`No data available for ${componentName}`);
+  return null;
 };

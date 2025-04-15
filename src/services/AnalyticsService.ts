@@ -17,12 +17,12 @@ export interface AnalyticsData {
 
 export class AnalyticsService {
   /**
-   * Get analytics data from call_metrics_summary or generate demo data if needed
+   * Get analytics data from call_metrics_summary
    */
   static async getAnalyticsData(options?: {
     period?: 'day' | 'week' | 'month' | 'all';
     userId?: string;
-  }): Promise<AnalyticsData> {
+  }): Promise<AnalyticsData | null> {
     try {
       // First try to get the most recent entry from call_metrics_summary
       const { data: metricsSummary, error } = await supabase
@@ -101,7 +101,7 @@ export class AnalyticsService {
         return {
           totalCalls: totalCalls.toString(),
           avgDuration: Math.round(avgDuration / 60), // Convert to minutes
-          conversionRate: '32%', // Demo value since we don't track this directly
+          conversionRate: '0%', // No conversion data available
           sentimentScore: `${Math.round(avgSentiment * 100)}%`,
           positiveCallsPercent: positivePercent,
           neutralCallsPercent: neutralPercent,
@@ -113,32 +113,12 @@ export class AnalyticsService {
         };
       }
 
-      // Final fallback - generate demo data
-      console.log('No metrics data available, using demo values');
-      return this.generateDemoAnalyticsData();
-      
+      // No data available, return null
+      console.log('No analytics data available');
+      return null;
     } catch (error) {
       console.error('Error fetching analytics data:', error);
-      return this.generateDemoAnalyticsData();
+      return null;
     }
-  }
-  
-  /**
-   * Generate demo analytics data for display when no real data is available
-   */
-  static generateDemoAnalyticsData(): AnalyticsData {
-    return {
-      totalCalls: '324',
-      avgDuration: 5, // minutes
-      conversionRate: '28%',
-      sentimentScore: '76%',
-      positiveCallsPercent: 65,
-      neutralCallsPercent: 23,
-      negativeCallsPercent: 12,
-      talkRatioAgent: 43,
-      talkRatioCustomer: 57,
-      topKeywords: ['pricing', 'feature', 'timeline', 'support', 'integration'],
-      performanceScore: 76
-    };
   }
 }

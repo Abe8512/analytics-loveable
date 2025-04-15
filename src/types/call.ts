@@ -1,4 +1,3 @@
-
 export interface CallTranscript {
   id: string;
   text: string;
@@ -35,6 +34,9 @@ export interface SentimentScore {
   customer: number;
 }
 
+/**
+ * Call history model for viewing past calls
+ */
 export interface CallHistory {
   id: string;
   date: string;
@@ -70,4 +72,3 @@ export function castToCallTranscript(data: any): CallTranscript {
 
 // Alias for consistency with component usage
 export const safeCallTranscriptCast = castToCallTranscript;
-

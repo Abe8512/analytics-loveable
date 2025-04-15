@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { CallTranscript, SentimentType } from '@/types/call';
@@ -55,15 +56,27 @@ const RecentTranscriptInsights: React.FC<RecentTranscriptInsightsProps> = ({ lim
     );
   }
   
-  const getSentimentBadge = (sentiment: number | SentimentType | undefined) => {
-    if (sentiment === undefined) return null;
+  const getSentimentBadge = (sentiment: any) => {
+    if (sentiment === undefined || sentiment === null) return null;
     
     let sentimentText: string;
     let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "default";
     
-    const sentimentValue = typeof sentiment === 'number'
-      ? sentiment > 0.66 ? 'positive' : sentiment > 0.33 ? 'neutral' : 'negative'
-      : sentiment;
+    // Handle different sentiment formats
+    let sentimentValue: SentimentType | number;
+    
+    if (typeof sentiment === 'string') {
+      // String can be 'positive', 'negative', 'neutral'
+      sentimentValue = sentiment as SentimentType;
+    } else if (typeof sentiment === 'number') {
+      // Number is a score from 0 to 1
+      sentimentValue = sentiment > 0.66 ? 'positive' : sentiment > 0.33 ? 'neutral' : 'negative';
+    } else if (sentiment && typeof sentiment === 'object' && 'agent' in sentiment) {
+      // It's a SentimentScore object with agent/customer properties
+      sentimentValue = sentiment.agent > 0.66 ? 'positive' : sentiment.agent > 0.33 ? 'neutral' : 'negative';
+    } else {
+      return null; // Unknown format
+    }
     
     if (sentimentValue === 'positive') {
       sentimentText = 'Positive';

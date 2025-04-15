@@ -39,8 +39,6 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
       title: 'Total Calls',
       value: dashboardStats.totalCalls || 0,
       icon: <Phone className="h-4 w-4 text-muted-foreground" />,
-      change: '+12%',
-      trend: 'up' as const,
       tooltip: 'Number of calls processed in this period'
     },
     {
@@ -48,8 +46,6 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
       value: formatDurationMinutes(dashboardStats.avgDuration || 0),
       unit: 'min',
       icon: <Clock className="h-4 w-4 text-muted-foreground" />,
-      change: '-5%',
-      trend: 'down' as const,
       tooltip: 'Average call duration in minutes'
     },
     {
@@ -57,16 +53,12 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
       value: Math.round(dashboardStats.positiveSentiment || 0),
       unit: '%',
       icon: <UserCheck className="h-4 w-4 text-muted-foreground" />,
-      change: '+8%',
-      trend: 'up' as const,
       tooltip: 'Percentage of calls with positive sentiment'
     },
     {
       title: 'Call Score',
       value: Math.round(dashboardStats.callScore || 0),
       icon: <BarChart2 className="h-4 w-4 text-muted-foreground" />,
-      change: '+6%',
-      trend: 'up' as const,
       tooltip: 'Overall call performance score'
     },
     {
@@ -74,8 +66,6 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
       value: Math.round(dashboardStats.conversionRate || 0),
       unit: '%',
       icon: <TrendingUp className="h-4 w-4 text-muted-foreground" />,
-      change: '+3%',
-      trend: 'up' as const,
       tooltip: 'Percentage of calls resulting in a conversion'
     },
   ];
@@ -121,8 +111,6 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({
             value={card.value}
             unit={card.unit}
             icon={card.icon}
-            change={card.change}
-            trend={card.trend}
             isLoading={isLoading}
             tooltip={card.tooltip}
           />
