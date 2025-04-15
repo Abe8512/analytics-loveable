@@ -36,7 +36,7 @@ export interface CallMetricsState {
     negative: string[];
   };
   
-  // Missing properties added below
+  // Additional properties
   callDuration: number;
   isTalkingMap: { agent: boolean; customer: boolean };
   coachingAlerts: {
@@ -47,7 +47,6 @@ export interface CallMetricsState {
     dismissed: boolean;
   }[];
   keywords: string[];
-  keyPhrases?: any[];
   
   // Functions
   startRecording: () => void;

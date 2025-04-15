@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useRef, useEffect } from "react";
 import { X, Upload, CheckCircle, Clock, AlertCircle, FileAudio, ToggleLeft, ToggleRight, UserPlus, Settings } from "lucide-react";
 import { ThemeContext } from "@/App";
@@ -13,6 +14,7 @@ import { useBulkUploadService } from '@/hooks/useBulkUploadService';
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { BulkUploadFile } from "@/types/bulkUpload";
 
 interface BulkUploadModalProps {
   isOpen: boolean;

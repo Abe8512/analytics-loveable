@@ -4,7 +4,7 @@ import DashboardLayout from '../components/layout/DashboardLayout';
 import DashboardHeader from '../components/Dashboard/DashboardHeader';
 import { toast } from 'sonner';
 import BulkUploadModal from '@/components/BulkUpload/BulkUploadModal';
-import { useBulkUploadService } from '@/services/BulkUploadService';
+import { useBulkUploadService } from '@/hooks/useBulkUploadService';
 import { getOpenAIKey } from '@/services/WhisperService';
 import { useCallTranscripts } from '@/services/CallTranscriptService';
 import { useToast } from '@/hooks/use-toast';

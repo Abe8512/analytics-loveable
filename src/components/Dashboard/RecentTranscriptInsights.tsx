@@ -1,6 +1,5 @@
-// Update the import and fix the type issue
 import React, { useEffect, useState } from 'react';
-import { useTranscripts } from '@/contexts/TranscriptContext'; // Fixed import
+import { useTranscripts } from '@/contexts/TranscriptContext';
 import { CallTranscript, SentimentType } from '@/types/call';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronRight } from 'lucide-react';
@@ -18,14 +17,12 @@ const RecentTranscriptInsights: React.FC<RecentTranscriptInsightsProps> = ({ lim
   
   useEffect(() => {
     if (transcripts && transcripts.length > 0) {
-      // Sort by created_at in descending order to get the most recent
       const sortedTranscripts = [...transcripts].sort((a, b) => {
         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
         return dateB - dateA;
       });
       
-      // Take the top 'limit' transcripts
       setRecentTranscripts(sortedTranscripts.slice(0, limit));
     }
   }, [transcripts, limit]);
