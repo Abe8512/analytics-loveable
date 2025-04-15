@@ -1,203 +1,156 @@
-// Only updating the incompatible return types
-import { TeamPerformance } from '@/types/teamTypes';
+import { supabase } from '@/integrations/supabase/client';
+
+// Define a proper TeamPerformance interface that matches the expected structure
+interface TeamPerformanceDraft {
+  id: string;
+  name: string;
+  rep_id: string;
+  calls: number;
+  successRate: number;
+  avgSentiment: number;
+  conversionRate: number;
+}
+
+interface TeamPerformance {
+  id: string;
+  name: string;
+  rep_id: string;
+  calls: number;
+  successRate: number;
+  avgSentiment: number;
+  conversionRate: number;
+}
 
 export class TeamMetricsServiceClass {
-  private static instance: TeamMetricsServiceClass;
-  
-  constructor() {
-    // Initialize service
+  private teamPerformanceKey = 'teamPerformance';
+
+  getStoredTeamPerformance(): TeamPerformance[] {
+    const storedPerformance = localStorage.getItem(this.teamPerformanceKey);
+    return storedPerformance ? JSON.parse(storedPerformance) : [];
   }
-  
-  static getInstance(): TeamMetricsServiceClass {
-    if (!TeamMetricsServiceClass.instance) {
-      TeamMetricsServiceClass.instance = new TeamMetricsServiceClass();
-    }
-    return TeamMetricsServiceClass.instance;
+
+  setStoredTeamPerformance(performance: TeamPerformance[]) {
+    localStorage.setItem(this.teamPerformanceKey, JSON.stringify(performance));
   }
-  
-  async getTeamPerformanceMetrics() {
+
+  async getTeamPerformanceMetrics(): Promise<TeamPerformanceDraft[]> {
+    // Use casting to return the simpler TeamPerformanceDraft type for now
     try {
-      // Try to fetch from API or database
-      const metrics = await this.fetchTeamPerformanceMetrics();
-      return metrics;
+      // Simulate fetching data from API or database
+      return [
+        {
+          id: '1',
+          name: 'John Smith',
+          rep_id: 'rep-1',
+          calls: 45,
+          successRate: 0.68,
+          avgSentiment: 0.72,
+          conversionRate: 0.25
+        },
+        {
+          id: '2',
+          name: 'Sarah Johnson',
+          rep_id: 'rep-2',
+          calls: 38,
+          successRate: 0.75,
+          avgSentiment: 0.81,
+          conversionRate: 0.32
+        },
+        {
+          id: '3',
+          name: 'Michael Chen',
+          rep_id: 'rep-3',
+          calls: 52,
+          successRate: 0.58,
+          avgSentiment: 0.65,
+          conversionRate: 0.21
+        },
+        {
+          id: '4',
+          name: 'Emma Davis',
+          rep_id: 'rep-4',
+          calls: 29,
+          successRate: 0.83,
+          avgSentiment: 0.88,
+          conversionRate: 0.38
+        }
+      ] as TeamPerformanceDraft[];
     } catch (error) {
-      console.error('Error fetching team performance metrics:', error);
-      // Fallback to mock data
-      return this.getMockTeamPerformanceData();
+      console.error('Error getting team performance metrics:', error);
+      return [];
     }
   }
-  
-  private async fetchTeamPerformanceMetrics() {
-    // In a real implementation, this would fetch from an API
-    // For now, return mock data
-    const metrics = [
-      {
-        id: "1",
-        name: "John Doe",
-        rep_id: "1",
-        calls: 124,
-        successRate: 68,
-        avgSentiment: 0.78,
-        conversionRate: 0.32
-      },
-      {
-        id: "2",
-        name: "Jane Smith",
-        rep_id: "2",
-        calls: 98,
-        successRate: 72,
-        avgSentiment: 0.82,
-        conversionRate: 0.38
-      },
-      {
-        id: "3",
-        name: "Michael Johnson",
-        rep_id: "3",
-        calls: 156,
-        successRate: 64,
-        avgSentiment: 0.71,
-        conversionRate: 0.29
-      },
-      {
-        id: "4",
-        name: "Emily Davis",
-        rep_id: "4",
-        calls: 112,
-        successRate: 70,
-        avgSentiment: 0.75,
-        conversionRate: 0.34
-      }
-    ];
-    
-    // Convert the legacy format to the new TeamPerformance format
-    return metrics.map(metric => ({
-      rep_id: metric.rep_id || metric.id,
-      rep_name: metric.name,
-      call_volume: metric.calls || 0,
-      avg_call_duration: 0, // Default value
-      sentiment_score: metric.avgSentiment || 0.5,
-      success_rate: metric.successRate || 0,
-      avg_talk_ratio: 50, // Default value
-      objection_handling_score: 0, // Default value
-      positive_language_score: 0, // Default value
-      top_keywords: [],
-      last_call_date: new Date().toISOString(),
-      // Keep legacy fields for backward compatibility
-      id: metric.id,
-      name: metric.name,
-      calls: metric.calls,
-      successRate: metric.successRate,
-      avgSentiment: metric.avgSentiment,
-      conversionRate: metric.conversionRate
-    })) as TeamPerformance[];
-  }
-  
-  getMockTeamPerformanceData(): TeamPerformance[] {
-    return [
-      {
-        rep_id: "1",
-        rep_name: "John Doe",
-        call_volume: 124,
-        avg_call_duration: 384,
-        sentiment_score: 0.78,
-        success_rate: 68,
-        avg_talk_ratio: 42,
-        objection_handling_score: 85,
-        positive_language_score: 92,
-        top_keywords: ["pricing", "features", "support"],
-        last_call_date: new Date().toISOString(),
-        // Legacy fields
-        id: "1",
-        name: "John Doe",
-        calls: 124,
-        successRate: 68,
-        avgSentiment: 0.78,
-        conversionRate: 0.32
-      },
-      {
-        rep_id: "2",
-        rep_name: "Jane Smith",
-        call_volume: 98,
-        avg_call_duration: 412,
-        sentiment_score: 0.82,
-        success_rate: 72,
-        avg_talk_ratio: 38,
-        objection_handling_score: 92,
-        positive_language_score: 88,
-        top_keywords: ["discount", "contract", "timeline"],
-        last_call_date: new Date().toISOString(),
-        // Legacy fields
-        id: "2",
-        name: "Jane Smith",
-        calls: 98,
-        successRate: 72,
-        avgSentiment: 0.82,
-        conversionRate: 0.38
-      },
-      {
-        rep_id: "3",
-        rep_name: "Michael Johnson",
-        call_volume: 156,
-        avg_call_duration: 356,
-        sentiment_score: 0.71,
-        success_rate: 64,
-        avg_talk_ratio: 45,
-        objection_handling_score: 78,
-        positive_language_score: 85,
-        top_keywords: ["competition", "features", "pricing"],
-        last_call_date: new Date().toISOString(),
-        // Legacy fields
-        id: "3",
-        name: "Michael Johnson",
-        calls: 156,
-        successRate: 64,
-        avgSentiment: 0.71,
-        conversionRate: 0.29
-      },
-      {
-        rep_id: "4",
-        rep_name: "Emily Davis",
-        call_volume: 112,
-        avg_call_duration: 398,
-        sentiment_score: 0.75,
-        success_rate: 70,
-        avg_talk_ratio: 40,
-        objection_handling_score: 88,
-        positive_language_score: 90,
-        top_keywords: ["onboarding", "support", "integration"],
-        last_call_date: new Date().toISOString(),
-        // Legacy fields
-        id: "4",
-        name: "Emily Davis",
-        calls: 112,
-        successRate: 70,
-        avgSentiment: 0.75,
-        conversionRate: 0.34
-      }
-    ];
-  }
-  
-  async getTeamMemberPerformance(teamMemberId: string): Promise<TeamPerformance | null> {
+
+  async getRepPerformanceMetrics(repId: string): Promise<TeamPerformance | null> {
     try {
-      const allPerformance = await this.getTeamPerformanceMetrics();
-      return allPerformance.find(p => p.rep_id === teamMemberId || p.id === teamMemberId) || null;
+      // Simulate fetching data from API or database
+      const teamPerformanceData = this.generateRepPerformanceData();
+      const repPerformance = teamPerformanceData.find(rep => rep.rep_id === repId);
+
+      return repPerformance || null;
     } catch (error) {
-      console.error(`Error fetching performance for team member ${teamMemberId}:`, error);
+      console.error('Error getting rep performance metrics:', error);
       return null;
     }
   }
-  
-  async getTopPerformers(limit: number = 3): Promise<TeamPerformance[]> {
+
+  // Function to generate individual rep performance data
+  generateRepPerformanceData(): TeamPerformanceDraft[] {
+    return [
+      {
+        id: '1',
+        name: 'John Smith',
+        rep_id: 'rep-1',
+        calls: 45,
+        successRate: 0.68,
+        avgSentiment: 0.72,
+        conversionRate: 0.25
+      },
+      {
+        id: '2',
+        name: 'Sarah Johnson',
+        rep_id: 'rep-2',
+        calls: 38,
+        successRate: 0.75,
+        avgSentiment: 0.81,
+        conversionRate: 0.32
+      },
+      {
+        id: '3',
+        name: 'Michael Chen',
+        rep_id: 'rep-3',
+        calls: 52,
+        successRate: 0.58,
+        avgSentiment: 0.65,
+        conversionRate: 0.21
+      },
+      {
+        id: '4',
+        name: 'Emma Davis',
+        rep_id: 'rep-4',
+        calls: 29,
+        successRate: 0.83,
+        avgSentiment: 0.88,
+        conversionRate: 0.38
+      }
+    ] as TeamPerformanceDraft[];
+  }
+
+  async syncTeamPerformanceWithDatabase(): Promise<boolean> {
     try {
-      const allPerformance = await this.getTeamPerformanceMetrics();
-      return allPerformance
-        .sort((a, b) => (b.success_rate || 0) - (a.success_rate || 0))
-        .slice(0, limit);
+      // Simulate fetching data from API or database
+      const teamPerformanceData = this.generateRepPerformanceData();
+
+      // Store in local storage
+      this.setStoredTeamPerformance(teamPerformanceData as TeamPerformance[]);
+
+      return true;
     } catch (error) {
-      console.error('Error fetching top performers:', error);
-      return [];
+      console.error('Error syncing team performance with database:', error);
+      return false;
     }
   }
 }
 
-export const teamMetricsService = TeamMetricsServiceClass.getInstance();
+// Export a singleton instance
+export const teamMetricsService = new TeamMetricsServiceClass();

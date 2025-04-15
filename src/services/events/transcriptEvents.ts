@@ -74,3 +74,42 @@ export const onTranscriptsUpdated = (callback: (data: { changedTranscripts?: Cal
     });
   });
 };
+
+/**
+ * Publish transcript event after creation
+ * @param transcript The transcript data
+ */
+export const publishTranscriptCreatedEvent = (transcript: any) => {
+  try {
+    if (!transcript || !transcript.id) {
+      console.warn('Cannot publish transcript event: Invalid transcript data');
+      return;
+    }
+    
+    // Convert transcript to a format suitable for events
+    const eventData = {
+      id: transcript.id,
+      filename: transcript.filename || 'Unnamed recording',
+      created_at: transcript.created_at || new Date().toISOString(),
+      duration: transcript.duration ? Number(transcript.duration) : 0,
+      user_id: transcript.user_id || null,
+      text: transcript.text ? transcript.text.substring(0, 150) + '...' : '',
+      sentiment: typeof transcript.sentiment === 'number' 
+        ? transcript.sentiment.toString()
+        : transcript.sentiment || 'neutral',
+      keywords: Array.isArray(transcript.keywords) ? transcript.keywords : []
+    };
+    
+    // Dispatch the event
+    EventsStore.dispatchEvent('transcript-created' as EventType, {
+      transcript: eventData,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log('Published transcript created event:', eventData.id);
+    return true;
+  } catch (error) {
+    console.error('Error publishing transcript event:', error);
+    return false;
+  }
+};

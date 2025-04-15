@@ -283,7 +283,7 @@ class BulkUploadServiceClass {
       // Dispatch an event with the data
       EventsStore.dispatchEvent('transcripts-refreshed' as EventType, {
         transcripts: data || [],
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       });
       
       return true;

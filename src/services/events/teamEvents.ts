@@ -1,44 +1,48 @@
-
-import { TeamMember } from '@/types/teamTypes';
 import { EventsStore } from './store';
-import { EventPayload, TeamEventType, EventType } from './types';
+import { EventType } from './types';
 
 /**
- * Dispatches a team-member-added event
- * @param teamMember The team member that was added
+ * Emit team member added event
+ * @param teamMember The newly added team member
  */
-export function dispatchTeamMemberAdded(teamMember: TeamMember) {
+export const emitTeamMemberAdded = (teamMember: any) => {
+  if (!teamMember) return false;
+
   EventsStore.dispatchEvent('team-member-added' as EventType, {
     teamMember,
-    timestamp: Date.now()
+    timestamp: new Date().toISOString()
   });
-}
+
+  return true;
+};
 
 /**
- * Adds a listener for the team-member-added event
- * @param callback Function to call when the event is triggered
- * @returns Function to remove the listener
+ * Listen for team member added events
+ * @param callback Function to call when a team member is added
  */
-export function onTeamMemberAdded(callback: (payload: EventPayload) => void) {
+export const onTeamMemberAdded = (callback: Function) => {
   return EventsStore.addEventListener('team-member-added' as EventType, callback);
-}
+};
 
 /**
- * Dispatches a team-member-removed event
- * @param teamMemberId ID of the team member that was removed
+ * Emit team member removed event
+ * @param teamMemberId ID of the removed team member
  */
-export function dispatchTeamMemberRemoved(teamMemberId: string) {
+export const emitTeamMemberRemoved = (teamMemberId: string) => {
+  if (!teamMemberId) return false;
+
   EventsStore.dispatchEvent('team-member-removed' as EventType, {
     teamMemberId,
-    timestamp: Date.now()
+    timestamp: new Date().toISOString()
   });
-}
+
+  return true;
+};
 
 /**
- * Adds a listener for the team-member-removed event
- * @param callback Function to call when the event is triggered
- * @returns Function to remove the listener
+ * Listen for team member removed events
+ * @param callback Function to call when a team member is removed
  */
-export function onTeamMemberRemoved(callback: (payload: EventPayload) => void) {
+export const onTeamMemberRemoved = (callback: Function) => {
   return EventsStore.addEventListener('team-member-removed' as EventType, callback);
-}
+};

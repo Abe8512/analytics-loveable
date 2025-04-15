@@ -1,9 +1,14 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CallTranscript, safeCallTranscriptCast } from '@/types/call';
-import { TeamTranscriptActivityProps } from '@/types/teamTypes';
 import { useToast } from '@/hooks/use-toast';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+
+export interface TeamTranscriptActivityProps {
+  memberId: string | null;
+}
 
 const TeamTranscriptActivity: React.FC<TeamTranscriptActivityProps> = ({ memberId }) => {
   const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);

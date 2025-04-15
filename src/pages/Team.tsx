@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,9 +11,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { teamService } from '@/services/TeamService';
 import { useToast } from '@/hooks/use-toast';
 import { TeamMembersList } from '@/components/Team/TeamMembersList';
-import { TeamTranscriptActivity } from '@/components/Team/TeamTranscriptActivity';
+import TeamTranscriptActivity from '@/components/Team/TeamTranscriptActivity';
 import { useEventListener } from '@/services/events/hooks';
-import { TeamMember } from '@/types/teamTypes';
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  user_id?: string;
+}
 
 const Team = () => {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);

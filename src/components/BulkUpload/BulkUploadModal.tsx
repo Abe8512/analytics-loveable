@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useRef, useEffect } from "react";
 import { X, Upload, CheckCircle, Clock, AlertCircle, FileAudio, ToggleLeft, ToggleRight, UserPlus, Settings } from "lucide-react";
 import { ThemeContext } from "@/App";
@@ -357,7 +356,7 @@ const BulkUploadModal = ({ isOpen, onClose }: BulkUploadModalProps) => {
                         </div>
                         <div>
                           {file.status === 'queued' && <Clock className="h-4 w-4 text-gray-500" />}
-                          {file.status === 'uploading' || file.status === 'processing' && <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />}
+                          {(file.status === 'processing') && <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />}
                           {file.status === 'complete' && <CheckCircle className="h-4 w-4 text-green-500" />}
                           {file.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500" />}
                         </div>

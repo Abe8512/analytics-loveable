@@ -1,473 +1,273 @@
-import { supabase } from "@/integrations/supabase/client";
-import { CallTranscript, CallTranscriptSegment } from '@/types/call';
+import { CallTranscript } from '@/types/call';
+import { calculateSilence, calculateTalkRatio } from '@/utils/metricCalculations';
 
-export interface AdvancedMetric {
-  name: string;
-  callVolume: number;
-  sentiment: number;
-  conversion: number;
-}
-
-export interface TalkRatioMetrics {
-  agent_ratio: number;
-  prospect_ratio: number;
-  dominance_score: number;
-  agent_talk_time: number;
-  prospect_talk_time: number;
-  silence_time: number;
-  interruption_count: number;
-}
-
-export interface SentimentHeatmapPoint {
-  time: number;
-  score: number;
-  label: string;
-  text_snippet: string;
-}
-
-export interface ObjectionHandlingMetrics {
-  total_objections: number;
-  handled_objections: number;
-  effectiveness: number;
-  details: Array<{
-    time: number;
-    text: string;
-    handled: boolean;
-    response?: string;
-  }>;
-}
-
-export class AdvancedMetricsService {
-  /**
-   * Get advanced metrics for charting and deeper analysis
-   */
-  static async getAdvancedMetrics(options?: {
-    period?: 'day' | 'week' | 'month' | 'year';
-    groupBy?: 'day' | 'week' | 'month';
-    limit?: number;
-  }): Promise<AdvancedMetric[]> {
-    try {
-      // Default options
-      const period = options?.period || 'month';
-      const groupBy = options?.groupBy || 'month';
-      const limit = options?.limit || 6;
-      
-      // Build date range
-      const endDate = new Date();
-      const startDate = new Date();
-      
-      switch (period) {
-        case 'day':
-          startDate.setDate(endDate.getDate() - 1);
-          break;
-        case 'week':
-          startDate.setDate(endDate.getDate() - 7);
-          break;
-        case 'month':
-          startDate.setMonth(endDate.getMonth() - 1);
-          break;
-        case 'year':
-          startDate.setFullYear(endDate.getFullYear() - 1);
-          break;
-      }
-      
-      // Query call_metrics_summary
-      const { data, error } = await supabase
-        .from('call_metrics_summary')
-        .select('*')
-        .gte('report_date', startDate.toISOString().split('T')[0])
-        .lte('report_date', endDate.toISOString().split('T')[0])
-        .order('report_date', { ascending: false })
-        .limit(limit);
-        
-      if (error) {
-        console.error('Error fetching advanced metrics:', error);
-        return this.generateDemoAdvancedMetrics(limit);
-      }
-      
-      if (!data || data.length === 0) {
-        console.log('No advanced metrics data available, using demo values');
-        return this.generateDemoAdvancedMetrics(limit);
-      }
-      
-      // Transform data for charting
-      const metrics: AdvancedMetric[] = data.map(record => {
-        // Format date based on groupBy
-        let name = '';
-        const date = new Date(record.report_date);
-        
-        switch (groupBy) {
-          case 'day':
-            name = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-            break;
-          case 'week':
-            // Get the week number
-            const weekNum = Math.ceil((date.getDate() + 
-              new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7);
-            name = `Week ${weekNum}`;
-            break;
-          case 'month':
-          default:
-            name = date.toLocaleDateString(undefined, { month: 'short' });
-            break;
-        }
-        
-        return {
-          name,
-          callVolume: record.total_calls || 0,
-          sentiment: Math.round((record.avg_sentiment || 0.5) * 100),
-          conversion: Math.round((record.conversion_rate || 0) * 100)
-        };
-      });
-      
-      // Reverse to show oldest to newest (left to right on chart)
-      return metrics.reverse();
-      
-    } catch (error) {
-      console.error('Error in getAdvancedMetrics:', error);
-      return this.generateDemoAdvancedMetrics();
-    }
-  }
+/**
+ * Processes transcript segments to calculate insights
+ * @param transcript The transcript to analyze
+ */
+export const processTranscriptSegments = (transcript: CallTranscript) => {
+  const segments = transcript.transcript_segments;
   
-  /**
-   * Generate demo advanced metrics for display when no real data is available
-   */
-  static generateDemoAdvancedMetrics(count: number = 6): AdvancedMetric[] {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentMonth = new Date().getMonth();
-    
-    return Array.from({ length: count }, (_, i) => {
-      const monthIndex = (currentMonth - count + i + 1 + 12) % 12;
-      return {
-        name: months[monthIndex],
-        callVolume: 100 + Math.floor(Math.random() * 80),
-        sentiment: 65 + Math.floor(Math.random() * 20),
-        conversion: 25 + Math.floor(Math.random() * 20)
-      };
-    });
-  }
-  
-  /**
-   * Calculate talk ratios from transcript
-   */
-  static calculateTalkRatios(transcript: CallTranscript): TalkRatioMetrics {
-    try {
-      // Extract metadata if available
-      const metadata = transcript.metadata || {};
-      const speakerRatio = metadata.speakerRatio || {};
-      
-      // Get agent and prospect ratios
-      const agentRatio = speakerRatio.agent || 0.5;
-      const prospectRatio = speakerRatio.customer || 0.5;
-      
-      // Calculate talk times based on duration
-      const callDuration = transcript.duration || 300; // Default 5 minutes
-      const agentTalkTime = callDuration * agentRatio;
-      const prospectTalkTime = callDuration * prospectRatio;
-      
-      // Estimate silence time (10-15% of call is typically silence)
-      const silenceTime = callDuration * (Math.random() * 0.05 + 0.1);
-      
-      // Estimate interruption count based on talk ratios
-      // More balanced calls typically have fewer interruptions
-      const balanceScore = Math.abs(agentRatio - 0.5) * 2; // 0 (perfect balance) to 1 (complete imbalance)
-      const interruptionCount = Math.round(balanceScore * 10);
-      
-      // Calculate dominance score - ratio of speaker times, normalized to be >= 1
-      const dominanceScore = agentRatio >= prospectRatio 
-        ? agentRatio / Math.max(0.1, prospectRatio) 
-        : prospectRatio / Math.max(0.1, agentRatio);
-      
-      return {
-        agent_ratio: agentRatio,
-        prospect_ratio: prospectRatio,
-        dominance_score: dominanceScore,
-        agent_talk_time: agentTalkTime,
-        prospect_talk_time: prospectTalkTime,
-        silence_time: silenceTime,
-        interruption_count: interruptionCount
-      };
-    } catch (error) {
-      console.error('Error calculating talk ratios:', error);
-      // Return default values if calculation fails
-      return {
-        agent_ratio: 0.5,
-        prospect_ratio: 0.5,
-        dominance_score: 1,
-        agent_talk_time: 150,
-        prospect_talk_time: 150,
-        silence_time: 30,
-        interruption_count: 2
-      };
-    }
-  }
-  
-  /**
-   * Generate sentiment heatmap visualization data
-   */
-  static generateSentimentHeatmap(transcript: CallTranscript): SentimentHeatmapPoint[] {
-    try {
-      const segments = transcript.transcript_segments || [];
-      const duration = transcript.duration || 300;
-      
-      // If no segments, create sample data points
-      if (!segments || segments.length === 0) {
-        return this.generateSampleSentimentHeatmap(duration);
-      }
-      
-      // Extract sentiment points from segments
-      const heatmapPoints: SentimentHeatmapPoint[] = [];
-      
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        if (!segment) continue;
-        
-        const time = segment.start_time || i * (duration / segments.length);
-        const sentiment = segment.sentiment || Math.random();
-        
-        // Determine sentiment label
-        let label = 'NEUTRAL';
-        if (sentiment > 0.66) label = 'POSITIVE';
-        else if (sentiment < 0.33) label = 'NEGATIVE';
-        
-        heatmapPoints.push({
-          time,
-          score: sentiment,
-          label,
-          text_snippet: segment.text || 'No transcript text available'
-        });
-      }
-      
-      return heatmapPoints;
-    } catch (error) {
-      console.error('Error generating sentiment heatmap:', error);
-      return this.generateSampleSentimentHeatmap(transcript.duration || 300);
-    }
-  }
-  
-  /**
-   * Generate sample sentiment heatmap for demo purposes
-   */
-  private static generateSampleSentimentHeatmap(duration: number): SentimentHeatmapPoint[] {
-    const sampleTexts = [
-      "I understand your concerns about the pricing.",
-      "That's a great question about our service.",
-      "We'd be happy to offer a discount for annual plans.",
-      "I'm not sure if this solution fits our needs.",
-      "This feature addresses exactly what we've been looking for.",
-      "We need to think about this more carefully.",
-      "Our team is excited about implementing this solution.",
-      "The timeline seems too aggressive for our team."
-    ];
-    
-    // Generate 6-10 data points spread throughout the call
-    const pointCount = 6 + Math.floor(Math.random() * 5);
-    const points: SentimentHeatmapPoint[] = [];
-    
-    for (let i = 0; i < pointCount; i++) {
-      const time = (i * duration) / (pointCount - 1);
-      
-      // Generate a sentiment score with more positive bias (realistic for sales calls)
-      let sentiment: number;
-      const rand = Math.random();
-      if (rand < 0.6) {
-        sentiment = 0.67 + (Math.random() * 0.3); // Positive
-      } else if (rand < 0.8) {
-        sentiment = 0.34 + (Math.random() * 0.32); // Neutral
-      } else {
-        sentiment = 0.05 + (Math.random() * 0.28); // Negative
-      }
-      
-      // Determine sentiment label
-      let label = 'NEUTRAL';
-      if (sentiment > 0.66) label = 'POSITIVE';
-      else if (sentiment < 0.33) label = 'NEGATIVE';
-      
-      points.push({
-        time,
-        score: sentiment,
-        label,
-        text_snippet: sampleTexts[i % sampleTexts.length]
-      });
-    }
-    
-    return points;
-  }
-  
-  /**
-   * Calculate objection handling metrics from transcript
-   */
-  static calculateObjectionHandling(transcript: CallTranscript): ObjectionHandlingMetrics {
-    try {
-      const segments = transcript.transcript_segments || [];
-      const duration = transcript.duration || 300;
-      
-      // If no segments, create sample data
-      if (!segments || segments.length === 0) {
-        return this.generateSampleObjectionHandling();
-      }
-      
-      // Extract objections from segments
-      // This would typically use NLP to identify objections
-      // For now, we'll use keywords to simulate
-      const objectionKeywords = ['concern', 'expensive', 'issue', 'problem', 'too much', 
-                                'not sure', 'competitors', 'alternative', 'think about'];
-      
-      const details: Array<{time: number; text: string; handled: boolean; response?: string}> = [];
-      let totalObjections = 0;
-      let handledObjections = 0;
-      
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        if (!segment || !segment.text) continue;
-        
-        // Check if this segment contains an objection
-        const containsObjection = objectionKeywords.some(keyword => 
-          segment.text.toLowerCase().includes(keyword));
-          
-        if (containsObjection) {
-          totalObjections++;
-          
-          // Check if the objection was handled by looking at subsequent segments
-          let handled = false;
-          let response = '';
-          
-          // Look at the next 3 segments to see if there's a response
-          for (let j = i + 1; j < Math.min(i + 4, segments.length); j++) {
-            if (segments[j]?.speaker === 'agent') {
-              handled = true;
-              response = segments[j]?.text || '';
-              break;
-            }
-          }
-          
-          if (handled) handledObjections++;
-          
-          details.push({
-            time: segment.start_time || i * (duration / segments.length),
-            text: segment.text,
-            handled,
-            response: handled ? response : undefined
-          });
-        }
-      }
-      
-      const effectiveness = totalObjections > 0 ? handledObjections / totalObjections : 1;
-      
-      return {
-        total_objections: totalObjections,
-        handled_objections: handledObjections,
-        effectiveness,
-        details
-      };
-      
-    } catch (error) {
-      console.error('Error calculating objection handling:', error);
-      return this.generateSampleObjectionHandling();
-    }
-  }
-  
-  /**
-   * Generate sample objection handling metrics for demo
-   */
-  private static generateSampleObjectionHandling(): ObjectionHandlingMetrics {
-    const objectionCount = Math.floor(Math.random() * 5);
-    const handledCount = Math.floor(Math.random() * (objectionCount + 1));
-    const effectiveness = objectionCount > 0 ? handledCount / objectionCount : 1;
-    
-    const sampleObjections = [
-      "I'm concerned about the price. It seems higher than what we budgeted.",
-      "We're currently evaluating several competitors as well.",
-      "I'm not sure this addresses all our requirements.",
-      "Our team might need more time to implement this solution.",
-      "We've had issues with similar products in the past."
-    ];
-    
-    const sampleResponses = [
-      "I understand your concern about pricing. We do offer flexible payment options that might work better for your budget.",
-      "I appreciate you considering us among other options. Our solution differs in a few key ways that might be valuable to you.",
-      "Let me walk through how our solution addresses each of your requirements in detail.",
-      "We provide comprehensive implementation support to make the transition as smooth as possible.",
-      "I'd like to hear more about those past issues to ensure we can address them properly."
-    ];
-    
-    const details: Array<{time: number; text: string; handled: boolean; response?: string}> = [];
-    
-    for (let i = 0; i < objectionCount; i++) {
-      const handled = i < handledCount;
-      details.push({
-        time: 30 + (i * 60),
-        text: sampleObjections[i % sampleObjections.length],
-        handled,
-        response: handled ? sampleResponses[i % sampleResponses.length] : undefined
-      });
-    }
-    
+  // Skip if no segments are available
+  if (!segments || !Array.isArray(segments) || segments.length === 0) {
+    console.log('No segments to process for transcript:', transcript.id);
     return {
-      total_objections: objectionCount,
-      handled_objections: handledCount,
-      effectiveness,
-      details
+      speakerTimeMap: {},
+      speakerWordCounts: {},
+      totalDuration: transcript.duration || 0,
+      silencePercentage: 0,
+      agentInterruptions: 0,
+      customerInterruptions: 0,
+      sentiment: {
+        agent: transcript.sentiment || 0.5,
+        customer: transcript.sentiment || 0.5
+      }
     };
   }
-
-  /**
-   * Calculate sentiment distribution from transcript
-   */
-  static calculateSentimentDistribution(transcript: CallTranscript) {
-    const segments = Array.isArray(transcript.transcript_segments)
-      ? transcript.transcript_segments as CallTranscriptSegment[]
-      : [];
-
-    if (segments.length === 0) {
-      return {
-        positive: 0,
-        neutral: 0,
-        negative: 0
-      };
+  
+  // Initialize data structures
+  const speakerTimeMap: { [speaker: string]: number } = {};
+  const speakerWordCounts: { [speaker: string]: number } = {};
+  let agentInterruptions = 0;
+  let customerInterruptions = 0;
+  
+  // Process each segment
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    const speaker = segment.speaker || 'unknown';
+    const words = segment.text ? segment.text.split(/\s+/) : [];
+    const duration = segment.end - segment.start;
+    
+    // Update speaker time
+    speakerTimeMap[speaker] = (speakerTimeMap[speaker] || 0) + duration;
+    
+    // Update speaker word count
+    speakerWordCounts[speaker] = (speakerWordCounts[speaker] || 0) + words.length;
+    
+    // Check for interruptions
+    if (i > 0) {
+      const prevSegment = segments[i - 1];
+      
+      if (prevSegment.speaker !== speaker) {
+        if (speaker === 'agent' && prevSegment.speaker === 'customer') {
+          agentInterruptions++;
+        } else if (speaker === 'customer' && prevSegment.speaker === 'agent') {
+          customerInterruptions++;
+        }
+      }
     }
-
-    let positive = 0;
-    let neutral = 0;
-    let negative = 0;
-
-    segments.forEach(segment => {
-      // Get sentiment value with proper type handling
-      let sentimentValue = segment.sentiment;
-      
-      // If sentiment is missing, use neutral as default
-      if (sentimentValue === undefined) {
-        neutral++;
-        return;
-      }
-      
-      // Handle numeric sentiment
-      if (typeof sentimentValue === 'number') {
-        if (sentimentValue > 0.66) {
-          positive++;
-        } else if (sentimentValue < 0.33) {
-          negative++;
-        } else {
-          neutral++;
-        }
-      } 
-      // Handle string sentiment
-      else {
-        if (sentimentValue === 'positive') {
-          positive++;
-        } else if (sentimentValue === 'negative') {
-          negative++;
-        } else {
-          neutral++;
-        }
-      }
-    });
-
-    const total = segments.length;
-    return {
-      positive: Math.round((positive / total) * 100),
-      neutral: Math.round((neutral / total) * 100),
-      negative: Math.round((negative / total) * 100)
-    };
   }
+  
+  // Calculate total duration and silence
+  const totalDuration = transcript.duration || 0;
+  const silencePercentage = (calculateSilence(segments, totalDuration) / totalDuration) * 100;
+  
+  // Calculate sentiment scores
+  const agentSentiment = transcript.sentiment || 0.5;
+  const customerSentiment = transcript.sentiment || 0.5;
+  
+  return {
+    speakerTimeMap,
+    speakerWordCounts,
+    totalDuration,
+    silencePercentage,
+    agentInterruptions,
+    customerInterruptions,
+    sentiment: {
+      agent: agentSentiment,
+      customer: customerSentiment
+    }
+  };
+};
+
+// Helper to safely check array length
+function safeArrayLength(arr: any): number {
+  if (!arr) return 0;
+  if (Array.isArray(arr)) return arr.length;
+  return 0;
 }
+
+/**
+ * Processes transcript data to extract call insights
+ * @param transcript The transcript to analyze
+ */
+export const processTranscriptInsights = (transcript: CallTranscript) => {
+  // Ensure transcript exists
+  if (!transcript) {
+    return { insights: [], warnings: [], keywords: [] };
+  }
+  
+  // Get the transcript text
+  const text = transcript.text || '';
+  
+  // Process keywords
+  const keywords = transcript.keywords ? [...transcript.keywords] : [];
+  
+  // Check for short transcript
+  const wordCount = text.split(/\s+/).length;
+  const isShortTranscript = wordCount < 100;
+  
+  // Check for segments
+  const hasSegments = transcript.transcript_segments && 
+                     safeArrayLength(transcript.transcript_segments) > 0;
+  
+  // Generate insights based on available data
+  const insights = [];
+  const warnings = [];
+  
+  // Add insights
+  if (transcript.sentiment) {
+    const sentimentValue = typeof transcript.sentiment === 'string' 
+      ? (transcript.sentiment === 'positive' ? 0.8 : transcript.sentiment === 'negative' ? 0.2 : 0.5)
+      : transcript.sentiment;
+      
+    if (sentimentValue > 0.7) {
+      insights.push('Overall positive sentiment detected in this call');
+    } else if (sentimentValue < 0.3) {
+      insights.push('Negative sentiment detected - may need follow-up');
+    }
+  }
+  
+  // Add warnings
+  if (isShortTranscript) {
+    warnings.push('This transcript is unusually short - may be incomplete');
+  }
+  
+  if (!hasSegments) {
+    warnings.push('No transcript segments found - limited analytics available');
+  }
+  
+  return {
+    insights,
+    warnings,
+    keywords
+  };
+};
+
+/**
+ * Analyze keywords to identify trends
+ * @param keywords Array of keywords
+ */
+export const analyzeKeywordTrends = (keywords: string[]) => {
+  const keywordCounts: { [key: string]: number } = {};
+  
+  for (const keyword of keywords) {
+    keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1;
+  }
+  
+  // Sort keywords by frequency
+  const sortedKeywords = Object.entries(keywordCounts)
+    .sort(([, countA], [, countB]) => countB - countA)
+    .map(([keyword]) => keyword);
+    
+  return sortedKeywords;
+};
+
+/**
+ * Classify keywords into categories
+ * @param keywords Array of keywords
+ */
+export const classifyKeywords = (keywords: string[]) => {
+  const positiveKeywords = keywords.filter(keyword => 
+    keyword.toLowerCase().includes('good') ||
+    keyword.toLowerCase().includes('great') ||
+    keyword.toLowerCase().includes('excellent')
+  );
+  
+  const negativeKeywords = keywords.filter(keyword =>
+    keyword.toLowerCase().includes('bad') ||
+    keyword.toLowerCase().includes('terrible') ||
+    keyword.toLowerCase().includes('awful')
+  );
+  
+  const neutralKeywords = keywords.filter(keyword =>
+    !positiveKeywords.includes(keyword) &&
+    !negativeKeywords.includes(keyword)
+  );
+  
+  return {
+    positive: positiveKeywords,
+    negative: negativeKeywords,
+    neutral: neutralKeywords
+  };
+};
+
+/**
+ * Analyze transcript to extract metrics
+ * @param transcript The transcript to analyze 
+ */
+export const analyzeTranscript = (transcript: CallTranscript) => {
+  // Ensure transcript exists
+  if (!transcript) return null;
+  
+  // Get basic metrics
+  const duration = transcript.duration || 0;
+  const text = transcript.text || '';
+  const keywords = transcript.keywords ? [...transcript.keywords] : [];
+  
+  // Check if we have segments
+  const hasSegments = transcript.transcript_segments && 
+                     safeArrayLength(transcript.transcript_segments) > 0;
+  
+  // Process segments if available
+  const segmentMetrics = hasSegments 
+    ? processTranscriptSegments(transcript)
+    : {
+        speakerTimeMap: {},
+        speakerWordCounts: {},
+        totalDuration: duration,
+        silencePercentage: 0,
+        agentInterruptions: 0,
+        customerInterruptions: 0,
+        sentiment: {
+          agent: transcript.sentiment || 0.5,
+          customer: transcript.sentiment || 0.5
+        }
+      };
+  
+  // Calculate talk ratio
+  const totalTalkTime = 
+    (segmentMetrics.speakerTimeMap.agent || 0) + 
+    (segmentMetrics.speakerTimeMap.customer || 0);
+    
+  const talkRatio = {
+    agent: totalTalkTime > 0 
+      ? Math.round((segmentMetrics.speakerTimeMap.agent || 0) / totalTalkTime * 100) 
+      : 50,
+    customer: totalTalkTime > 0 
+      ? Math.round((segmentMetrics.speakerTimeMap.customer || 0) / totalTalkTime * 100) 
+      : 50
+  };
+  
+  // Calculate word proportion
+  const totalWords = 
+    (segmentMetrics.speakerWordCounts.agent || 0) + 
+    (segmentMetrics.speakerWordCounts.customer || 0);
+    
+  const wordProportion = {
+    agent: totalWords > 0 
+      ? Math.round((segmentMetrics.speakerWordCounts.agent || 0) / totalWords * 100) 
+      : 50,
+    customer: totalWords > 0 
+      ? Math.round((segmentMetrics.speakerWordCounts.customer || 0) / totalWords * 100) 
+      : 50
+  };
+  
+  // Process insights  
+  const insightsData = processTranscriptInsights(transcript);
+  
+  return {
+    id: transcript.id,
+    duration,
+    text,
+    keywords,
+    talkRatio,
+    wordProportion,
+    silencePercentage: segmentMetrics.silencePercentage,
+    agentInterruptions: segmentMetrics.agentInterruptions,
+    customerInterruptions: segmentMetrics.customerInterruptions,
+    sentiment: segmentMetrics.sentiment,
+    insights: insightsData.insights,
+    warnings: insightsData.warnings
+  };
+};

@@ -3,11 +3,16 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Activity, Clock, AlertCircle, ArrowUpRight, Zap } from "lucide-react";
-import { TeamMetricsData } from "@/services/SharedDataService";
-import { TeamPerformanceMetric } from "@/types/team";
 import ContentLoader from "@/components/ui/ContentLoader";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import { generateMockTeamMetrics, USE_MOCK_DATA } from "@/services/MockDataService";
+
+export interface TeamMetricsData {
+  totalCalls?: number;
+  avgSentiment?: number;
+  avgTalkRatio?: { agent: number; customer: number };
+  topKeywords?: string[];
+}
 
 interface TeamPerformanceOverviewProps {
   teamMetrics: TeamMetricsData;
@@ -16,9 +21,9 @@ interface TeamPerformanceOverviewProps {
 }
 
 const TeamPerformanceOverview: React.FC<TeamPerformanceOverviewProps> = ({ 
-  teamMetrics, 
-  teamMetricsLoading,
-  callsLength
+  teamMetrics = {}, 
+  teamMetricsLoading = false,
+  callsLength = 0
 }) => {
   // Generate mock data if needed
   const mockMetrics = useMemo(() => generateMockTeamMetrics(), []);

@@ -1,9 +1,10 @@
 
-import { SpeakerType } from '@/services/RealTimeMetrics.types';
-
 /**
  * Calculate the total silence time in seconds from speech segments
  */
+
+export type SpeakerType = "agent" | "customer" | "unknown";
+
 export function calculateSilence(
   segments: { start: number; end: number; speaker: SpeakerType }[],
   totalDuration: number
@@ -40,7 +41,7 @@ export function calculateTalkRatio(
     
     if (segment.speaker === 'agent') {
       agentTime += duration;
-    } else if (segment.speaker === 'client') {
+    } else if (segment.speaker === 'customer') {
       clientTime += duration;
     }
   }

@@ -1,124 +1,79 @@
 
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-export interface CallOutcome {
-  outcome: string;
-  count: number;
-  percentage: number;
+export interface CallOutcomeStatsProps {
+  outcomeStats?: { name: string; value: number; color: string }[];
+  callDistributionData?: { name: string; value: number }[];
 }
-
-interface CallOutcomeStatsProps {
-  outcomeStats: CallOutcome[];
-  callDistributionData: {
-    name: string;
-    calls: number;
-  }[];
-}
-
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#FF4F9A'];
 
 const CallOutcomeStats: React.FC<CallOutcomeStatsProps> = ({ 
-  outcomeStats, 
-  callDistributionData 
+  outcomeStats = [
+    { name: 'Successful', value: 35, color: '#22c55e' },
+    { name: 'Follow-up', value: 25, color: '#3b82f6' },
+    { name: 'No sale', value: 20, color: '#f97316' },
+    { name: 'Objections', value: 15, color: '#ef4444' },
+    { name: 'Other', value: 5, color: '#a855f7' }
+  ],
+  callDistributionData = [
+    { name: 'Mon', value: 12 },
+    { name: 'Tue', value: 19 },
+    { name: 'Wed', value: 13 },
+    { name: 'Thu', value: 17 },
+    { name: 'Fri', value: 21 },
+    { name: 'Sat', value: 7 },
+    { name: 'Sun', value: 2 }
+  ]
 }) => {
   return (
-    <>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Call Distribution</CardTitle>
-          <CardDescription>Number of calls per day</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={callDistributionData} 
-                margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar 
-                  dataKey="calls" 
-                  fill="#9333EA" 
-                  name="Number of Calls" 
-                  radius={[4, 4, 0, 0]}
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>Call Outcomes & Distribution</CardTitle>
+        <CardDescription>
+          Overview of call results and daily distribution
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-sm font-medium mb-4">Call Outcomes</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={outcomeStats} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={80} />
+                <Tooltip 
+                  formatter={(value) => [`${value} calls`, 'Count']}
+                  labelFormatter={(label) => `Outcome: ${label}`}
                 />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {outcomeStats.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Call Outcomes</CardTitle>
-            <CardDescription>Distribution of call results</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 mb-6">
-              {outcomeStats.map((stat) => (
-                <Card key={stat.outcome} className="bg-background">
-                  <CardContent className="p-6">
-                    <h3 className="font-medium text-muted-foreground">{stat.outcome}</h3>
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-2xl font-bold">{stat.count}</p>
-                      <p className="text-sm bg-muted rounded-full px-2 py-1">
-                        {stat.percentage}%
-                      </p>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                      <div 
-                        className="bg-neon-purple h-2 rounded-full"
-                        style={{ width: `${stat.percentage}%` }}
-                      ></div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Outcome Distribution</CardTitle>
-            <CardDescription>Visual breakdown of call outcomes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={outcomeStats}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="count"
-                    nameKey="outcome"
-                  >
-                    {outcomeStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value, name, props) => [`${value} calls`, props.payload.outcome]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </>
+          
+          <div>
+            <h3 className="text-sm font-medium mb-4">Daily Call Distribution</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={callDistributionData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value) => [`${value} calls`, 'Count']}
+                  labelFormatter={(label) => `Day: ${label}`}
+                />
+                <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

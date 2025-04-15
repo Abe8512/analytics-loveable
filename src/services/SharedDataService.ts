@@ -1,7 +1,9 @@
+
 // Just fixing the event type
 import { EventsStore } from './events/store';
 import { EventType, EVENT_TYPES } from './events/types';
 import { teamService } from './TeamService';
+import { TeamMember } from '@/types/teamTypes';
 
 export class SharedDataServiceClass {
   private managedUsersKey = 'managedUsers';
@@ -19,8 +21,8 @@ export class SharedDataServiceClass {
     sessionStorage.removeItem(this.managedUsersKey);
   }
 
-  syncManagedUsersWithTeamMembers() {
-    const teamMembers = teamService.getTeamMembers();
+  async syncManagedUsersWithTeamMembers() {
+    const teamMembers = await teamService.getTeamMembers();
     const currentManagedUsers = this.getManagedUsers();
     
     // Update managed users based on team members
@@ -36,7 +38,7 @@ export class SharedDataServiceClass {
     
     // If there's a change, dispatch an event
     if (JSON.stringify(currentManagedUsers) !== JSON.stringify(managedUsers)) {
-      EventsStore.dispatchEvent(EVENT_TYPES.MANAGED_USERS_UPDATED, {
+      EventsStore.dispatchEvent(EVENT_TYPES.MANAGED_USERS_UPDATED as unknown as EventType, {
         managedUsers,
         timestamp: new Date().toISOString()
       });

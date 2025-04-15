@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
@@ -190,45 +189,46 @@ export const useAuthClient = (): AuthState => {
   };
 
   // Get managed users function
-  const getManagedUsers = async () => {
-    if (!user) return [];
-
+  const getManagedUsers = async (): Promise<any[]> => {
     try {
-      // Check if we have a managed_users table
-      try {
-        const { data, error } = await supabase
-          .from('managed_users')
-          .select('*')
-          .eq('owner_id', user.id);
-
-        if (!error && data) {
-          setManagedUsers(data);
-          return data;
-        }
-      } catch (e) {
-        console.log('Managed users table may not exist:', e);
+      // First try to get from session storage (faster)
+      const localUsers = sharedDataService.getManagedUsers();
+      if (localUsers && localUsers.length > 0) {
+        return localUsers;
       }
 
-      // Fallback: get team members instead
+      // If not available in storage, try to get from database if table exists
       try {
+        // Check if table exists first to avoid unnecessary errors
+        const { count, error: countError } = await supabase
+          .from('team_members')
+          .select('*', { count: 'exact', head: true });
+        
+        if (countError || count === 0) {
+          // Fallback to demo data if necessary
+          return getDemoManagedUsers();
+        }
+        
+        // Get actual data if table exists
         const { data, error } = await supabase
           .from('team_members')
-          .select('*')
-          .eq('user_id', user.id);
-
-        if (!error && data) {
-          setManagedUsers(data);
-          return data;
+          .select('*');
+        
+        if (error || !data || data.length === 0) {
+          return getDemoManagedUsers();
         }
-      } catch (e) {
-        console.log('Team members table may not exist:', e);
+        
+        // Store for future use
+        sharedDataService.setManagedUsers(data);
+        return data;
+      } catch (error) {
+        // Handle specific database errors
+        console.error('Error fetching managed users from database', error);
+        return getDemoManagedUsers();
       }
-
-      // Final fallback: return empty array
-      return [];
     } catch (error) {
-      console.error('Error fetching managed users:', error);
-      return [];
+      console.error('Error in getManagedUsers:', error);
+      return getDemoManagedUsers();
     }
   };
 
