@@ -1,136 +1,120 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { useCallTranscripts } from '@/services/CallTranscriptService';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CallTranscript } from '@/types/call';
-import { formatDistanceToNow } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { format, parseISO } from 'date-fns';
+import { TeamMember } from '@/types/teamTypes';
 import { teamService } from '@/services/TeamService';
 
 const CallActivityTable = () => {
-  const { transcripts, loading: isLoading, error } = useCallTranscripts();
-  const [callData, setCallData] = useState<CallTranscript[]>([]);
-  
+  const { transcripts } = useCallTranscripts();
+  const [isLoading, setIsLoading] = useState(true);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
   useEffect(() => {
-    if (transcripts) {
-      setCallData(transcripts);
-    }
-  }, [transcripts]);
-  
-  const getTeamMemberName = async (userId?: string): Promise<string> => {
-    if (!userId) return 'Unassigned';
+    const fetchTeamMembers = async () => {
+      try {
+        const members = await teamService.getTeamMembers();
+        setTeamMembers(members);
+      } catch (error) {
+        console.error('Error fetching team members:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTeamMembers();
+  }, []);
+
+  const getTeamMemberName = (id?: string) => {
+    if (!id) return 'Unassigned';
+    const member = teamMembers.find(m => m.id === id);
+    return member ? member.name : 'Unknown Rep';
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
     try {
-      const teamMember = await teamService.getTeamMemberById(userId);
-      return teamMember?.name || 'Unknown Rep';
-    } catch {
-      return 'Unknown Rep';
+      return format(parseISO(dateString), 'MMM d, yyyy');
+    } catch (e) {
+      return 'Invalid Date';
     }
   };
-  
+
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return 'N/A';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
+  const getSentimentBadge = (sentiment: any) => {
+    if (typeof sentiment === 'number') {
+      if (sentiment > 0.6) return <Badge className="bg-green-500">Positive</Badge>;
+      if (sentiment < 0.4) return <Badge className="bg-red-500">Negative</Badge>;
+      return <Badge className="bg-blue-500">Neutral</Badge>;
+    }
+    
+    switch (sentiment) {
+      case 'positive':
+        return <Badge className="bg-green-500">Positive</Badge>;
+      case 'negative':
+        return <Badge className="bg-red-500">Negative</Badge>;
+      default:
+        return <Badge className="bg-blue-500">Neutral</Badge>;
+    }
+  };
+
   return (
-    <Card className="mt-6">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>Recent Call Activity</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((_, i) => (
-              <div key={i} className="flex items-center space-x-4">
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="text-center py-4 text-muted-foreground">
-            Error loading call data
-          </div>
-        ) : callData.length === 0 ? (
-          <div className="text-center py-4 text-muted-foreground">
-            No call records found
+          <div className="space-y-3">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Call Name</TableHead>
-                  <TableHead>Rep</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Sentiment</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {callData.map((call) => (
-                  <TableRow key={call.id}>
-                    <TableCell className="font-medium">{call.filename || 'Unnamed Call'}</TableCell>
-                    <TableCell>
-                      {call.assigned_to ? (
-                        <RepNameCell userId={call.assigned_to} />
-                      ) : (
-                        'Unassigned'
-                      )}
-                    </TableCell>
-                    <TableCell>{formatDuration(call.duration || 0)}</TableCell>
-                    <TableCell>
-                      {call.created_at 
-                        ? formatDistanceToNow(new Date(call.created_at), { addSuffix: true }) 
-                        : 'Unknown date'}
-                    </TableCell>
-                    <TableCell>
-                      {getSentimentLabel(call.sentiment)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">View</Button>
-                    </TableCell>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Call Date</TableHead>
+                <TableHead>File Name</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Sales Rep</TableHead>
+                <TableHead>Sentiment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transcripts && transcripts.length > 0 ? (
+                transcripts.map((transcript) => (
+                  <TableRow key={transcript.id}>
+                    <TableCell>{formatDate(transcript.created_at)}</TableCell>
+                    <TableCell>{transcript.filename || 'Unnamed Recording'}</TableCell>
+                    <TableCell>{formatDuration(transcript.duration)}</TableCell>
+                    <TableCell>{getTeamMemberName(transcript.assigned_to)}</TableCell>
+                    <TableCell>{getSentimentBadge(transcript.sentiment)}</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                    No call records found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
   );
 };
-
-// Helper component to handle async name retrieval
-const RepNameCell = ({ userId }: { userId: string }) => {
-  const [name, setName] = useState('Loading...');
-  
-  useEffect(() => {
-    const fetchName = async () => {
-      const memberName = await teamService.getTeamMemberById(userId)
-        .then(member => member?.name || 'Unknown Rep')
-        .catch(() => 'Unknown Rep');
-      setName(memberName);
-    };
-    
-    fetchName();
-  }, [userId]);
-  
-  return <>{name}</>;
-};
-
-// Helper functions
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-function getSentimentLabel(sentiment: string | number | undefined): string {
-  if (sentiment === undefined) return 'Unknown';
-  
-  if (typeof sentiment === 'number') {
-    return sentiment > 0.66 ? 'Positive' : sentiment > 0.33 ? 'Neutral' : 'Negative';
-  }
-  
-  return sentiment.charAt(0).toUpperCase() + sentiment.slice(1);
-}
 
 export default CallActivityTable;

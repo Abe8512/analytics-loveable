@@ -1,14 +1,46 @@
 
+// Import the necessary types
 import { CallTranscript } from '@/types/call';
 import { calculateSilence, calculateTalkRatio } from '@/utils/metricCalculations';
-import { 
-  AdvancedMetric, 
-  TalkRatioMetrics, 
-  ObjectionHandlingMetrics,
-  SentimentHeatmapPoint,
-  CallTranscriptSegment,
-  safeSegmentCast
-} from '@/types/metrics';
+
+// Export the types needed by other components
+export interface AdvancedMetric {
+  name: string;
+  callVolume: number;
+  sentiment: number;
+  conversion: number;
+  date?: string;
+}
+
+export interface TalkRatioMetrics {
+  agent_ratio: number;
+  prospect_ratio: number;
+  dominance_score: number;
+  agent_talk_time: number;
+  prospect_talk_time: number;
+  silence_time: number;
+  interruption_count: number;
+}
+
+export interface SentimentHeatmapPoint {
+  time: number;
+  score: number;
+  label: string;
+  text_snippet: string;
+}
+
+export interface ObjectionDetail {
+  time: number;
+  text: string;
+  handled: boolean;
+}
+
+export interface ObjectionHandlingMetrics {
+  total_objections: number;
+  handled_objections: number;
+  effectiveness: number;
+  details: ObjectionDetail[];
+}
 
 class AdvancedMetricsServiceClass {
   // Helper to safely process segments
@@ -40,28 +72,34 @@ class AdvancedMetricsServiceClass {
     
     // Process each segment
     for (let i = 0; i < segments.length; i++) {
-      const rawSegment = segments[i];
-      const segment = safeSegmentCast(rawSegment);
-      const speaker = segment.speaker || 'unknown';
-      const words = segment.text ? segment.text.split(/\s+/) : [];
-      const duration = segment.end - segment.start;
-      
-      // Update speaker time
-      speakerTimeMap[speaker] = (speakerTimeMap[speaker] || 0) + duration;
-      
-      // Update speaker word count
-      speakerWordCounts[speaker] = (speakerWordCounts[speaker] || 0) + words.length;
-      
-      // Check for interruptions
-      if (i > 0) {
-        const prevRawSegment = segments[i - 1];
-        const prevSegment = safeSegmentCast(prevRawSegment);
+      const segment = segments[i];
+      // Make sure the segment object has the required properties
+      if (typeof segment === 'object' && segment !== null) {
+        const speaker = typeof segment.speaker === 'string' ? segment.speaker : 'unknown';
+        const words = typeof segment.text === 'string' ? segment.text.split(/\s+/) : [];
+        const start = typeof segment.start === 'number' ? segment.start : 0;
+        const end = typeof segment.end === 'number' ? segment.end : 0;
+        const duration = end - start;
         
-        if (prevSegment.speaker !== speaker) {
-          if (speaker === 'agent' && prevSegment.speaker === 'customer') {
-            agentInterruptions++;
-          } else if (speaker === 'customer' && prevSegment.speaker === 'agent') {
-            customerInterruptions++;
+        // Update speaker time
+        speakerTimeMap[speaker] = (speakerTimeMap[speaker] || 0) + duration;
+        
+        // Update speaker word count
+        speakerWordCounts[speaker] = (speakerWordCounts[speaker] || 0) + words.length;
+        
+        // Check for interruptions
+        if (i > 0) {
+          const prevSegment = segments[i - 1];
+          if (typeof prevSegment === 'object' && prevSegment !== null) {
+            const prevSpeaker = typeof prevSegment.speaker === 'string' ? prevSegment.speaker : 'unknown';
+            
+            if (prevSpeaker !== speaker) {
+              if (speaker === 'agent' && prevSpeaker === 'customer') {
+                agentInterruptions++;
+              } else if (speaker === 'customer' && prevSpeaker === 'agent') {
+                customerInterruptions++;
+              }
+            }
           }
         }
       }
@@ -71,14 +109,13 @@ class AdvancedMetricsServiceClass {
     const totalDuration = transcript.duration || 0;
     
     // Convert segments to the format expected by calculateSilence
-    const formattedSegments = segments.map(seg => {
-      const segment = safeSegmentCast(seg);
-      return {
-        start: segment.start,
-        end: segment.end,
-        speaker: segment.speaker
-      };
-    });
+    const formattedSegments = segments
+      .filter(seg => typeof seg === 'object' && seg !== null)
+      .map(seg => ({
+        start: typeof seg.start === 'number' ? seg.start : 0,
+        end: typeof seg.end === 'number' ? seg.end : 0,
+        speaker: typeof seg.speaker === 'string' ? seg.speaker : 'unknown'
+      }));
     
     const silencePercentage = (calculateSilence(formattedSegments, totalDuration) / totalDuration) * 100;
     
@@ -139,11 +176,15 @@ class AdvancedMetricsServiceClass {
       agent_talk_time: agentTalkTime,
       prospect_talk_time: prospectTalkTime,
       silence_time: calculateSilence(
-        transcript.transcript_segments?.map(seg => safeSegmentCast(seg)).map(seg => ({
-          start: seg.start,
-          end: seg.end,
-          speaker: seg.speaker
-        })) || [], 
+        Array.isArray(transcript.transcript_segments) 
+          ? transcript.transcript_segments
+              .filter(seg => typeof seg === 'object' && seg !== null)
+              .map(seg => ({
+                start: typeof seg.start === 'number' ? seg.start : 0,
+                end: typeof seg.end === 'number' ? seg.end : 0,
+                speaker: typeof seg.speaker === 'string' ? seg.speaker : 'unknown'
+              }))
+          : [],
         transcript.duration || 0
       ),
       interruption_count: segmentMetrics.agentInterruptions + segmentMetrics.customerInterruptions
@@ -184,7 +225,7 @@ class AdvancedMetricsServiceClass {
     
     // Use actual segments to generate heatmap
     const heatmapPoints: SentimentHeatmapPoint[] = [];
-    const safeSegments = segments.map(seg => safeSegmentCast(seg));
+    const safeSegments = segments.filter(seg => typeof seg === 'object' && seg !== null);
     
     for (let i = 0; i < safeSegments.length; i += Math.ceil(safeSegments.length / 6)) {
       const segment = safeSegments[i];
@@ -195,10 +236,10 @@ class AdvancedMetricsServiceClass {
       const sentiment = score > 0.7 ? 'POSITIVE' : score < 0.4 ? 'NEGATIVE' : 'NEUTRAL';
       
       heatmapPoints.push({
-        time: segment.start,
+        time: typeof segment.start === 'number' ? segment.start : 0,
         score,
         label: sentiment,
-        text_snippet: segment.text || 'No text available'
+        text_snippet: typeof segment.text === 'string' ? segment.text : 'No text available'
       });
     }
     

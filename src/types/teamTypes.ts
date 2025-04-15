@@ -5,6 +5,7 @@ export interface TeamMember {
   email: string;
   role?: string;
   user_id?: string;
+  avatar_url?: string;
 }
 
 export interface TeamPerformance {
@@ -34,6 +35,7 @@ export function safeTeamMemberCast(member: any): TeamMember {
     name: member.name || '',
     email: member.email || '',
     role: member.role || 'sales-rep',
-    user_id: member.user_id || undefined
+    user_id: member.user_id || undefined,
+    avatar_url: member.avatar_url
   };
 }

@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { EventsStore } from '@/services/events/store';
 import { EventType, EVENT_TYPES } from '@/services/events/types';
 import { useBulkUploadService } from '@/hooks/useBulkUploadService';
-import { BulkUploadFilter } from '@/types/teamTypes';
+import { BulkUploadFilter } from '@/types/bulkUpload';
 import { Progress } from "@/components/ui/progress";
 
 interface CSVData {
@@ -86,7 +86,9 @@ const BulkUploadProcessor: React.FC = () => {
 
     setIsUploading(true);
     setUploadProgress(0);
-    EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_STARTED);
+    EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_STARTED, {
+      timestamp: new Date().toISOString()
+    });
 
     try {
       const totalRows = csvData.length;
@@ -94,14 +96,20 @@ const BulkUploadProcessor: React.FC = () => {
 
       for (const data of csvData) {
         try {
-          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS, { progress: (uploadedCount / totalRows) * 100 });
+          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS, { 
+            progress: (uploadedCount / totalRows) * 100,
+            timestamp: new Date().toISOString()
+          });
           setUploadProgress((uploadedCount / totalRows) * 100);
 
           // Mock upload functionality since we don't have the actual uploadTranscript method
           await new Promise(resolve => setTimeout(resolve, 500)); // Simulate upload time
 
           uploadedCount++;
-          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS, { progress: (uploadedCount / totalRows) * 100 });
+          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_PROGRESS, { 
+            progress: (uploadedCount / totalRows) * 100,
+            timestamp: new Date().toISOString()
+          });
           setUploadProgress((uploadedCount / totalRows) * 100);
         } catch (uploadError: any) {
           console.error('Upload failed for row:', data, uploadError);
@@ -110,13 +118,18 @@ const BulkUploadProcessor: React.FC = () => {
             title: "Upload error",
             description: `Failed to upload row: ${data.filename || 'Unknown'}. ${uploadError?.message || 'Unknown error'}`
           });
-          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR, { error: uploadError });
+          EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR, { 
+            error: uploadError,
+            timestamp: new Date().toISOString()
+          });
         }
       }
 
       setIsUploading(false);
       setUploadProgress(100);
-      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_COMPLETED);
+      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_COMPLETED, {
+        timestamp: new Date().toISOString()
+      });
       toast({
         title: "Upload complete",
         description: `Successfully uploaded ${uploadedCount} of ${totalRows} rows.`,
@@ -124,7 +137,10 @@ const BulkUploadProcessor: React.FC = () => {
     } catch (error: any) {
       console.error('Bulk upload process failed:', error);
       setIsUploading(false);
-      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR, { error });
+      EventsStore.dispatchEvent(EVENT_TYPES.BULK_UPLOAD_ERROR, { 
+        error,
+        timestamp: new Date().toISOString()
+      });
       toast({
         variant: "destructive",
         title: "Upload error",
@@ -136,7 +152,9 @@ const BulkUploadProcessor: React.FC = () => {
   const processData = async () => {
     setIsProcessing(true);
     setProcessingProgress(0);
-    EventsStore.dispatchEvent('processing-started' as EventType);
+    EventsStore.dispatchEvent('processing-started' as EventType, {
+      timestamp: new Date().toISOString()
+    });
 
     try {
       const totalRows = csvData.length;
@@ -144,14 +162,20 @@ const BulkUploadProcessor: React.FC = () => {
 
       for (const data of csvData) {
         try {
-          EventsStore.dispatchEvent('processing-progress' as EventType, { progress: (processedCount / totalRows) * 100 });
+          EventsStore.dispatchEvent('processing-progress' as EventType, { 
+            progress: (processedCount / totalRows) * 100,
+            timestamp: new Date().toISOString()
+          });
           setProcessingProgress((processedCount / totalRows) * 100);
 
           // Mock processing functionality
           await new Promise(resolve => setTimeout(resolve, 800)); // Simulate processing time
 
           processedCount++;
-          EventsStore.dispatchEvent('processing-progress' as EventType, { progress: (processedCount / totalRows) * 100 });
+          EventsStore.dispatchEvent('processing-progress' as EventType, { 
+            progress: (processedCount / totalRows) * 100,
+            timestamp: new Date().toISOString()
+          });
           setProcessingProgress((processedCount / totalRows) * 100);
         } catch (processError: any) {
           console.error('Processing failed for row:', data, processError);
@@ -160,13 +184,18 @@ const BulkUploadProcessor: React.FC = () => {
             title: "Processing error",
             description: `Failed to process row: ${data.filename || 'Unknown'}. ${processError?.message || 'Unknown error'}`
           });
-          EventsStore.dispatchEvent('processing-error' as EventType, { error: processError });
+          EventsStore.dispatchEvent('processing-error' as EventType, { 
+            error: processError,
+            timestamp: new Date().toISOString()
+          });
         }
       }
 
       setIsProcessing(false);
       setProcessingProgress(100);
-      EventsStore.dispatchEvent('processing-completed' as EventType);
+      EventsStore.dispatchEvent('processing-completed' as EventType, {
+        timestamp: new Date().toISOString()
+      });
       toast({
         title: "Processing complete",
         description: `Successfully processed ${processedCount} of ${totalRows} rows.`,
@@ -174,7 +203,10 @@ const BulkUploadProcessor: React.FC = () => {
     } catch (error: any) {
       console.error('Bulk processing failed:', error);
       setIsProcessing(false);
-      EventsStore.dispatchEvent('processing-error' as EventType, { error });
+      EventsStore.dispatchEvent('processing-error' as EventType, { 
+        error,
+        timestamp: new Date().toISOString()
+      });
       toast({
         variant: "destructive",
         title: "Processing error",

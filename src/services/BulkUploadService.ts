@@ -1,218 +1,102 @@
+
 import { v4 as uuidv4 } from 'uuid';
+import { EventsStore } from './events/store';
+import { EventType } from './events/types';
+import { supabase } from '@/integrations/supabase/client';
 
-export type BulkUploadStatus = 'queued' | 'uploading' | 'processing' | 'complete' | 'error';
+class BulkUploadServiceClass {
+  private isUploading = false;
+  private uploadController: AbortController | null = null;
+  private assignedUserId: string = '';
 
-export interface BulkUploadFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  status: BulkUploadStatus;
-  progress: number;
-  error?: string;
-  result?: any;
-  createdAt: number | string;
-}
-
-type Listener = () => void;
-
-export class BulkUploadServiceClass {
-  private files: BulkUploadFile[] = [];
-  private listeners: Listener[] = [];
-  private currentUpload: { abort: () => void } | null = null;
-
-  constructor() {
-    this.loadFromLocalStorage();
+  setAssignedUserId(userId: string) {
+    this.assignedUserId = userId;
   }
 
-  private loadFromLocalStorage() {
-    const storedFiles = localStorage.getItem('bulkUploadFiles');
-    if (storedFiles) {
-      this.files = JSON.parse(storedFiles);
+  getAssignedUserId() {
+    return this.assignedUserId;
+  }
+
+  async uploadFile(file: File, options?: {
+    onProgress?: (progress: number) => void;
+    onComplete?: (result: any) => void;
+    onError?: (error: Error) => void;
+  }): Promise<any> {
+    if (this.isUploading) {
+      throw new Error('Another upload is already in progress');
     }
-  }
 
-  private saveToLocalStorage() {
-    localStorage.setItem('bulkUploadFiles', JSON.stringify(this.files));
-  }
+    this.isUploading = true;
+    this.uploadController = new AbortController();
+    const { signal } = this.uploadController;
 
-  addFile(file: File): BulkUploadFile {
-    const newFile: BulkUploadFile = {
-      id: uuidv4(),
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      status: 'queued',
-      progress: 0,
-      createdAt: Date.now(),
-    };
-    this.files.push(newFile);
-    this.saveToLocalStorage();
-    this.emitUpdate();
-    return newFile;
-  }
-
-  getFile(fileId: string): BulkUploadFile | undefined {
-    return this.files.find(file => file.id === fileId);
-  }
-
-  getFiles(): BulkUploadFile[] {
-    return this.files;
-  }
-
-  removeFile(fileId: string): boolean {
-    this.files = this.files.filter(file => file.id !== fileId);
-    this.saveToLocalStorage();
-    this.emitUpdate();
-    return true;
-  }
-
-  clearAllFiles(): void {
-    this.files = [];
-    localStorage.removeItem('bulkUploadFiles');
-    this.emitUpdate();
-  }
-
-  updateProgress(fileId: string, progress: number) {
-    const fileIndex = this.files.findIndex(file => file.id === fileId);
-    if (fileIndex === -1) return false;
-
-    this.files[fileIndex] = {
-      ...this.files[fileIndex],
-      progress: progress
-    };
-    this.saveToLocalStorage();
-    this.emitUpdate();
-    return true;
-  }
-
-  updateStatus(fileId: string, newStatus: BulkUploadStatus) {
-    const fileIndex = this.files.findIndex(file => file.id === fileId);
-    if (fileIndex === -1) return false;
-    
-    const file = this.files[fileIndex];
-    
-    // Fix error here - ensure status comparison is type-safe
-    if (file.status === 'complete' && newStatus !== 'error') {
-      console.log(`File ${fileId} already complete, not changing status to ${newStatus}`);
-      return false;
-    }
-    
-    this.files[fileIndex] = {
-      ...file,
-      status: newStatus
-    };
-    
-    this.emitUpdate();
-    return true;
-  }
-
-  updateResult(fileId: string, result: any, error?: string) {
-    const fileIndex = this.files.findIndex(file => file.id === fileId);
-    if (fileIndex === -1) return false;
-
-    this.files[fileIndex] = {
-      ...this.files[fileIndex],
-      status: error ? 'error' : 'complete',
-      result: result,
-      error: error
-    };
-    this.saveToLocalStorage();
-    this.emitUpdate();
-    return true;
-  }
-
-  async uploadFile(file: File, options: { onProgress?: (progress: number) => void } = {}): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const fileId = this.addFile(file).id;
-      this.updateStatus(fileId, 'uploading');
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const xhr = new XMLHttpRequest();
-      this.currentUpload = xhr;
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          this.updateProgress(fileId, progress);
-          options.onProgress?.(progress);
+    try {
+      // Simulate upload progress
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        if (progress < 90) {
+          progress += 10;
+          options?.onProgress?.(progress);
         }
-      });
+      }, 300);
 
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const result = JSON.parse(xhr.responseText);
-            this.updateStatus(fileId, 'processing');
-            this.processUploadedFile(fileId, result)
-              .then(processedResult => {
-                this.updateResult(fileId, processedResult);
-                resolve(processedResult);
-              })
-              .catch(processError => {
-                this.updateResult(fileId, null, processError.message || 'Processing failed');
-                reject(processError);
-              });
-          } catch (e) {
-            this.updateResult(fileId, null, 'Invalid JSON response');
-            reject(e);
-          }
-        } else {
-          this.updateResult(fileId, null, `Upload failed with status ${xhr.status}`);
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      });
+      // Check if signal is aborted
+      if (signal.aborted) {
+        clearInterval(progressInterval);
+        throw new Error('Upload cancelled');
+      }
 
-      xhr.addEventListener("error", () => {
-        this.updateStatus(fileId, 'error');
-        this.updateResult(fileId, null, 'Network error during upload');
-        reject(new Error('Network error during upload'));
-      });
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      xhr.addEventListener("abort", () => {
-        this.updateStatus(fileId, 'queued');
-        this.updateResult(fileId, null, 'Upload aborted');
-        reject(new Error('Upload aborted'));
-      });
+      // Generate a unique ID for the transcript
+      const transcriptId = uuidv4();
 
-      xhr.open("POST", "/api/upload", true);
-      xhr.send(formData);
-    });
-  }
-
-  cancelUpload(): void {
-    if (this.currentUpload) {
-      this.currentUpload.abort();
-      this.currentUpload = null;
-    }
-  }
-
-  private async processUploadedFile(fileId: string, uploadResult: any): Promise<any> {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    if (Math.random() > 0.2) {
-      return {
-        message: `File ${fileId} processed successfully`,
-        details: uploadResult
+      // For now, create a mock result
+      const result = {
+        id: transcriptId,
+        filename: file.name,
+        size: file.size,
+        type: file.type,
+        uploadedAt: new Date().toISOString(),
+        assignedTo: this.assignedUserId || undefined
       };
-    } else {
-      throw new Error('Simulated error during file processing');
+
+      clearInterval(progressInterval);
+      options?.onProgress?.(100);
+      options?.onComplete?.(result);
+
+      this.isUploading = false;
+      this.uploadController = null;
+
+      return result;
+    } catch (error) {
+      this.isUploading = false;
+      this.uploadController = null;
+
+      if (error instanceof Error) {
+        options?.onError?.(error);
+        throw error;
+      } else {
+        const genericError = new Error('Unknown upload error');
+        options?.onError?.(genericError);
+        throw genericError;
+      }
     }
   }
 
-  addListener(listener: Listener) {
-    this.listeners.push(listener);
+  cancelUpload() {
+    if (this.uploadController) {
+      this.uploadController.abort();
+      this.isUploading = false;
+      this.uploadController = null;
+      return true;
+    }
+    return false;
   }
 
-  removeListener(listenerToRemove: Listener) {
-    this.listeners = this.listeners.filter(listener => listener !== listenerToRemove);
-  }
-
-  private emitUpdate() {
-    this.saveToLocalStorage();
-    this.listeners.forEach(listener => listener());
+  isUploadInProgress() {
+    return this.isUploading;
   }
 }
 
