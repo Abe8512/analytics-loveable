@@ -1,5 +1,6 @@
+
 import { EventsStore } from './store';
-import { EventType } from './types';
+import { EventType, EventPayload, TeamEventType } from './types';
 
 /**
  * Emit team member added event
@@ -20,7 +21,7 @@ export const emitTeamMemberAdded = (teamMember: any) => {
  * Listen for team member added events
  * @param callback Function to call when a team member is added
  */
-export const onTeamMemberAdded = (callback: Function) => {
+export const onTeamMemberAdded = (callback: (payload: EventPayload) => void) => {
   return EventsStore.addEventListener('team-member-added' as EventType, callback);
 };
 
@@ -43,6 +44,6 @@ export const emitTeamMemberRemoved = (teamMemberId: string) => {
  * Listen for team member removed events
  * @param callback Function to call when a team member is removed
  */
-export const onTeamMemberRemoved = (callback: Function) => {
+export const onTeamMemberRemoved = (callback: (payload: EventPayload) => void) => {
   return EventsStore.addEventListener('team-member-removed' as EventType, callback);
 };

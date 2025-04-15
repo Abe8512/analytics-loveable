@@ -1,62 +1,29 @@
 
-export type EventType =
+// Define event types
+export type EventType = 
   | 'team-member-added'
   | 'team-member-removed'
-  | 'managed-users-updated'
   | 'call-updated'
-  | 'call-assigned'
-  | 'call-uploaded'
   | 'transcript-updated'
-  | 'transcript-created'
-  | 'transcripts-refreshed'
-  | 'sentiment-updated'
-  | 'bulk-upload-status-change'
-  | 'bulk-upload-started'
-  | 'bulk-upload-progress'
-  | 'bulk-upload-completed'
-  | 'bulk-upload-error'
-  | 'processing-started'
-  | 'processing-progress'
-  | 'processing-completed'
-  | 'processing-error'
-  | 'metrics-refreshed';
+  | 'TEAM_MEMBER_ADDED'
+  | 'TEAM_MEMBER_REMOVED'
+  | 'CALL_UPDATED'
+  | 'TRANSCRIPT_UPDATED'
+  | 'MANAGED_USERS_UPDATED';
 
-export interface EventPayload {
-  id?: string;
-  teamMember?: any;
-  teamMemberId?: string;
-  callId?: string;
-  transcriptId?: string;
-  timestamp?: string | number;
-  files?: any[];
-  error?: any;
-  transcripts?: any[];
-  progress?: number;
-  data?: any;
-  [key: string]: any;
-}
-
-export const EVENT_TYPES = {
-  TEAM_MEMBER_ADDED: 'team-member-added' as EventType,
-  TEAM_MEMBER_REMOVED: 'team-member-removed' as EventType,
-  MANAGED_USERS_UPDATED: 'managed-users-updated' as EventType,
-  CALL_UPDATED: 'call-updated' as EventType,
-  CALL_ASSIGNED: 'call-assigned' as EventType,
-  CALL_UPLOADED: 'call-uploaded' as EventType,
-  TRANSCRIPT_UPDATED: 'transcript-updated' as EventType,
-  TRANSCRIPT_CREATED: 'transcript-created' as EventType,
-  TRANSCRIPTS_REFRESHED: 'transcripts-refreshed' as EventType,
-  SENTIMENT_UPDATED: 'sentiment-updated' as EventType,
-  BULK_UPLOAD_STATUS_CHANGE: 'bulk-upload-status-change' as EventType,
-  BULK_UPLOAD_STARTED: 'bulk-upload-started' as EventType,
-  BULK_UPLOAD_PROGRESS: 'bulk-upload-progress' as EventType,
-  BULK_UPLOAD_COMPLETED: 'bulk-upload-completed' as EventType,
-  BULK_UPLOAD_ERROR: 'bulk-upload-error' as EventType,
-  METRICS_REFRESHED: 'metrics-refreshed' as EventType
-};
-
-// Add TeamEventType as a subset of EventType to resolve type casting issues
 export type TeamEventType = 
   | 'team-member-added'
-  | 'team-member-removed'
-  | 'managed-users-updated';
+  | 'team-member-removed';
+
+export const EVENT_TYPES = {
+  TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED',
+  TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED',
+  CALL_UPDATED: 'CALL_UPDATED',
+  TRANSCRIPT_UPDATED: 'TRANSCRIPT_UPDATED',
+  MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED'
+};
+
+export interface EventPayload {
+  [key: string]: any;
+  timestamp: string;
+}

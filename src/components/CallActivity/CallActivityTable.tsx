@@ -10,7 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { teamService } from '@/services/TeamService';
 
 const CallActivityTable = () => {
-  const { transcripts, isLoading, error } = useCallTranscripts();
+  const { transcripts, loading: isLoading, error } = useCallTranscripts();
   const [callData, setCallData] = useState<CallTranscript[]>([]);
   
   useEffect(() => {
@@ -19,10 +19,14 @@ const CallActivityTable = () => {
     }
   }, [transcripts]);
   
-  const getTeamMemberName = (userId?: string): string => {
+  const getTeamMemberName = async (userId?: string): Promise<string> => {
     if (!userId) return 'Unassigned';
-    const teamMember = teamService.getTeamMemberById(userId);
-    return teamMember?.name || 'Unknown Rep';
+    try {
+      const teamMember = await teamService.getTeamMemberById(userId);
+      return teamMember?.name || 'Unknown Rep';
+    } catch {
+      return 'Unknown Rep';
+    }
   };
   
   return (
@@ -64,7 +68,13 @@ const CallActivityTable = () => {
                 {callData.map((call) => (
                   <TableRow key={call.id}>
                     <TableCell className="font-medium">{call.filename || 'Unnamed Call'}</TableCell>
-                    <TableCell>{getTeamMemberName(call.assigned_to)}</TableCell>
+                    <TableCell>
+                      {call.assigned_to ? (
+                        <RepNameCell userId={call.assigned_to} />
+                      ) : (
+                        'Unassigned'
+                      )}
+                    </TableCell>
                     <TableCell>{formatDuration(call.duration || 0)}</TableCell>
                     <TableCell>
                       {call.created_at 
@@ -86,6 +96,24 @@ const CallActivityTable = () => {
       </CardContent>
     </Card>
   );
+};
+
+// Helper component to handle async name retrieval
+const RepNameCell = ({ userId }: { userId: string }) => {
+  const [name, setName] = useState('Loading...');
+  
+  useEffect(() => {
+    const fetchName = async () => {
+      const memberName = await teamService.getTeamMemberById(userId)
+        .then(member => member?.name || 'Unknown Rep')
+        .catch(() => 'Unknown Rep');
+      setName(memberName);
+    };
+    
+    fetchName();
+  }, [userId]);
+  
+  return <>{name}</>;
 };
 
 // Helper functions

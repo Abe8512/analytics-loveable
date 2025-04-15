@@ -1,15 +1,9 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { EventsStore } from './events/store';
 import { emitTeamMemberAdded, emitTeamMemberRemoved } from './events/teamEvents';
-
-export interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role?: string;
-  user_id?: string;
-}
+import { TeamMember, safeTeamMemberCast } from '@/types/teamTypes';
 
 export class TeamServiceClass {
   private readonly localStorageKey = 'teamMembers';
@@ -84,7 +78,7 @@ export class TeamServiceClass {
         
         if (error) throw error;
         
-        return data || [];
+        return data?.map(member => safeTeamMemberCast(member)) || [];
       } else {
         // If the table doesn't exist, get data from localStorage
         return this.getStoredTeamMembers();
@@ -110,7 +104,7 @@ export class TeamServiceClass {
         return this.getStoredTeamMembers().find(member => member.id === id);
       }
 
-      return data;
+      return safeTeamMemberCast(data);
     } catch (error) {
       console.error('Error getting team member by ID:', error);
       return this.getStoredTeamMembers().find(member => member.id === id);
@@ -119,7 +113,7 @@ export class TeamServiceClass {
 
   getStoredTeamMembers(): TeamMember[] {
     const storedMembers = localStorage.getItem(this.localStorageKey);
-    return storedMembers ? JSON.parse(storedMembers) : [];
+    return storedMembers ? JSON.parse(storedMembers).map(safeTeamMemberCast) : [];
   }
 
   setStoredTeamMembers(members: TeamMember[]) {
@@ -133,9 +127,15 @@ export class TeamServiceClass {
         ...member,
       };
 
+      // For Supabase insert, ensure user_id is not undefined
+      const supabaseMember = {
+        ...newMember,
+        user_id: newMember.user_id || newMember.id // Use ID as fallback if user_id is not provided
+      };
+
       const { data, error } = await supabase
         .from('team_members')
-        .insert([newMember])
+        .insert([supabaseMember])
         .select('*')
         .single();
 
@@ -147,7 +147,7 @@ export class TeamServiceClass {
       // Emit event
       emitTeamMemberAdded(data);
 
-      return data || newMember;
+      return safeTeamMemberCast(data || newMember);
     } catch (error) {
       console.error('Error adding team member:', error);
       throw error;
@@ -176,9 +176,15 @@ export class TeamServiceClass {
 
   async updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember | null> {
     try {
+      // Ensure user_id is not undefined for Supabase
+      const supabaseUpdates = { 
+        ...updates,
+        user_id: updates.user_id || id // Use ID as fallback
+      };
+      
       const { data, error } = await supabase
         .from('team_members')
-        .update(updates)
+        .update(supabaseUpdates)
         .eq('id', id)
         .select('*')
         .single();
@@ -188,7 +194,7 @@ export class TeamServiceClass {
         throw error;
       }
 
-      return data;
+      return safeTeamMemberCast(data);
     } catch (error) {
       console.error('Error updating team member:', error);
       return null;

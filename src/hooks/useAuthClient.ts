@@ -1,6 +1,8 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
+import { sharedDataService } from '@/services/SharedDataService';
 
 export interface AuthState {
   user: User | null;
@@ -19,6 +21,15 @@ export interface AuthState {
   updateProfile: (data: any) => Promise<{ success: boolean; error?: Error }>;
   getManagedUsers: () => Promise<any[]>;
 }
+
+// Function to provide demo managed users when needed
+const getDemoManagedUsers = (): any[] => {
+  return [
+    { id: 'demo-user-1', name: 'John Doe', email: 'john@example.com', role: 'sales-rep' },
+    { id: 'demo-user-2', name: 'Jane Smith', email: 'jane@example.com', role: 'sales-rep' },
+    { id: 'demo-user-3', name: 'Alex Johnson', email: 'alex@example.com', role: 'sales-rep' },
+  ];
+};
 
 export const useAuthClient = (): AuthState => {
   const [user, setUser] = useState<User | null>(null);
@@ -197,30 +208,28 @@ export const useAuthClient = (): AuthState => {
         return localUsers;
       }
 
-      // If not available in storage, try to get from database if table exists
+      // Try to get from database if team_members table exists
       try {
-        // Check if table exists first to avoid unnecessary errors
-        const { count, error: countError } = await supabase
-          .from('team_members')
-          .select('*', { count: 'exact', head: true });
+        // Check if team_members table exists
+        const teamService = await import('@/services/TeamService').then(module => module.teamService);
+        const teamMembers = await teamService.getTeamMembers();
         
-        if (countError || count === 0) {
-          // Fallback to demo data if necessary
-          return getDemoManagedUsers();
+        if (teamMembers && teamMembers.length > 0) {
+          // Convert to managed users format
+          const managedUsers = teamMembers.map(member => ({
+            id: member.id,
+            name: member.name,
+            email: member.email,
+            role: member.role || 'sales-rep'
+          }));
+          
+          // Store for future use
+          sharedDataService.setManagedUsers(managedUsers);
+          return managedUsers;
         }
         
-        // Get actual data if table exists
-        const { data, error } = await supabase
-          .from('team_members')
-          .select('*');
-        
-        if (error || !data || data.length === 0) {
-          return getDemoManagedUsers();
-        }
-        
-        // Store for future use
-        sharedDataService.setManagedUsers(data);
-        return data;
+        // If no team members found, fall back to demo data
+        return getDemoManagedUsers();
       } catch (error) {
         // Handle specific database errors
         console.error('Error fetching managed users from database', error);

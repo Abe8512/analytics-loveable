@@ -1,103 +1,66 @@
 
-import { Json } from '@/types/supabase';
+import { CallTranscriptSegment, safeSegmentCast } from './metrics';
 
 export type SentimentType = 'positive' | 'negative' | 'neutral';
 
-export interface CallTranscriptSegment {
-  id: string;
-  start_time: number;
-  end_time: number;
-  speaker: string;
-  text: string;
-  sentiment?: number | SentimentType;
-}
-
 export interface CallTranscript {
   id: string;
-  call_id?: string;
   text: string;
+  duration: number;
+  sentiment: number | SentimentType;
+  created_at: string;
   filename?: string;
-  sentiment?: SentimentType | number;
-  keywords?: string[];
-  key_phrases?: string[];
-  duration?: number;
-  created_at?: string;
-  transcript_segments?: CallTranscriptSegment[] | Json;
-  user_id?: string;
-  user_name?: string;
   customer_name?: string;
-  assigned_to?: string;
+  user_name?: string;
+  call_id?: string;
   call_score?: number;
-  metadata?: any;
   start_time?: string;
   end_time?: string;
   speaker_count?: number;
-  transcription_text?: string;
+  user_id?: string;
+  keywords?: string[];
+  key_phrases?: string[];
+  assigned_to?: string;
+  metadata?: any;
+  transcript_segments?: CallTranscriptSegment[];
 }
 
-export interface TalkRatio {
-  agent: number;
-  customer: number;
-}
-
-export interface CallHistory {
-  id: string;
-  date: string;
-  duration: number;
-  sentiment?: number | {
-    agent: number;
-    customer: number;
-  };
-  talkRatio?: {
-    agent: number;
-    customer: number;
-  };
-  keyPhrases?: string[] | {
-    text: string;
-    sentiment?: number;
-  }[];
-}
-
-export function castToCallTranscript(data: any): CallTranscript {
+// Helper function to safely cast a database record to CallTranscript with proper typing
+export function safeCallTranscriptCast(data: any): CallTranscript {
+  // Handle segments properly - either parse from JSON or map if already an array
+  let segments: CallTranscriptSegment[] = [];
+  
+  if (data.transcript_segments) {
+    if (typeof data.transcript_segments === 'string') {
+      try {
+        segments = JSON.parse(data.transcript_segments).map(safeSegmentCast);
+      } catch (e) {
+        console.error('Error parsing transcript segments:', e);
+      }
+    } else if (Array.isArray(data.transcript_segments)) {
+      segments = data.transcript_segments.map(safeSegmentCast);
+    }
+  }
+  
   return {
-    id: data.id,
-    call_id: data.call_id,
+    id: data.id || '',
     text: data.text || '',
+    duration: typeof data.duration === 'number' ? data.duration : parseFloat(data.duration || '0'),
+    sentiment: data.sentiment || 'neutral',
+    created_at: data.created_at || new Date().toISOString(),
     filename: data.filename,
-    sentiment: data.sentiment,
-    keywords: data.keywords || [],
-    key_phrases: data.key_phrases || [],
-    duration: data.duration || 0,
-    created_at: data.created_at,
-    transcript_segments: Array.isArray(data.transcript_segments) 
-      ? data.transcript_segments
-      : [],
-    user_id: data.user_id,
-    user_name: data.user_name,
     customer_name: data.customer_name,
-    assigned_to: data.assigned_to,
+    user_name: data.user_name,
+    call_id: data.call_id,
     call_score: data.call_score,
-    metadata: data.metadata || {},
     start_time: data.start_time,
     end_time: data.end_time,
     speaker_count: data.speaker_count,
-    transcription_text: data.transcription_text
-  };
-}
-
-// Helper function to safely convert database objects to CallTranscript
-export function safeCallTranscriptCast(data: any): CallTranscript {
-  if (!data) return {} as CallTranscript;
-  
-  // Force casting to the expected type to avoid TS errors
-  const transcript: CallTranscript = {
-    ...data,
-    // Ensure consistent types for fields that may vary
-    sentiment: data.sentiment || 'neutral',
+    user_id: data.user_id,
     keywords: Array.isArray(data.keywords) ? data.keywords : [],
     key_phrases: Array.isArray(data.key_phrases) ? data.key_phrases : [],
-    transcript_segments: data.transcript_segments || []
+    assigned_to: data.assigned_to,
+    metadata: data.metadata || {},
+    transcript_segments: segments
   };
-  
-  return transcript;
 }

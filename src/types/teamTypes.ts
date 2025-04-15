@@ -1,39 +1,14 @@
 
-import { SentimentType } from './call';
-
 export interface TeamMember {
   id: string;
   name: string;
   email: string;
   role?: string;
-  avatar?: string;
-  avatar_url?: string;
-  user_id: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export type BulkUploadState = 'idle' | 'uploading' | 'complete' | 'error';
-
-export interface BulkUploadFilter {
-  force?: boolean;
-  limit?: number;
-  offset?: number;
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
-}
-
-export interface TeamPerformanceMetric {
-  id: string;
-  name: string;
-  value: number;
-  change: number;
-  trend: 'up' | 'down' | 'neutral';
-  performance: 'good' | 'average' | 'poor';
-  rep_id?: string;
+  user_id?: string;
 }
 
 export interface TeamPerformance {
+  id?: string;
   rep_id: string;
   rep_name: string;
   call_volume: number;
@@ -45,8 +20,6 @@ export interface TeamPerformance {
   positive_language_score: number;
   top_keywords: string[];
   last_call_date: string;
-  // Legacy compatibility fields
-  id?: string;
   name?: string;
   calls?: number;
   successRate?: number;
@@ -54,6 +27,13 @@ export interface TeamPerformance {
   conversionRate?: number;
 }
 
-export interface TeamTranscriptActivityProps {
-  memberId: string | null;
+// Helper to safely cast from one TeamMember interface to another
+export function safeTeamMemberCast(member: any): TeamMember {
+  return {
+    id: member.id || '',
+    name: member.name || '',
+    email: member.email || '',
+    role: member.role || 'sales-rep',
+    user_id: member.user_id || undefined
+  };
 }
