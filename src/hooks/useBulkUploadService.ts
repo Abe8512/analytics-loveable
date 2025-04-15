@@ -1,109 +1,78 @@
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BulkUploadService } from '@/services/BulkUploadService';
 import { BulkUploadFilter } from '@/types/teamTypes';
-import { useEventListener } from '@/services/events/hooks';
-import { v4 as uuidv4 } from 'uuid';
+import { BulkUploadFile } from '@/types/bulkUpload';
 
-export interface BulkUploadFile {
-  id: string;
-  file: File;
-  status: 'queued' | 'uploading' | 'processing' | 'complete' | 'error';
-  progress?: number;
-  error?: Error;
-  result?: any;
-}
-
-export const useBulkUploadService = () => {
-  const [files, setFiles] = useState<BulkUploadFile[]>([]);
+// Create a custom hook to provide bulk upload functionality
+export function useBulkUploadService() {
   const [isLoading, setIsLoading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
-  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
-  const [assignedUserId, setAssignedUserId] = useState<string>('');
-
-  // Listen for upload completion
-  useEventListener('bulk-upload-completed', () => {
-    refreshTranscripts();
-  });
-
-  const refreshTranscripts = async (filters?: BulkUploadFilter) => {
+  const [error, setError] = useState<Error | null>(null);
+  const [files, setFiles] = useState<BulkUploadFile[]>([]);
+  
+  // Initialize service once
+  const service = BulkUploadService;
+  
+  // Update files state when BulkUploadService files change
+  useEffect(() => {
+    setFiles(service.files);
+    
+    // Listen for file changes
+    const handleFilesChanged = () => {
+      setFiles([...service.files]);
+    };
+    
+    // Subscribe to file changes
+    service.subscribeToFileChanges(handleFilesChanged);
+    
+    // Cleanup
+    return () => {
+      service.unsubscribeFromFileChanges(handleFilesChanged);
+    };
+  }, [service]);
+  
+  // Wrapper for refreshTranscripts
+  const refreshTranscripts = async (filter?: BulkUploadFilter) => {
     setIsLoading(true);
+    setError(null);
+    
     try {
-      const transcriptions = await BulkUploadService.getTranscriptions(filters);
-      setUploadHistory(transcriptions || []);
-      setHasLoadedHistory(true);
-      return transcriptions;
-    } catch (error) {
-      console.error('Error refreshing transcriptions:', error);
-      throw error;
+      await service.refreshTranscripts(filter);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error refreshing transcripts'));
+      throw err;
     } finally {
       setIsLoading(false);
     }
   };
-
-  const addFiles = (newFiles: File[]) => {
-    const filesWithIds: BulkUploadFile[] = newFiles.map(file => ({
-      id: uuidv4(),
-      file,
-      status: 'queued'
-    }));
+  
+  // Wrapper for uploadFile
+  const uploadFile = async (file: File, assignTo?: string) => {
+    setIsLoading(true);
+    setError(null);
     
-    setFiles(prev => [...prev, ...filesWithIds]);
-    return filesWithIds;
-  };
-
-  const processQueue = async () => {
-    if (files.length === 0 || isProcessing) return;
-    
-    setIsProcessing(true);
-    
-    // Process files one by one
-    for (const file of files) {
-      // Update status to uploading
-      setFiles(prev => 
-        prev.map(f => f.id === file.id ? { ...f, status: 'uploading' } : f)
-      );
-      
-      try {
-        // Process the file
-        await BulkUploadService.processFile(file.file);
-        
-        // Update status to complete
-        setFiles(prev => 
-          prev.map(f => f.id === file.id ? { ...f, status: 'complete' } : f)
-        );
-      } catch (error) {
-        console.error(`Error processing file ${file.file.name}:`, error);
-        // Update status to error
-        setFiles(prev => 
-          prev.map(f => f.id === file.id ? { ...f, status: 'error', error: error as Error } : f)
-        );
-      }
+    try {
+      const result = await service.uploadFile(file, assignTo);
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error uploading file'));
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsProcessing(false);
-    
-    // Dispatch event that all uploads are complete
-    const event = new CustomEvent('bulk-upload-completed');
-    window.dispatchEvent(event);
   };
-
-  // Initial fetch
-  useEffect(() => {
-    refreshTranscripts();
-  }, []);
-
+  
   return {
     files,
     isLoading,
-    isProcessing,
-    uploadHistory,
-    hasLoadedHistory,
-    addFiles,
-    processQueue,
+    error,
     refreshTranscripts,
-    setAssignedUserId,
-    assignedUserId
+    uploadFile,
+    clearFiles: service.clearFiles,
+    removeFile: service.removeFile,
+    assignRepToFile: service.assignRepToFile
   };
-};
+}
+
+export default useBulkUploadService;

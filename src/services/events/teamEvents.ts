@@ -1,50 +1,44 @@
 
-import { EventsService } from "@/services/EventsService";
-import { TeamMember } from "@/types/teamTypes";
-import { EventType } from "@/services/events/types";
+import { TeamMember } from '@/types/teamTypes';
+import { EventsStore } from './store';
+import { EventPayload, TeamEventType, EventType } from './types';
 
-export enum TeamEventType {
-  TEAM_MEMBER_SELECTED = 'TEAM_MEMBER_SELECTED',
-  TEAM_MEMBER_ADDED = 'TEAM_MEMBER_ADDED',
-  TEAM_MEMBER_REMOVED = 'TEAM_MEMBER_REMOVED',
-  TEAM_MEMBER_UPDATED = 'TEAM_MEMBER_UPDATED',
-  TEAM_METRICS_UPDATED = 'TEAM_METRICS_UPDATED'
+/**
+ * Dispatches a team-member-added event
+ * @param teamMember The team member that was added
+ */
+export function dispatchTeamMemberAdded(teamMember: TeamMember) {
+  EventsStore.dispatchEvent('team-member-added' as EventType, {
+    teamMember,
+    timestamp: Date.now()
+  });
 }
 
 /**
- * Dispatches a team member selected event
- * @param member The selected team member
+ * Adds a listener for the team-member-added event
+ * @param callback Function to call when the event is triggered
+ * @returns Function to remove the listener
  */
-export const dispatchTeamMemberSelected = (member: TeamMember | null) => {
-  EventsService.dispatchEvent(TeamEventType.TEAM_MEMBER_SELECTED as EventType, { member });
-};
+export function onTeamMemberAdded(callback: (payload: EventPayload) => void) {
+  return EventsStore.addEventListener('team-member-added' as EventType, callback);
+}
 
 /**
- * Registers a listener for team member selection events
- * @param callback The callback function to execute when a team member is selected
- * @returns A function to remove the event listener
+ * Dispatches a team-member-removed event
+ * @param teamMemberId ID of the team member that was removed
  */
-export const onTeamMemberSelected = (callback: (member: TeamMember | null) => void) => {
-  return EventsService.addEventListener(TeamEventType.TEAM_MEMBER_SELECTED as EventType, (data) => {
-    callback(data?.member || null);
+export function dispatchTeamMemberRemoved(teamMemberId: string) {
+  EventsStore.dispatchEvent('team-member-removed' as EventType, {
+    teamMemberId,
+    timestamp: Date.now()
   });
-};
+}
 
 /**
- * Dispatches a team metrics updated event
- * @param metrics The updated metrics
+ * Adds a listener for the team-member-removed event
+ * @param callback Function to call when the event is triggered
+ * @returns Function to remove the listener
  */
-export const dispatchTeamMetricsUpdated = (metrics: any) => {
-  EventsService.dispatchEvent(TeamEventType.TEAM_METRICS_UPDATED as EventType, { metrics });
-};
-
-/**
- * Registers a listener for team metrics updated events
- * @param callback The callback function to execute when team metrics are updated
- * @returns A function to remove the event listener
- */
-export const onTeamMetricsUpdated = (callback: (metrics: any) => void) => {
-  return EventsService.addEventListener(TeamEventType.TEAM_METRICS_UPDATED as EventType, (data) => {
-    callback(data?.metrics || null);
-  });
-};
+export function onTeamMemberRemoved(callback: (payload: EventPayload) => void) {
+  return EventsStore.addEventListener('team-member-removed' as EventType, callback);
+}

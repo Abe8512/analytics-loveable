@@ -2,28 +2,15 @@
 export interface BulkUploadFile {
   id: string;
   file: File;
+  name: string;
+  size: number;
+  type: string;
+  status: 'queued' | 'processing' | 'complete' | 'error';
   progress: number;
-  status: 'queued' | 'uploading' | 'processing' | 'complete' | 'error' | 'pending';
+  result?: string;
   error?: string;
   transcriptId?: string;
+  assignedTo?: string;
 }
 
-export interface BulkUploadTranscript {
-  id: string;
-  filename: string;
-  text: string;
-  created_at: string;
-  duration: number;
-  sentiment: string;
-  keywords: string[];
-}
-
-export interface BulkUploadFilter {
-  force?: boolean;
-  limit?: number;
-  offset?: number;
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
-}
-
-export type UploadState = 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
+export type BulkUploadStatus = 'idle' | 'uploading' | 'complete' | 'error';

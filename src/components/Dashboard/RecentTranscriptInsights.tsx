@@ -1,153 +1,124 @@
-
+// Update the import and fix the type issue
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useNavigate } from 'react-router-dom';
-import { CallTranscript } from '@/types/call';
-import { useTranscript } from '@/contexts/TranscriptContext';
-import { formatDistanceToNow } from 'date-fns';
-import { LineChart, BarChart, MessageSquare } from 'lucide-react';
+import { useTranscripts } from '@/contexts/TranscriptContext'; // Fixed import
+import { CallTranscript, SentimentType } from '@/types/call';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
-const RecentTranscriptInsights: React.FC = () => {
-  const { transcripts, isLoading } = useTranscript();
-  const navigate = useNavigate();
+interface RecentTranscriptInsightsProps {
+  limit?: number;
+}
+
+const RecentTranscriptInsights: React.FC<RecentTranscriptInsightsProps> = ({ limit = 3 }) => {
+  const { transcripts, isLoading, error } = useTranscripts();
   const [recentTranscripts, setRecentTranscripts] = useState<CallTranscript[]>([]);
   
   useEffect(() => {
     if (transcripts && transcripts.length > 0) {
-      // Sort by date (newest first) and take the first 5
-      const sorted = [...transcripts]
-        .sort((a, b) => {
-          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return dateB - dateA;
-        })
-        .slice(0, 5);
+      // Sort by created_at in descending order to get the most recent
+      const sortedTranscripts = [...transcripts].sort((a, b) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateB - dateA;
+      });
       
-      setRecentTranscripts(sorted);
+      // Take the top 'limit' transcripts
+      setRecentTranscripts(sortedTranscripts.slice(0, limit));
     }
-  }, [transcripts]);
-  
-  const formatTime = (dateString?: string) => {
-    if (!dateString) return 'Unknown';
-    try {
-      return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-    } catch (e) {
-      return dateString;
-    }
-  };
-  
-  const getSentimentColor = (sentiment?: string) => {
-    switch (sentiment) {
-      case 'positive': return 'bg-green-100 text-green-800';
-      case 'negative': return 'bg-red-100 text-red-800';
-      default: return 'bg-blue-100 text-blue-800';
-    }
-  };
-  
-  const handleViewTranscript = (id: string) => {
-    navigate(`/transcripts?id=${id}`);
-  };
-  
-  const handleViewAllTranscripts = () => {
-    navigate('/transcripts');
-  };
+  }, [transcripts, limit]);
   
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Recent Transcripts</CardTitle>
+          <CardTitle>Recent Transcripts</CardTitle>
+          <CardDescription>Loading recent call transcripts...</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="animate-pulse">
-                <div className="h-5 bg-muted rounded w-1/3 mb-2"></div>
-                <div className="h-4 bg-muted rounded w-full"></div>
-              </div>
-            ))}
-          </div>
+          <p>Loading...</p>
         </CardContent>
       </Card>
     );
   }
   
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Transcripts</CardTitle>
+          <CardDescription>Failed to load recent call transcripts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>Error: {error}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  const getSentimentBadge = (sentiment: number | SentimentType | undefined) => {
+    if (sentiment === undefined) return null;
+    
+    let sentimentText: string;
+    let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "default";
+    
+    const sentimentValue = typeof sentiment === 'number'
+      ? sentiment > 0.66 ? 'positive' : sentiment > 0.33 ? 'neutral' : 'negative'
+      : sentiment;
+    
+    if (sentimentValue === 'positive') {
+      sentimentText = 'Positive';
+      badgeVariant = 'default';
+    } else if (sentimentValue === 'negative') {
+      sentimentText = 'Negative';
+      badgeVariant = 'destructive';
+    } else {
+      sentimentText = 'Neutral';
+      badgeVariant = 'secondary';
+    }
+    
+    return <Badge variant={badgeVariant}>{sentimentText}</Badge>;
+  };
+  
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl flex items-center">
-          <MessageSquare className="h-5 w-5 mr-2" />
-          Recent Transcripts
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {recentTranscripts && recentTranscripts.length > 0 ? (
-          <div className="space-y-4">
-            {recentTranscripts.map(transcript => (
-              <div 
-                key={transcript.id} 
-                className="p-3 border rounded-md hover:bg-accent/20 transition-colors cursor-pointer"
-                onClick={() => handleViewTranscript(transcript.id)}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <div className="font-medium truncate">
-                    {transcript.user_name || 'Unknown'} {transcript.customer_name ? `→ ${transcript.customer_name}` : ''}
-                  </div>
-                  <Badge className={getSentimentColor(transcript.sentiment)}>
-                    {transcript.sentiment || 'neutral'}
-                  </Badge>
-                </div>
-                
-                <p className="text-sm text-muted-foreground truncate mb-2">
-                  {transcript.text ? transcript.text.substring(0, 80) + '...' : 'No text available'}
-                </p>
-                
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{formatTime(transcript.created_at)}</span>
-                  
-                  <div className="flex items-center space-x-2">
-                    {transcript.duration && (
-                      <span>{Math.floor(transcript.duration / 60)}:{(transcript.duration % 60).toString().padStart(2, '0')}</span>
-                    )}
-                    
-                    {transcript.call_score !== undefined && (
-                      <div className="flex items-center">
-                        <span className={
-                          (transcript.call_score || 0) > 70 ? 'text-green-600' :
-                          (transcript.call_score || 0) > 40 ? 'text-amber-500' : 'text-red-500'
-                        }>
-                          {transcript.call_score}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            <Button 
-              variant="outline" 
-              className="w-full" 
-              size="sm"
-              onClick={handleViewAllTranscripts}
-            >
-              View All Transcripts
+        <div className="flex justify-between">
+          <div>
+            <CardTitle>Recent Transcripts</CardTitle>
+            <CardDescription>Latest call recordings and insights</CardDescription>
+          </div>
+          <Link to="/call-activity">
+            <Button size="sm" variant="outline">
+              View All
+              <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {recentTranscripts.length === 0 ? (
+          <div className="p-4 text-center text-muted-foreground">
+            No recent transcripts available.
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No recent transcripts available</p>
-            <Button 
-              variant="outline" 
-              className="mt-4" 
-              size="sm"
-              onClick={handleViewAllTranscripts}
-            >
-              Browse Transcripts
-            </Button>
-          </div>
+          <ul className="divide-y divide-border">
+            {recentTranscripts.map((transcript) => (
+              <li key={transcript.id} className="p-4 hover:bg-secondary/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">{transcript.filename || 'Unknown Call'}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {transcript.created_at ? new Date(transcript.created_at).toLocaleDateString() : 'Unknown Date'}
+                    </p>
+                  </div>
+                  {getSentimentBadge(transcript.sentiment)}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </CardContent>
     </Card>

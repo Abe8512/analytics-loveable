@@ -55,7 +55,7 @@ export const EVENT_TYPES = {
   METRICS_REFRESHED: 'metrics-refreshed' as EventType
 };
 
-// Adding a TeamEventType for better type safety
+// Add TeamEventType as a subset of EventType to resolve type casting issues
 export type TeamEventType = 
   | 'team-member-added'
   | 'team-member-removed'

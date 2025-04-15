@@ -1,6 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { CallTranscript } from "@/types/call";
+import { CallTranscript, CallTranscriptSegment } from '@/types/call';
 
 export interface AdvancedMetric {
   name: string;
@@ -409,6 +408,66 @@ export class AdvancedMetricsService {
       handled_objections: handledCount,
       effectiveness,
       details
+    };
+  }
+
+  /**
+   * Calculate sentiment distribution from transcript
+   */
+  static calculateSentimentDistribution(transcript: CallTranscript) {
+    const segments = Array.isArray(transcript.transcript_segments)
+      ? transcript.transcript_segments as CallTranscriptSegment[]
+      : [];
+
+    if (segments.length === 0) {
+      return {
+        positive: 0,
+        neutral: 0,
+        negative: 0
+      };
+    }
+
+    let positive = 0;
+    let neutral = 0;
+    let negative = 0;
+
+    segments.forEach(segment => {
+      // Get sentiment value with proper type handling
+      let sentimentValue = segment.sentiment;
+      
+      // If sentiment is missing, use neutral as default
+      if (sentimentValue === undefined) {
+        neutral++;
+        return;
+      }
+      
+      // Handle numeric sentiment
+      if (typeof sentimentValue === 'number') {
+        if (sentimentValue > 0.66) {
+          positive++;
+        } else if (sentimentValue < 0.33) {
+          negative++;
+        } else {
+          neutral++;
+        }
+      } 
+      // Handle string sentiment
+      else {
+        if (sentimentValue === 'positive') {
+          positive++;
+        } else if (sentimentValue === 'negative') {
+          negative++;
+        } else {
+          neutral++;
+        }
+      }
+    });
+
+    const total = segments.length;
+    return {
+      positive: Math.round((positive / total) * 100),
+      neutral: Math.round((neutral / total) * 100),
+      negative: Math.round((negative / total) * 100)
     };
   }
 }

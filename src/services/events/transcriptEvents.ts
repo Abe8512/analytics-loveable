@@ -1,14 +1,13 @@
-
-import { EventsService } from "@/services/EventsService";
-import { CallTranscript } from "@/types/call";
-import { EventType } from "@/services/events/types";
+import { CallTranscript } from '@/types/call';
+import { EventsStore } from './store';
+import { EventType, EVENT_TYPES } from './types';
 
 /**
  * Dispatches a transcript selected event
  * @param transcript The selected transcript
  */
 export const dispatchTranscriptSelected = (transcript: CallTranscript | null) => {
-  EventsService.dispatchEvent('transcript-selected' as EventType, { transcript });
+  EventsStore.dispatchEvent('transcript-selected' as EventType, { transcript });
 };
 
 /**
@@ -17,7 +16,7 @@ export const dispatchTranscriptSelected = (transcript: CallTranscript | null) =>
  * @returns A function to remove the event listener
  */
 export const onTranscriptSelected = (callback: (transcript: CallTranscript | null) => void) => {
-  return EventsService.addEventListener('transcript-selected' as EventType, (data) => {
+  return EventsStore.addEventListener('transcript-selected' as EventType, (data) => {
     callback(data?.transcript || null);
   });
 };
@@ -27,21 +26,21 @@ export const onTranscriptSelected = (callback: (transcript: CallTranscript | nul
  * @param transcriptId The ID of the updated transcript
  * @param sentiment The new sentiment value
  */
-export const dispatchSentimentUpdated = (transcriptId: string, sentiment: string) => {
-  EventsService.dispatchEvent('sentiment-updated' as EventType, { 
-    transcriptId, 
-    sentiment,
-    timestamp: new Date().toISOString()
+export function dispatchSentimentUpdated(transcriptId: string, sentiment: string | number) {
+  EventsStore.dispatchEvent(EVENT_TYPES.SENTIMENT_UPDATED, {
+    transcriptId,
+    sentiment: String(sentiment),
+    timestamp: Date.now()
   });
-};
+}
 
 /**
  * Registers a listener for sentiment updated events
  * @param callback The callback function to execute when sentiment is updated
  * @returns A function to remove the event listener
  */
-export const onSentimentUpdated = (callback: (data: { transcriptId: string, sentiment: string }) => void) => {
-  return EventsService.addEventListener('sentiment-updated' as EventType, (data) => {
+export const onSentimentUpdated = (callback: (data: { transcriptId: string, sentiment: string | number }) => void) => {
+  return EventsStore.addEventListener('sentiment-updated' as EventType, (data) => {
     if (data?.transcriptId && data?.sentiment) {
       callback({
         transcriptId: data.transcriptId,
@@ -56,7 +55,7 @@ export const onSentimentUpdated = (callback: (data: { transcriptId: string, sent
  * @param changedTranscripts Optional array of changed transcripts
  */
 export const dispatchTranscriptsUpdated = (changedTranscripts?: CallTranscript[]) => {
-  EventsService.dispatchEvent('transcripts-updated' as EventType, { 
+  EventsStore.dispatchEvent('transcripts-updated' as EventType, { 
     changedTranscripts,
     timestamp: new Date().toISOString()
   });
@@ -68,7 +67,7 @@ export const dispatchTranscriptsUpdated = (changedTranscripts?: CallTranscript[]
  * @returns A function to remove the event listener
  */
 export const onTranscriptsUpdated = (callback: (data: { changedTranscripts?: CallTranscript[], timestamp: string }) => void) => {
-  return EventsService.addEventListener('transcripts-updated' as EventType, (data) => {
+  return EventsStore.addEventListener('transcripts-updated' as EventType, (data) => {
     callback({
       changedTranscripts: data?.changedTranscripts,
       timestamp: data?.timestamp || new Date().toISOString()

@@ -45,7 +45,7 @@ export interface TeamPerformance {
   positive_language_score: number;
   top_keywords: string[];
   last_call_date: string;
-  // For compatibility with existing code
+  // Legacy compatibility fields
   id?: string;
   name?: string;
   calls?: number;

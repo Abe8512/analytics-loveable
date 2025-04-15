@@ -9,6 +9,7 @@ export interface CallTranscriptSegment {
   end_time: number;
   speaker: string;
   text: string;
+  sentiment?: number | SentimentType;
 }
 
 export interface CallTranscript {
@@ -21,7 +22,7 @@ export interface CallTranscript {
   key_phrases?: string[];
   duration?: number;
   created_at?: string;
-  transcript_segments?: CallTranscriptSegment[];
+  transcript_segments?: CallTranscriptSegment[] | Json;
   user_id?: string;
   user_name?: string;
   customer_name?: string;
@@ -51,7 +52,7 @@ export interface CallHistory {
     agent: number;
     customer: number;
   };
-  keyPhrases?: {
+  keyPhrases?: string[] | {
     text: string;
     sentiment?: number;
   }[];
@@ -82,4 +83,21 @@ export function castToCallTranscript(data: any): CallTranscript {
     speaker_count: data.speaker_count,
     transcription_text: data.transcription_text
   };
+}
+
+// Helper function to safely convert database objects to CallTranscript
+export function safeCallTranscriptCast(data: any): CallTranscript {
+  if (!data) return {} as CallTranscript;
+  
+  // Force casting to the expected type to avoid TS errors
+  const transcript: CallTranscript = {
+    ...data,
+    // Ensure consistent types for fields that may vary
+    sentiment: data.sentiment || 'neutral',
+    keywords: Array.isArray(data.keywords) ? data.keywords : [],
+    key_phrases: Array.isArray(data.key_phrases) ? data.key_phrases : [],
+    transcript_segments: data.transcript_segments || []
+  };
+  
+  return transcript;
 }

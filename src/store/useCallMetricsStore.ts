@@ -14,6 +14,15 @@ export interface CallMetricsState {
   keywords: string[];
   callHistory: any[];
   isRecording: boolean;
+  keyPhrases?: any[];
+  coachingAlerts?: {
+    id: string;
+    type: 'warning' | 'info' | 'critical';
+    message: string;
+    timestamp: Date;
+    dismissed: boolean;
+  }[];
+  isTalkingMap?: { agent: boolean; customer: boolean };
 }
 
 export const useCallMetricsStore = create<CallMetricsState & {
@@ -26,6 +35,10 @@ export const useCallMetricsStore = create<CallMetricsState & {
   addCallToHistory: (call: any) => void;
   loadPastCalls: () => void;
   clearMetrics: () => void;
+  startRecording: () => void;
+  stopRecording: () => Promise<void>;
+  updateCallMetrics: (metrics: Partial<CallMetricsState>) => void;
+  dismissAlert: (id: string) => void;
 }>((set) => ({
   sentiment: null,
   duration: 0,
@@ -34,6 +47,9 @@ export const useCallMetricsStore = create<CallMetricsState & {
   keywords: [],
   callHistory: [],
   isRecording: false,
+  keyPhrases: [],
+  coachingAlerts: [],
+  isTalkingMap: { agent: false, customer: false },
 
   setSentiment: (sentiment) => set({ sentiment }),
   setDuration: (duration) => set({ duration }),
@@ -44,6 +60,27 @@ export const useCallMetricsStore = create<CallMetricsState & {
   
   addCallToHistory: (call) => set((state) => ({ 
     callHistory: [call, ...state.callHistory] 
+  })),
+  
+  startRecording: () => set({ 
+    isRecording: true,
+    coachingAlerts: []
+  }),
+  
+  stopRecording: async () => {
+    set({ isRecording: false });
+    return Promise.resolve();
+  },
+  
+  updateCallMetrics: (metrics) => set((state) => ({
+    ...state,
+    ...metrics
+  })),
+  
+  dismissAlert: (id) => set((state) => ({
+    coachingAlerts: state.coachingAlerts?.map(alert => 
+      alert.id === id ? { ...alert, dismissed: true } : alert
+    ) || []
   })),
   
   loadPastCalls: () => {

@@ -1,4 +1,3 @@
-
 import React, { useContext, useEffect, useState } from "react";
 import { Copy, Flag, Play, User, Mic, Download } from "lucide-react";
 import AIWaveform from "../ui/AIWaveform";
@@ -9,7 +8,7 @@ import { getStoredTranscriptions, StoredTranscription } from "@/services/Whisper
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { CallTranscript as CallTranscriptType } from "@/types/call";
+import { CallTranscript as CallTranscriptType, safeCallTranscriptCast } from "@/types/call";
 
 interface MessageProps {
   sender: "agent" | "customer";
@@ -83,8 +82,9 @@ const CallTranscript: React.FC<CallTranscriptProps> = ({ transcriptId }) => {
             throw error;
           }
           
-          setTranscript(data as CallTranscriptType);
-          processTranscriptData(data as CallTranscriptType);
+          const safeTranscript = safeCallTranscriptCast(data);
+          setTranscript(safeTranscript);
+          processTranscriptData(safeTranscript);
         } catch (err) {
           console.error('Error fetching transcript:', err);
           // Fallback to local storage

@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { supabase } from "@/integrations/supabase/client";
 import { teamService } from "./TeamService";
 import { safeSupabaseOperation } from "@/integrations/supabase/errorHandling";
+import { EventType, EVENT_TYPES } from "./events/types";
 
 export type UploadStatus = 'queued' | 'processing' | 'complete' | 'error';
 
@@ -144,7 +145,7 @@ export class BulkUploadProcessorService {
         progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
         
         // Dispatch event for other components
-        EventsStore.dispatchEvent('call-uploaded', {
+        EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED, {
           transcriptId,
           fileName: file.name,
           assignedTo: this.assignedUserId,
@@ -176,7 +177,7 @@ export class BulkUploadProcessorService {
           progressCallback('complete', 100, 'File processed successfully', undefined, transcriptId);
           
           // Dispatch event for other components
-          EventsStore.dispatchEvent('call-uploaded', {
+          EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED, {
             transcriptId,
             fileName: file.name,
             assignedTo: this.assignedUserId,
@@ -209,7 +210,7 @@ export class BulkUploadProcessorService {
             progressCallback('complete', 100, 'File processed (minimal data saved)', undefined, transcriptId);
             
             // Dispatch event for other components
-            EventsStore.dispatchEvent('call-uploaded', {
+            EventsStore.dispatchEvent(EVENT_TYPES.CALL_UPLOADED, {
               transcriptId,
               fileName: file.name,
               assignedTo: this.assignedUserId,

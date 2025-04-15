@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Zap, BarChart2, Cpu } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { CallTranscript } from '@/types/call';
+import { CallTranscript, safeCallTranscriptCast } from '@/types/call';
 import { AdvancedMetricsService, TalkRatioMetrics, ObjectionHandlingMetrics, SentimentHeatmapPoint } from '@/services/AdvancedMetricsService';
 import EnhancedTalkRatioCard from './EnhancedTalkRatioCard';
 import SentimentHeatmapCard from './SentimentHeatmapCard';
@@ -64,8 +63,9 @@ const AdvancedCallMetrics: React.FC<AdvancedCallMetricsProps> = ({ transcriptId,
           throw error;
         }
         
-        setTranscript(data as CallTranscript);
-        generateMetrics(data as CallTranscript);
+        const safeTranscript = safeCallTranscriptCast(data);
+        setTranscript(safeTranscript);
+        generateMetrics(safeTranscript);
       } catch (err) {
         console.error('Error fetching transcript for advanced metrics:', err);
         toast({

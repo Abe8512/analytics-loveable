@@ -36,7 +36,7 @@ export interface CallMetricsState {
     negative: string[];
   };
   
-  // Additional properties needed to fix errors
+  // Missing properties added below
   callDuration: number;
   isTalkingMap: { agent: boolean; customer: boolean };
   coachingAlerts: {
@@ -46,6 +46,8 @@ export interface CallMetricsState {
     timestamp: Date;
     dismissed: boolean;
   }[];
+  keywords: string[];
+  keyPhrases?: any[];
   
   // Functions
   startRecording: () => void;

@@ -1,9 +1,8 @@
-
+import { TeamMember } from '@/types/teamTypes';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { EventsStore } from './events/store';
 import { EVENT_TYPES } from './events/types';
-import { TeamMember } from '@/types/teamTypes';
 
 export type { TeamMember };
 
@@ -210,6 +209,72 @@ class TeamServiceClass {
   // Clear the cache
   clearCache(): void {
     this.teamMembersCache = null;
+  }
+  
+  async updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember> {
+    try {
+      // Try to update in Supabase if the table exists
+      if (!await this.isTeamMembersTableMissing()) {
+        const { data, error } = await supabase
+          .from('team_members')
+          .update(updates)
+          .eq('id', id)
+          .select('*')
+          .single();
+          
+        if (error) {
+          throw error;
+        }
+        
+        if (data) {
+          // Also update in local storage
+          this.updateLocalTeamMember(id, updates);
+          
+          // Dispatch event for updated team member
+          EventsStore.dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, {
+            teamMember: data
+          });
+          
+          return data as TeamMember;
+        }
+      }
+      
+      // Fall back to local storage update
+      return this.updateLocalTeamMember(id, updates);
+    } catch (error) {
+      console.error('Error updating team member:', error);
+      
+      // Always fall back to local storage
+      return this.updateLocalTeamMember(id, updates);
+    }
+  }
+  
+  private updateLocalTeamMember(id: string, updates: Partial<TeamMember>): TeamMember {
+    const teamMembers = this.getLocalStorageTeamMembers();
+    const teamMemberIndex = teamMembers.findIndex(member => member.id === id);
+    
+    if (teamMemberIndex === -1) {
+      throw new Error(`Team member with ID ${id} not found`);
+    }
+    
+    // Update the team member
+    const updatedMember = {
+      ...teamMembers[teamMemberIndex],
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+    
+    teamMembers[teamMemberIndex] = updatedMember;
+    
+    // Save updated list to localStorage
+    localStorage.setItem('teamMembers', JSON.stringify(teamMembers));
+    
+    // Dispatch event
+    EventsStore.dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, {
+      teamMember: updatedMember
+    });
+    
+    return updatedMember;
   }
 }
 

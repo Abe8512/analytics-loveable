@@ -1,51 +1,51 @@
-
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { CallTranscript } from '@/types/call';
+import { CallTranscript, safeCallTranscriptCast } from '@/types/call';
+import { TeamTranscriptActivityProps } from '@/types/teamTypes';
+import { useToast } from '@/hooks/use-toast';
+import { Card } from '@/components/ui/card';
 
-export interface TeamTranscriptActivityProps {
-  memberId: string | null;
-}
-
-export const TeamTranscriptActivity: React.FC<TeamTranscriptActivityProps> = ({ memberId }) => {
-  const [isLoading, setIsLoading] = useState(true);
+const TeamTranscriptActivity: React.FC<TeamTranscriptActivityProps> = ({ memberId }) => {
   const [transcripts, setTranscripts] = useState<CallTranscript[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchTranscripts = async () => {
+      if (!memberId) {
+        setTranscripts([]);
+        return;
+      }
+
       setIsLoading(true);
       try {
-        let query = supabase
+        const { data, error } = await supabase
           .from('call_transcripts')
           .select('*')
-          .order('created_at', { ascending: false });
-        
-        // Filter by member ID if provided
-        if (memberId) {
-          query = query.eq('assigned_to', memberId);
-        }
-        
-        // Limit to 10 most recent
-        query = query.limit(10);
-        
-        const { data, error } = await query;
-        
+          .eq('assigned_to', memberId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
         if (error) {
           throw error;
         }
-        
-        setTranscripts(data || []);
+
+        const safeTranscripts = data.map(item => safeCallTranscriptCast(item));
+        setTranscripts(safeTranscripts);
       } catch (error) {
-        console.error('Error fetching transcripts:', error);
+        console.error('Error fetching team member transcripts:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load team member transcripts",
+          variant: "destructive"
+        });
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     fetchTranscripts();
-  }, [memberId]);
+  }, [memberId, toast]);
 
   if (isLoading) {
     return (
@@ -108,3 +108,5 @@ function formatDuration(seconds: number): string {
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+export default TeamTranscriptActivity;

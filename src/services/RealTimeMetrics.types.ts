@@ -17,3 +17,5 @@ export interface RepMetric {
 
 export type TeamMetrics = TeamMetric[];
 export type RepMetrics = RepMetric[];
+
+export type SpeakerType = 'agent' | 'customer' | 'unknown';
