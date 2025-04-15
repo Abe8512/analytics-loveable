@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useCallback } from "react";
 import { CallTranscript } from "@/types/call";
@@ -161,4 +160,45 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
     totalPages,
     refreshData
   };
+};
+
+/**
+ * Creates a new call transcript
+ * @param transcriptData 
+ * @returns 
+ */
+export const createCallTranscript = async (transcriptData: Partial<CallTranscript>) => {
+  try {
+    // Ensure we have the required fields
+    if (!transcriptData.text) {
+      console.error('Missing required fields for transcript creation');
+      return { error: 'Missing required fields', data: null };
+    }
+    
+    // Insert the transcript into the database
+    const { data, error } = await supabase
+      .from('call_transcripts')
+      .insert({
+        text: transcriptData.text,
+        filename: transcriptData.filename,
+        duration: transcriptData.duration || 0,
+        sentiment: transcriptData.sentiment || 'neutral',
+        keywords: transcriptData.keywords || [],
+        key_phrases: transcriptData.key_phrases || [],
+        call_score: transcriptData.call_score || 50,
+        user_name: transcriptData.user_name,
+        customer_name: transcriptData.customer_name,
+        assigned_to: transcriptData.assigned_to,
+        metadata: transcriptData.metadata || {}
+      })
+      .select()
+      .single();
+      
+    if (error) throw error;
+    
+    return { error: null, data };
+  } catch (err) {
+    console.error('Error creating call transcript:', err);
+    return { error: err as Error, data: null };
+  }
 };

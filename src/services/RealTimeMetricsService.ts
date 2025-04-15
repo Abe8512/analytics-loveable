@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { TeamPerformanceMetric, TeamPerformance } from '@/types/teamTypes';
 import { EventsService } from './EventsService';
+import { supabase } from '@/integrations/supabase/client';
+import { TeamPerformance } from '@/types/teamTypes';
+import { EventsStore } from './events/store';
+import { EventType, EVENT_TYPES } from './events/types';
 
 export interface TeamMetrics {
   callVolume: number;
@@ -104,6 +108,32 @@ const generateMockRepMetrics = (id: string, name: string): RepMetrics => {
     })),
     topKeywords: ['product', 'pricing', 'features', 'support', 'upgrade'].slice(0, Math.floor(Math.random() * 5) + 1),
   };
+};
+
+/**
+ * Refresh all metrics data
+ */
+export const refreshMetrics = async () => {
+  try {
+    console.log('Refreshing all metrics data...');
+    // Perform the refresh operations
+    await Promise.all([
+      refreshTeamPerformance(),
+      refreshCallVolume(),
+      refreshKeywordTrends()
+    ]);
+    
+    // Dispatch event to notify components
+    EventsStore.dispatchEvent(EVENT_TYPES.METRICS_REFRESHED as EventType, {
+      timestamp: new Date().toISOString(),
+      source: 'RealTimeMetricsService'
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error refreshing metrics:', error);
+    return { success: false, error };
+  }
 };
 
 // Custom hooks for accessing metrics

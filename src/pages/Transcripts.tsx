@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
@@ -43,12 +42,10 @@ export default function Transcripts() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // Ensure initial load
   useEffect(() => {
     fetchTranscripts({ force: true });
   }, [fetchTranscripts]);
   
-  // Filter transcripts based on search term - memoized to prevent unnecessary rerenders
   const filteredTranscripts = useMemo(() => {
     if (!Array.isArray(transcripts)) return [];
     
@@ -60,7 +57,6 @@ export default function Transcripts() {
     );
   }, [transcripts, searchTerm]);
   
-  // Sort transcripts based on sort field and order - memoized to prevent unnecessary rerenders
   const sortedTranscripts = useMemo(() => {
     return [...filteredTranscripts].sort((a, b) => {
       switch (sortField) {
@@ -122,12 +118,10 @@ export default function Transcripts() {
         description: "The transcript has been deleted successfully.",
       });
       
-      // If we're viewing the deleted transcript, close it
       if (viewId === id) {
         handleCloseTranscript();
       }
       
-      // Refresh the transcript list
       fetchTranscripts({ force: true });
       
     } catch (error) {
@@ -153,18 +147,15 @@ export default function Transcripts() {
     }
 
     try {
-      // Create a blob with the transcript text
       const blob = new Blob([transcript.text], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       
-      // Create a download link and trigger it
       const a = document.createElement('a');
       a.href = url;
       a.download = `transcript-${transcript.id.substring(0, 8)}.txt`;
       document.body.appendChild(a);
       a.click();
       
-      // Clean up
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
@@ -204,7 +195,34 @@ export default function Transcripts() {
     neutral: 'bg-blue-100 text-blue-800',
   };
   
-  // Determine if transcripts are actually loading
+  const renderSentiment = (sentiment: any) => {
+    if (!sentiment) return <span className="text-muted-foreground">N/A</span>;
+    
+    if (typeof sentiment === 'object' && sentiment !== null) {
+      const avgSentiment = (sentiment.agent + sentiment.customer) / 2;
+      return renderSentimentValue(avgSentiment);
+    }
+    
+    if (typeof sentiment === 'string') {
+      if (sentiment === 'positive') return <Badge variant="success">Positive</Badge>;
+      if (sentiment === 'negative') return <Badge variant="destructive">Negative</Badge>;
+      if (sentiment === 'neutral') return <Badge variant="secondary">Neutral</Badge>;
+      return <span className="text-muted-foreground">{sentiment}</span>;
+    }
+    
+    if (typeof sentiment === 'number') {
+      return renderSentimentValue(sentiment);
+    }
+    
+    return <span className="text-muted-foreground">Unknown</span>;
+  };
+  
+  const renderSentimentValue = (value: number) => {
+    if (value > 0.66) return <Badge variant="success">Positive</Badge>;
+    if (value > 0.33) return <Badge variant="secondary">Neutral</Badge>;
+    return <Badge variant="destructive">Negative</Badge>;
+  };
+  
   const isLoading = loading && (!transcripts || transcripts.length === 0);
   
   return (
@@ -218,7 +236,6 @@ export default function Transcripts() {
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left column - transcript list */}
           <div className={`space-y-6 ${viewId ? 'lg:col-span-6' : 'lg:col-span-12'}`}>
             <div className="flex flex-col sm:flex-row gap-2 justify-between items-start sm:items-center">
               <div className="w-full sm:w-auto max-w-md">
@@ -398,15 +415,7 @@ export default function Transcripts() {
                             {formatDuration(transcript.duration)}
                           </td>
                           <td className="p-4">
-                            <Badge
-                              className={
-                                transcript.sentiment && 
-                                sentimentColors[transcript.sentiment as keyof typeof sentimentColors] || 
-                                sentimentColors.neutral
-                              }
-                            >
-                              {transcript.sentiment || 'neutral'}
-                            </Badge>
+                            {renderSentiment(transcript.sentiment)}
                           </td>
                           <td className="p-4">
                             <div
@@ -460,7 +469,6 @@ export default function Transcripts() {
             </Card>
           </div>
           
-          {/* Right column - transcript viewer */}
           {viewId && (
             <div className="lg:col-span-6">
               <div className="h-full min-h-[600px]">

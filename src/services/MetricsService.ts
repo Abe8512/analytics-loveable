@@ -1,5 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { generateDemoRepMetricsData } from '@/services/DemoDataService';
 import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
 import { createEmptyMetrics, createEmptyCallMetrics, createEmptyCallQualityMetrics } from '@/utils/emptyStateUtils';
 
@@ -103,6 +102,7 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
           report_date: new Date().toISOString().split('T')[0],
           total_calls: transcriptData.length,
           avg_duration: transcriptData.reduce((sum, t) => sum + (t.duration || 0), 0) / transcriptData.length,
+          total_duration: transcriptData.reduce((sum, t) => sum + (t.duration || 0), 0),
           positive_sentiment_count: transcriptData.filter(t => t.sentiment === 'positive').length,
           negative_sentiment_count: transcriptData.filter(t => t.sentiment === 'negative').length,
           neutral_sentiment_count: transcriptData.filter(t => t.sentiment === 'neutral').length,
@@ -112,7 +112,9 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
             if (t.sentiment === 'negative') sentimentValue = 0.2;
             return sum + sentimentValue;
           }, 0) / transcriptData.length,
-          performance_score: transcriptData.reduce((sum, t) => sum + (t.call_score || 50), 0) / transcriptData.length
+          performance_score: transcriptData.reduce((sum, t) => sum + (t.call_score || 50), 0) / transcriptData.length,
+          agent_talk_ratio: 50, // Default value as we can't easily calculate from transcripts
+          customer_talk_ratio: 50 // Default value as we can't easily calculate from transcripts
         };
         
         return [metrics];
@@ -153,7 +155,7 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
 };
 
 /**
- * Gets rep metrics data or falls back to demo data
+ * Gets rep metrics data or falls back to empty metrics
  * @param {number} count Number of reps to retrieve
  * @returns {Promise<any[]>} Rep metrics data array
  */
@@ -168,21 +170,42 @@ export const getRepMetricsData = async (count = 5) => {
       
     if (error) {
       console.error('Error fetching rep metrics data:', error);
-      console.log('Falling back to demo rep data');
-      return generateDemoRepMetricsData(count);
+      console.log('Falling back to empty rep data');
+      return Array(count).fill(0).map((_, i) => ({
+        id: `rep-${i}`,
+        name: `Sales Rep ${i + 1}`,
+        callVolume: 0,
+        sentiment: 0.5,
+        successRate: 0,
+        insights: ["No data available"]
+      }));
     }
     
     if (!data || data.length === 0) {
-      console.log('No rep metrics data found, using demo data');
-      return generateDemoRepMetricsData(count);
+      console.log('No rep metrics data found, using empty metrics');
+      return Array(count).fill(0).map((_, i) => ({
+        id: `rep-${i}`,
+        name: `Sales Rep ${i + 1}`,
+        callVolume: 0,
+        sentiment: 0.5,
+        successRate: 0,
+        insights: ["No data available"]
+      }));
     }
     
     console.log(`Successfully retrieved ${data.length} rep metrics records`);
     return data;
   } catch (err) {
     console.error('Exception in getRepMetricsData:', err);
-    console.log('Falling back to demo rep data');
-    return generateDemoRepMetricsData(count);
+    console.log('Falling back to empty rep data');
+    return Array(count).fill(0).map((_, i) => ({
+      id: `rep-${i}`,
+      name: `Sales Rep ${i + 1}`,
+      callVolume: 0,
+      sentiment: 0.5,
+      successRate: 0,
+      insights: ["No data available"]
+    }));
   }
 };
 

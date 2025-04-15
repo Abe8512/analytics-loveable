@@ -1,48 +1,50 @@
 
-// Define event types
+/**
+ * Event types for the application
+ */
+export const EVENT_TYPES = {
+  TEAM_MEMBER_ADDED: 'team-member-added',
+  TEAM_MEMBER_REMOVED: 'team-member-removed',
+  CALL_UPDATED: 'call-updated',
+  TRANSCRIPT_UPDATED: 'transcript-updated',
+  MANAGED_USERS_UPDATED: 'managed-users-updated',
+  BULK_UPLOAD_STARTED: 'bulk-upload-started',
+  BULK_UPLOAD_PROGRESS: 'bulk-upload-progress',
+  BULK_UPLOAD_COMPLETED: 'bulk-upload-completed',
+  BULK_UPLOAD_ERROR: 'bulk-upload-error',
+  CALL_UPLOADED: 'call-uploaded',
+  TRANSCRIPT_CREATED: 'transcript-created',
+  TRANSCRIPTS_UPDATED: 'transcripts-updated',
+  TRANSCRIPTS_REFRESHED: 'transcripts-refreshed',
+  SENTIMENT_UPDATED: 'sentiment-updated',
+  METRICS_REFRESHED: 'metrics-refreshed'
+};
+
 export type EventType = 
   | 'team-member-added'
   | 'team-member-removed'
   | 'call-updated'
   | 'transcript-updated'
-  | 'TEAM_MEMBER_ADDED'
-  | 'TEAM_MEMBER_REMOVED'
-  | 'CALL_UPDATED'
-  | 'TRANSCRIPT_UPDATED'
-  | 'MANAGED_USERS_UPDATED'
-  | 'BULK_UPLOAD_STARTED'
-  | 'BULK_UPLOAD_PROGRESS'
-  | 'BULK_UPLOAD_COMPLETED'
-  | 'BULK_UPLOAD_ERROR'
-  | 'processing-started'
-  | 'processing-progress'
-  | 'processing-completed'
-  | 'processing-error'
-  | 'CALL_UPLOADED'
+  | 'managed-users-updated'
+  | 'bulk-upload-started'
+  | 'bulk-upload-progress'
+  | 'bulk-upload-completed' 
+  | 'bulk-upload-error'
+  | 'call-uploaded'
   | 'transcript-created'
-  | 'bulk-upload-completed'
+  | 'transcripts-updated'
   | 'transcripts-refreshed'
   | 'sentiment-updated'
-  | 'metrics-refreshed';
-
-export type TeamEventType = 
-  | 'team-member-added'
-  | 'team-member-removed';
-
-export const EVENT_TYPES = {
-  TEAM_MEMBER_ADDED: 'TEAM_MEMBER_ADDED',
-  TEAM_MEMBER_REMOVED: 'TEAM_MEMBER_REMOVED',
-  CALL_UPDATED: 'CALL_UPDATED',
-  TRANSCRIPT_UPDATED: 'TRANSCRIPT_UPDATED',
-  MANAGED_USERS_UPDATED: 'MANAGED_USERS_UPDATED',
-  BULK_UPLOAD_STARTED: 'BULK_UPLOAD_STARTED',
-  BULK_UPLOAD_PROGRESS: 'BULK_UPLOAD_PROGRESS',
-  BULK_UPLOAD_COMPLETED: 'BULK_UPLOAD_COMPLETED',
-  BULK_UPLOAD_ERROR: 'BULK_UPLOAD_ERROR',
-  CALL_UPLOADED: 'CALL_UPLOADED'
-};
+  | 'metrics-refreshed'
+  | 'transcript-selected';
 
 export interface EventPayload {
-  [key: string]: any;
   timestamp: string;
+  [key: string]: any;
+}
+
+export interface EventListener {
+  eventType: string;
+  callback: (data?: any) => void;
+  id: string;
 }

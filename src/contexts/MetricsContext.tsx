@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useSharedFilters } from './SharedFilterContext';
 import { useMetricsFetcher } from '@/hooks/useMetricsFetcher';
-import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
+import { FormattedMetrics, MetricsFilters } from '@/types/metrics';
 import { formatMetricsForDisplay, createEmptyFormattedMetrics } from '@/utils/metricsFormatter';
 import { toast } from 'sonner';
 
 // Context interface
 interface MetricsContextType {
   metricsData: FormattedMetrics;
-  rawMetricsData: RawMetricsRecord | null;
+  rawMetricsData: any | null;
   isLoading: boolean;
   error: string | null;
   isUsingDemoData: boolean;
@@ -106,8 +106,3 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 // Custom hook to use the metrics context
 export const useMetrics = () => useContext(MetricsContext);
-
-// Data filters interface
-interface DataFilters extends MetricsFilters {
-  // Any additional filter properties specific to this context
-}

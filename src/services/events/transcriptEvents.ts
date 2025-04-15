@@ -7,7 +7,10 @@ import { EventType, EVENT_TYPES } from './types';
  * @param transcript The selected transcript
  */
 export const dispatchTranscriptSelected = (transcript: CallTranscript | null) => {
-  EventsStore.dispatchEvent('transcript-selected' as EventType, { transcript });
+  EventsStore.dispatchEvent('transcript-selected' as EventType, { 
+    transcript,
+    timestamp: new Date().toISOString()
+  });
 };
 
 /**
@@ -30,7 +33,7 @@ export function dispatchSentimentUpdated(transcriptId: string, sentiment: string
   EventsStore.dispatchEvent(EVENT_TYPES.SENTIMENT_UPDATED, {
     transcriptId,
     sentiment: String(sentiment),
-    timestamp: Date.now()
+    timestamp: new Date().toISOString()
   });
 }
 

@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { EventType, EventPayload, EVENT_TYPES } from './types';
 
@@ -76,13 +75,42 @@ export const EventsStore = new EventsStoreClass();
 export { EVENT_TYPES };
 
 // Export the core functions
-export const dispatchEvent = (type: EventType, payload?: EventPayload) => {
-  // Ensure payload always has timestamp
-  const completePayload: EventPayload = {
-    ...(payload || {}),
-    timestamp: (payload?.timestamp || new Date().toISOString())
+export const dispatchEvent = (eventType: string, data: any = {}) => {
+  // Ensure timestamp is included in every event payload
+  const eventData = {
+    ...data,
+    timestamp: data.timestamp || new Date().toISOString()
   };
-  return EventsStore.dispatchEvent(type, completePayload);
+  
+  console.log(`[EventsStore] Dispatching event: ${eventType}`, eventData);
+  
+  // Ensure timestamp is always present
+  if (!eventData.timestamp) {
+    eventData.timestamp = new Date().toISOString();
+  }
+  
+  // Add to event history
+  EventsStore.eventHistory.push({
+    type: eventType,
+    payload: eventData,
+    timestamp: Date.now()
+  });
+  
+  // Limit history size
+  if (EventsStore.eventHistory.length > 100) {
+    EventsStore.eventHistory = EventsStore.eventHistory.slice(-100);
+  }
+  
+  // Call all matching listeners
+  EventsStore.listeners
+    .filter(listener => listener.type === eventType)
+    .forEach(listener => {
+      try {
+        listener.callback(eventData);
+      } catch (error) {
+        console.error(`Error in event listener for ${eventType}:`, error);
+      }
+    });
 };
 
 export const addEventListener = (type: EventType, callback: (payload: EventPayload) => void) => 
