@@ -1,5 +1,5 @@
 
-import { FormattedMetrics } from '@/types/metrics';
+import { FormattedMetrics, RawMetricsRecord } from '@/types/metrics';
 
 /**
  * Provides empty state data for charts and metrics when no data is available
@@ -30,6 +30,33 @@ export const createEmptyFormattedMetrics = (): FormattedMetrics => {
     customerTalkRatio: 50,
     topKeywords: [],
     reportDate: new Date().toISOString().split('T')[0]
+  };
+};
+
+// Alias for MetricsService to use
+export const createEmptyMetrics = (): RawMetricsRecord => {
+  return createEmptyRawMetricsRecord();
+};
+
+// Add these empty metrics functions
+export const createEmptyCallMetrics = () => {
+  return {
+    totalCalls: 0,
+    avgDuration: '0:00',
+    totalDuration: 0,
+    callsByDay: []
+  };
+};
+
+export const createEmptyCallQualityMetrics = () => {
+  return {
+    avgScore: 0,
+    distribution: [
+      { name: 'Excellent', value: 0 },
+      { name: 'Good', value: 0 },
+      { name: 'Average', value: 0 },
+      { name: 'Poor', value: 0 }
+    ]
   };
 };
 

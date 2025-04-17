@@ -62,7 +62,7 @@ export const TeamMembersList: React.FC<TeamMembersListProps> = ({
           >
             <div className="flex items-center space-x-3">
               <Avatar>
-                <AvatarImage src={member.avatar || member.avatar_url} alt={member.name} />
+                <AvatarImage src={member.avatar || member.avatar_url || ''} alt={member.name} />
                 <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
               </Avatar>
               <div>

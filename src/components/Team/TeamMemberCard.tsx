@@ -21,7 +21,7 @@ const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, onDelete }) => 
   };
 
   // Use avatar or avatar_url, whichever is available
-  const avatarSrc = member.avatar || member.avatar_url;
+  const avatarSrc = member.avatar || member.avatar_url || '';
 
   return (
     <Card className="overflow-hidden">

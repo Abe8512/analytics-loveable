@@ -18,25 +18,27 @@ const TeamPerformanceMetricsCard = () => {
     
     // Create performance data for each team member
     // In a real app, this would come from the API
-    const performance = teamMembers.map((member, index) => ({
+    const performance: TeamPerformance[] = teamMembers.map((member, index) => ({
+      id: member.id,
+      name: member.name,
       rep_id: member.id,
       rep_name: member.name,
-      call_volume: Math.floor(Math.random() * 50) + 10, // Random for demo
+      active_reps: 1,
+      total_calls: Math.floor(Math.random() * 50) + 10,
+      calls: Math.floor(Math.random() * 50) + 10,
+      call_volume: Math.floor(Math.random() * 50) + 10,
+      avg_duration: Math.floor(Math.random() * 300) + 60,
       avg_call_duration: Math.floor(Math.random() * 300) + 60,
-      sentiment_score: (Math.random() * 0.5) + 0.5, // Random for demo
-      success_rate: Math.floor(Math.random() * 40) + 60, // Random for demo
+      avg_sentiment: (Math.random() * 0.5) + 0.5,
+      sentiment_score: (Math.random() * 0.5) + 0.5,
+      positive_calls: Math.floor(Math.random() * 30) + 5,
+      negative_calls: Math.floor(Math.random() * 10) + 1,
+      success_rate: Math.floor(Math.random() * 40) + 60,
+      successRate: Math.floor(Math.random() * 40) + 60,
+      conversionRate: Math.floor(Math.random() * 20) + 10,
       avg_talk_ratio: Math.floor(Math.random() * 30) + 35,
       objection_handling_score: Math.floor(Math.random() * 40) + 60,
       positive_language_score: Math.floor(Math.random() * 40) + 60,
-      top_keywords: ['pricing', 'demo', 'features'],
-      last_call_date: new Date().toISOString(),
-      // For compatibility with existing code
-      id: member.id,
-      name: member.name,
-      calls: Math.floor(Math.random() * 50) + 10,
-      successRate: Math.floor(Math.random() * 40) + 60,
-      avgSentiment: (Math.random() * 0.5) + 0.5,
-      conversionRate: Math.floor(Math.random() * 20) + 10
     }));
     
     setTeamPerformance(performance);
@@ -60,10 +62,10 @@ const TeamPerformanceMetricsCard = () => {
   
   // Format data for chart
   const chartData = teamPerformance.map(member => ({
-    name: member.rep_name || member.name,
-    'Call Volume': member.call_volume || member.calls,
-    'Success Rate': member.success_rate || member.successRate,
-    'Sentiment': Math.round((member.sentiment_score || member.avgSentiment) * 100),
+    name: member.rep_name || member.name || 'Unknown',
+    'Call Volume': member.call_volume || member.calls || 0,
+    'Success Rate': member.success_rate || member.successRate || 0,
+    'Sentiment': Math.round(((member.sentiment_score || member.avg_sentiment || 0.5) * 100)),
     'Conversion': member.conversionRate || 0
   }));
   

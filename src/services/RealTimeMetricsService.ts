@@ -1,459 +1,363 @@
-import { useState, useEffect } from 'react';
-import { TeamPerformanceMetric, TeamPerformance } from '@/types/teamTypes';
-import { EventsService } from './EventsService';
+
 import { supabase } from '@/integrations/supabase/client';
 import { TeamPerformance } from '@/types/teamTypes';
-import { EventsStore } from './events/store';
-import { EventType, EVENT_TYPES } from './events/types';
-import { MetricsData } from '@/types/metrics';
-import { TeamPerformance } from '@/types/teamTypes';
-import { createEmptySentimentTrends, createEmptyTeamPerformance, createEmptyKeywordTrends, createEmptyCallVolume } from '@/utils/emptyStateUtils';
+import { createEmptyTeamPerformance, createEmptyCallVolume, createEmptyKeywordTrends } from '@/utils/emptyStateUtils';
 
-export interface TeamMetrics {
-  callVolume: number;
-  avgCallDuration: number;
-  avgSentimentScore: number;
-  avgConversionRate: number;
-  topPerformers: TeamPerformanceMetric[];
-  trending: {
-    callVolume: {
-      value: number;
-      change: number;
-      trend: 'up' | 'down' | 'neutral';
-    };
-    conversions: {
-      value: number;
-      change: number;
-      trend: 'up' | 'down' | 'neutral';
-    };
-    avgDuration: {
-      value: number;
-      change: number;
-      trend: 'up' | 'down' | 'neutral';
-    };
-  };
+export interface CallVolumeDataPoint {
+  date: string;
+  calls: number;
 }
 
-export interface RepMetrics {
-  id: string;
-  name: string;
-  callVolume: number;
-  avgDuration: number;
-  sentimentScore: number;
-  successRate: number;
-  objectionHandlingScore: number;
-  positiveLanguageScore: number;
-  talkRatio: number;
-  recentCalls: {
-    id: string;
-    date: string;
-    customer: string;
-    duration: number;
-    sentiment: 'positive' | 'negative' | 'neutral';
-    outcome: string;
-  }[];
-  topKeywords: string[];
+export interface KeywordTrend {
+  keyword: string;
+  count: number;
+  category: string;
 }
 
-// Mock data generators for demos
-const generateMockTeamMetrics = (): TeamMetrics => {
-  return {
-    callVolume: Math.floor(Math.random() * 1000) + 500,
-    avgCallDuration: Math.floor(Math.random() * 300) + 180,
-    avgSentimentScore: Number((Math.random() * 1).toFixed(2)),
-    avgConversionRate: Number((Math.random() * 0.4 + 0.1).toFixed(2)),
-    topPerformers: Array.from({ length: 5 }).map((_, i) => ({
-      id: `rep-${i}`,
-      name: `Team Member ${i + 1}`,
-      value: Math.floor(Math.random() * 100),
-      change: Number((Math.random() * 20 - 10).toFixed(1)),
-      trend: Math.random() > 0.5 ? 'up' : 'down',
-      performance: Math.random() > 0.7 ? 'good' : Math.random() > 0.3 ? 'average' : 'poor',
-    })),
-    trending: {
-      callVolume: {
-        value: Math.floor(Math.random() * 100),
-        change: Number((Math.random() * 20 - 10).toFixed(1)),
-        trend: Math.random() > 0.5 ? 'up' : 'down',
-      },
-      conversions: {
-        value: Number((Math.random() * 0.4 + 0.1).toFixed(2)),
-        change: Number((Math.random() * 20 - 10).toFixed(1)),
-        trend: Math.random() > 0.5 ? 'up' : 'down',
-      },
-      avgDuration: {
-        value: Math.floor(Math.random() * 60) + 120,
-        change: Number((Math.random() * 20 - 10).toFixed(1)),
-        trend: Math.random() > 0.5 ? 'up' : 'down',
-      },
-    },
-  };
-};
-
-const generateMockRepMetrics = (id: string, name: string): RepMetrics => {
-  return {
-    id,
-    name,
-    callVolume: Math.floor(Math.random() * 200) + 50,
-    avgDuration: Math.floor(Math.random() * 300) + 180,
-    sentimentScore: Number((Math.random() * 1).toFixed(2)),
-    successRate: Number((Math.random() * 0.6 + 0.2).toFixed(2)),
-    objectionHandlingScore: Math.floor(Math.random() * 100),
-    positiveLanguageScore: Math.floor(Math.random() * 100),
-    talkRatio: Number((Math.random() * 0.6 + 0.2).toFixed(2)),
-    recentCalls: Array.from({ length: 5 }).map((_, i) => ({
-      id: `call-${i}`,
-      date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-      customer: `Customer ${i + 1}`,
-      duration: Math.floor(Math.random() * 600) + 60,
-      sentiment: Math.random() > 0.7 ? 'positive' : Math.random() > 0.3 ? 'neutral' : 'negative',
-      outcome: Math.random() > 0.6 ? 'successful' : 'unsuccessful',
-    })),
-    topKeywords: ['product', 'pricing', 'features', 'support', 'upgrade'].slice(0, Math.floor(Math.random() * 5) + 1),
-  };
-};
-
-/**
- * Refresh all metrics data
- */
-export const refreshMetrics = async () => {
-  try {
-    console.log('Refreshing all metrics data...');
-    // Perform the refresh operations
-    await Promise.all([
-      refreshTeamPerformance(),
-      refreshCallVolume(),
-      refreshKeywordTrends()
-    ]);
-    
-    // Dispatch event to notify components
-    EventsStore.dispatchEvent(EVENT_TYPES.METRICS_REFRESHED as EventType, {
-      timestamp: new Date().toISOString(),
-      source: 'RealTimeMetricsService'
-    });
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error refreshing metrics:', error);
-    return { success: false, error };
-  }
-};
-
-// Custom hooks for accessing metrics
-export const useTeamMetrics = (): {
-  metrics: TeamMetrics;
-  isLoading: boolean;
-  error: Error | null;
-  refreshMetrics: () => void;
-} => {
-  const [metrics, setMetrics] = useState<TeamMetrics>(generateMockTeamMetrics());
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const refreshMetrics = () => {
-    setIsLoading(true);
-    try {
-      const newMetrics = generateMockTeamMetrics();
-      setMetrics(newMetrics);
-      setError(null);
-      EventsService.dispatchEvent('metrics-refreshed' as EventType, {
-        timestamp: new Date().toISOString()
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to refresh team metrics'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refreshMetrics();
-  }, []);
-
-  // Listen for events that should trigger a refresh
-  useEffect(() => {
-    const unsubscribe = EventsService.addEventListener('call-updated', refreshMetrics);
-    return unsubscribe;
-  }, []);
-
-  return { metrics, isLoading, error, refreshMetrics };
-};
-
-export const useRepMetrics = (repId?: string): {
-  metrics: RepMetrics | null;
-  isLoading: boolean;
-  error: Error | null;
-  refreshMetrics: () => void;
-} => {
-  const [metrics, setMetrics] = useState<RepMetrics | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const refreshMetrics = () => {
-    setIsLoading(true);
-    try {
-      if (repId) {
-        const newMetrics = generateMockRepMetrics(repId, `Rep ${repId}`);
-        setMetrics(newMetrics);
-        setError(null);
-      } else {
-        setMetrics(null);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to refresh rep metrics'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (repId) {
-      refreshMetrics();
-    } else {
-      setMetrics(null);
-    }
-  }, [repId]);
-
-  // Listen for events that should trigger a refresh
-  useEffect(() => {
-    if (!repId) return;
-    const unsubscribe = EventsService.addEventListener('call-updated', refreshMetrics);
-    return unsubscribe;
-  }, [repId]);
-
-  return { metrics, isLoading, error, refreshMetrics };
-};
-
-export interface RealTimeMetricsServiceInterface {
-  getActiveListeners: () => number;
-  registerPerformanceListener: (callback: (data: TeamPerformance) => void) => () => void;
-  registerCallVolumeListener: (callback: (data: any[]) => void) => () => void;
-  registerKeywordTrendsListener: (callback: (data: any[]) => void) => () => void;
-  registerSentimentTrendsListener: (callback: (data: any[]) => void) => () => void;
-  refreshAllMetrics: () => Promise<void>;
+export interface SentimentTrend {
+  date: string;
+  avg_agent_sentiment: number;
+  avg_customer_sentiment: number;
+  positive_agent_calls: number;
+  negative_agent_calls: number;
+  total_calls: number;
 }
 
-class RealTimeMetricsServiceClass implements RealTimeMetricsServiceInterface {
-  private performanceListeners: ((data: TeamPerformance) => void)[] = [];
-  private callVolumeListeners: ((data: any[]) => void)[] = [];
-  private keywordTrendsListeners: ((data: any[]) => void)[] = [];
-  private sentimentTrendsListeners: ((data: any[]) => void)[] = [];
-  
-  // Cache for metrics data
+export class RealTimeMetricsService {
   private teamPerformanceCache: TeamPerformance | null = null;
-  private callVolumeCache: any[] | null = null;
-  private keywordTrendsCache: any[] | null = null;
-  private sentimentTrendsCache: any[] | null = null;
+  private teamPerformanceCacheExpiry: Date | null = null;
   
-  // Polling intervals
-  private pollingIntervals: number[] = [];
+  private callVolumeCache: CallVolumeDataPoint[] | null = null;
+  private callVolumeCacheExpiry: Date | null = null;
+  
+  private keywordTrendsCache: KeywordTrend[] | null = null;
+  private keywordTrendsCacheExpiry: Date | null = null;
+  
+  private sentimentTrendsCache: SentimentTrend[] | null = null;
+  private sentimentTrendsCacheExpiry: Date | null = null;
+  
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   
   constructor() {
-    // Start polling for metrics updates
-    this.startPolling();
+    this.setupRealtimeSubscriptions();
   }
-  
-  private startPolling() {
-    // Poll for team performance every 30 seconds
-    const performanceInterval = window.setInterval(() => {
-      this.refreshTeamPerformance();
-    }, 30 * 1000);
-    
-    // Poll for call volume every minute
-    const callVolumeInterval = window.setInterval(() => {
-      this.refreshCallVolume();
-    }, 60 * 1000);
-    
-    // Poll for keyword trends every 2 minutes
-    const keywordTrendsInterval = window.setInterval(() => {
-      this.refreshKeywordTrends();
-    }, 2 * 60 * 1000);
-    
-    // Poll for sentiment trends every 2 minutes
-    const sentimentTrendsInterval = window.setInterval(() => {
-      this.refreshSentimentTrends();
-    }, 2 * 60 * 1000);
-    
-    // Store intervals so we can clear them later
-    this.pollingIntervals = [
-      performanceInterval,
-      callVolumeInterval,
-      keywordTrendsInterval,
-      sentimentTrendsInterval
-    ];
-  }
-  
-  private stopPolling() {
-    this.pollingIntervals.forEach(interval => {
-      clearInterval(interval);
-    });
-  }
-  
-  /**
-   * Get the number of active listeners
-   */
-  public getActiveListeners(): number {
-    return this.performanceListeners.length + 
-           this.callVolumeListeners.length + 
-           this.keywordTrendsListeners.length + 
-           this.sentimentTrendsListeners.length;
-  }
-  
-  /**
-   * Register a listener for team performance updates
-   */
-  public registerPerformanceListener(callback: (data: TeamPerformance) => void): () => void {
-    this.performanceListeners.push(callback);
-    
-    // Immediately invoke with cached data if available
-    if (this.teamPerformanceCache) {
-      callback(this.teamPerformanceCache);
-    } else {
-      // Otherwise, fetch fresh data
-      this.refreshTeamPerformance().then(data => {
-        if (data) callback(data);
+
+  private setupRealtimeSubscriptions() {
+    // Subscribe to call_metrics_summary table changes
+    try {
+      const channel = supabase.channel('public:call_metrics_summary')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'call_metrics_summary' 
+        }, () => {
+          console.log('RealTimeMetricsService: call_metrics_summary table changed');
+          this.clearAllCaches();
+        })
+        .subscribe();
+        
+      console.log('Subscribed to call_metrics_summary changes');
+      
+      // Clean up on service destroy (if needed)
+      window.addEventListener('beforeunload', () => {
+        supabase.removeChannel(channel);
       });
+    } catch (err) {
+      console.error('Error setting up realtime subscriptions:', err);
     }
-    
-    // Return unsubscribe function
-    return () => {
-      this.performanceListeners = this.performanceListeners.filter(cb => cb !== callback);
-    };
   }
   
-  /**
-   * Register a listener for call volume updates
-   */
-  public registerCallVolumeListener(callback: (data: any[]) => void): () => void {
-    this.callVolumeListeners.push(callback);
-    
-    // Immediately invoke with cached data if available
-    if (this.callVolumeCache) {
-      callback(this.callVolumeCache);
-    } else {
-      // Otherwise, fetch fresh data
-      this.refreshCallVolume().then(data => {
-        if (data) callback(data);
-      });
-    }
-    
-    // Return unsubscribe function
-    return () => {
-      this.callVolumeListeners = this.callVolumeListeners.filter(cb => cb !== callback);
-    };
-  }
-  
-  // Similar implementations for other listeners
-  public registerKeywordTrendsListener(callback: (data: any[]) => void): () => void {
-    // ... similar implementation to other listeners
-    return () => {};
-  }
-  
-  public registerSentimentTrendsListener(callback: (data: any[]) => void): () => void {
-    // ... similar implementation to other listeners
-    return () => {};
+  private clearAllCaches() {
+    console.log('Clearing all metrics caches');
+    this.teamPerformanceCache = null;
+    this.teamPerformanceCacheExpiry = null;
+    this.callVolumeCache = null;
+    this.callVolumeCacheExpiry = null;
+    this.keywordTrendsCache = null;
+    this.keywordTrendsCacheExpiry = null;
+    this.sentimentTrendsCache = null;
+    this.sentimentTrendsCacheExpiry = null;
   }
   
   /**
    * Refresh all metrics data
    */
-  public async refreshAllMetrics(): Promise<void> {
-    // Implementation of the specific refresh functions
-    const refreshTeamPerformanceImpl = async (): Promise<TeamPerformance | null> => {
-      try {
-        // In a real implementation, fetch data from API/database
-        const data = createEmptyTeamPerformance();
-        
-        // Cache the data
-        this.teamPerformanceCache = data;
-        
-        // Notify all listeners
-        this.performanceListeners.forEach(listener => {
-          listener(data);
-        });
-        
-        return data;
-      } catch (error) {
-        console.error('Error refreshing team performance:', error);
-        return null;
-      }
-    };
+  public async refreshAll(force = false): Promise<void> {
+    console.log('Refreshing all metrics data');
     
-    const refreshCallVolumeImpl = async (): Promise<any[] | null> => {
-      try {
-        // In a real implementation, fetch data from API/database
-        const data = createEmptyCallVolume();
-        
-        // Cache the data
-        this.callVolumeCache = data;
-        
-        // Notify all listeners
-        this.callVolumeListeners.forEach(listener => {
-          listener(data);
-        });
-        
-        return data;
-      } catch (error) {
-        console.error('Error refreshing call volume:', error);
-        return null;
-      }
-    };
-    
-    const refreshKeywordTrendsImpl = async (): Promise<any[] | null> => {
-      try {
-        // In a real implementation, fetch data from API/database
-        const data = createEmptyKeywordTrends();
-        
-        // Cache the data
-        this.keywordTrendsCache = data;
-        
-        // Notify all listeners
-        this.keywordTrendsListeners.forEach(listener => {
-          listener(data);
-        });
-        
-        return data;
-      } catch (error) {
-        console.error('Error refreshing keyword trends:', error);
-        return null;
-      }
-    };
-    
-    const refreshSentimentTrendsImpl = async (): Promise<any[] | null> => {
-      try {
-        // In a real implementation, fetch data from API/database
-        const data = createEmptySentimentTrends();
-        
-        // Cache the data
-        this.sentimentTrendsCache = data;
-        
-        // Notify all listeners
-        this.sentimentTrendsListeners.forEach(listener => {
-          listener(data);
-        });
-        
-        return data;
-      } catch (error) {
-        console.error('Error refreshing sentiment trends:', error);
-        return null;
-      }
-    };
-    
-    // Call all refresh functions
     await Promise.all([
-      refreshTeamPerformanceImpl(),
-      refreshCallVolumeImpl(),
-      refreshKeywordTrendsImpl(),
-      refreshSentimentTrendsImpl()
+      this.refreshTeamPerformanceImpl(force),
+      this.refreshCallVolumeImpl(force),
+      this.refreshKeywordTrendsImpl(force),
+      this.refreshSentimentTrendsImpl(force)
     ]);
   }
   
-  // Define the actual refreshTeamPerformance method
-  private refreshTeamPerformance = refreshTeamPerformanceImpl;
-  private refreshCallVolume = refreshCallVolumeImpl;
-  private refreshKeywordTrends = refreshKeywordTrendsImpl;
-  private refreshSentimentTrends = refreshSentimentTrendsImpl;
+  /**
+   * Get team performance metrics
+   */
+  public async getTeamPerformance(force = false): Promise<TeamPerformance> {
+    // Check cache first
+    const now = new Date();
+    if (!force && this.teamPerformanceCache && this.teamPerformanceCacheExpiry && this.teamPerformanceCacheExpiry > now) {
+      return this.teamPerformanceCache;
+    }
+    
+    try {
+      console.log('Fetching team performance metrics...');
+      
+      // Try to get from DB
+      const { data, error } = await supabase
+        .from('team_performance')
+        .select('*')
+        .single();
+      
+      if (error) {
+        console.warn('Error fetching team performance:', error.message);
+        return this.fallbackTeamPerformance();
+      }
+      
+      if (!data) {
+        console.log('No team performance data found');
+        return this.fallbackTeamPerformance();
+      }
+      
+      // Cache the result
+      const teamPerformanceData: TeamPerformance = {
+        active_reps: data.active_reps || 0,
+        total_calls: data.total_calls || 0,
+        avg_sentiment: data.avg_sentiment || 0,
+        avg_duration: data.avg_duration || 0,
+        positive_calls: data.positive_calls || 0,
+        negative_calls: data.negative_calls || 0
+      };
+      
+      this.teamPerformanceCache = teamPerformanceData;
+      
+      // Set cache expiry
+      const expiry = new Date();
+      expiry.setTime(expiry.getTime() + this.CACHE_TTL_MS);
+      this.teamPerformanceCacheExpiry = expiry;
+      
+      return teamPerformanceData;
+    } catch (err) {
+      console.error('Exception in getTeamPerformance:', err);
+      return this.fallbackTeamPerformance();
+    }
+  }
+  
+  /**
+   * Get call volume by day
+   */
+  public async getCallVolume(days = 7, force = false): Promise<CallVolumeDataPoint[]> {
+    // Check cache first
+    const now = new Date();
+    if (!force && this.callVolumeCache && this.callVolumeCacheExpiry && this.callVolumeCacheExpiry > now) {
+      return this.callVolumeCache;
+    }
+    
+    try {
+      console.log(`Fetching call volume for ${days} days...`);
+      
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - days);
+      
+      // Try to get from DB
+      const { data, error } = await supabase
+        .from('call_volume_by_day')
+        .select('*')
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0])
+        .order('date');
+      
+      if (error) {
+        console.warn('Error fetching call volume:', error.message);
+        return this.fallbackCallVolume(days);
+      }
+      
+      if (!data || data.length === 0) {
+        console.log('No call volume data found');
+        return this.fallbackCallVolume(days);
+      }
+      
+      // Map to required format
+      const callVolumeData: CallVolumeDataPoint[] = data.map(item => ({
+        date: item.date,
+        calls: item.count || 0
+      }));
+      
+      // Cache the result
+      this.callVolumeCache = callVolumeData;
+      
+      // Set cache expiry
+      const expiry = new Date();
+      expiry.setTime(expiry.getTime() + this.CACHE_TTL_MS);
+      this.callVolumeCacheExpiry = expiry;
+      
+      return callVolumeData;
+    } catch (err) {
+      console.error('Exception in getCallVolume:', err);
+      return this.fallbackCallVolume(days);
+    }
+  }
+  
+  /**
+   * Get trending keywords
+   */
+  public async getKeywordTrends(limit = 10, force = false): Promise<KeywordTrend[]> {
+    // Check cache first
+    const now = new Date();
+    if (!force && this.keywordTrendsCache && this.keywordTrendsCacheExpiry && this.keywordTrendsCacheExpiry > now) {
+      return this.keywordTrendsCache;
+    }
+    
+    try {
+      console.log(`Fetching keyword trends (limit: ${limit})...`);
+      
+      // Try to get from DB
+      const { data, error } = await supabase
+        .from('keyword_trends')
+        .select('*')
+        .order('count', { ascending: false })
+        .limit(limit);
+      
+      if (error) {
+        console.warn('Error fetching keyword trends:', error.message);
+        return this.fallbackKeywordTrends();
+      }
+      
+      if (!data || data.length === 0) {
+        console.log('No keyword trends data found');
+        return this.fallbackKeywordTrends();
+      }
+      
+      // Map to required format
+      const keywordTrendsData: KeywordTrend[] = data.map(item => ({
+        keyword: item.keyword || 'Unknown',
+        count: item.count || 0,
+        category: item.category || 'misc'
+      }));
+      
+      // Cache the result
+      this.keywordTrendsCache = keywordTrendsData;
+      
+      // Set cache expiry
+      const expiry = new Date();
+      expiry.setTime(expiry.getTime() + this.CACHE_TTL_MS);
+      this.keywordTrendsCacheExpiry = expiry;
+      
+      return keywordTrendsData;
+    } catch (err) {
+      console.error('Exception in getKeywordTrends:', err);
+      return this.fallbackKeywordTrends();
+    }
+  }
+  
+  /**
+   * Get sentiment trends over time
+   */
+  public async getSentimentTrends(days = 7, force = false): Promise<SentimentTrend[]> {
+    // Check cache first
+    const now = new Date();
+    if (!force && this.sentimentTrendsCache && this.sentimentTrendsCacheExpiry && this.sentimentTrendsCacheExpiry > now) {
+      return this.sentimentTrendsCache;
+    }
+    
+    try {
+      console.log(`Fetching sentiment trends for ${days} days...`);
+      
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - days);
+      
+      // Try to get from DB
+      const { data, error } = await supabase
+        .from('sentiment_trends')
+        .select('*')
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0])
+        .order('date');
+      
+      if (error) {
+        console.warn('Error fetching sentiment trends:', error.message);
+        return this.fallbackSentimentTrends(days);
+      }
+      
+      if (!data || data.length === 0) {
+        console.log('No sentiment trends data found');
+        return this.fallbackSentimentTrends(days);
+      }
+      
+      // Map to required format
+      const sentimentTrendsData: SentimentTrend[] = data.map(item => ({
+        date: item.date,
+        avg_agent_sentiment: item.avg_agent_sentiment || 0.5,
+        avg_customer_sentiment: item.avg_customer_sentiment || 0.5,
+        positive_agent_calls: item.positive_agent_calls || 0,
+        negative_agent_calls: item.negative_agent_calls || 0,
+        total_calls: item.total_calls || 0
+      }));
+      
+      // Cache the result
+      this.sentimentTrendsCache = sentimentTrendsData;
+      
+      // Set cache expiry
+      const expiry = new Date();
+      expiry.setTime(expiry.getTime() + this.CACHE_TTL_MS);
+      this.sentimentTrendsCacheExpiry = expiry;
+      
+      return sentimentTrendsData;
+    } catch (err) {
+      console.error('Exception in getSentimentTrends:', err);
+      return this.fallbackSentimentTrends(days);
+    }
+  }
+  
+  // Fallback methods for when DB queries fail
+  private fallbackTeamPerformance(): TeamPerformance {
+    console.log('Using fallback team performance data');
+    return createEmptyTeamPerformance();
+  }
+  
+  private fallbackCallVolume(days = 7): CallVolumeDataPoint[] {
+    console.log('Using fallback call volume data');
+    return createEmptyCallVolume(days);
+  }
+  
+  private fallbackKeywordTrends(): KeywordTrend[] {
+    console.log('Using fallback keyword trends data');
+    return createEmptyKeywordTrends();
+  }
+  
+  private fallbackSentimentTrends(days = 7): SentimentTrend[] {
+    console.log('Using fallback sentiment trends data');
+    return createEmptySentimentTrends(days);
+  }
+  
+  // Implementation methods for refresh functions referenced in refreshAll
+  private async refreshTeamPerformanceImpl(force = false): Promise<void> {
+    console.log('Refreshing team performance data');
+    await this.getTeamPerformance(force);
+  }
+  
+  private async refreshCallVolumeImpl(force = false): Promise<void> {
+    console.log('Refreshing call volume data');
+    await this.getCallVolume(7, force);
+  }
+  
+  private async refreshKeywordTrendsImpl(force = false): Promise<void> {
+    console.log('Refreshing keyword trends data');
+    await this.getKeywordTrends(10, force);
+  }
+  
+  private async refreshSentimentTrendsImpl(force = false): Promise<void> {
+    console.log('Refreshing sentiment trends data');
+    await this.getSentimentTrends(7, force);
+  }
 }
 
-// Export a singleton instance
-export const RealTimeMetricsService = new RealTimeMetricsServiceClass();
+// Create and export a singleton instance
+export const realTimeMetricsService = new RealTimeMetricsService();

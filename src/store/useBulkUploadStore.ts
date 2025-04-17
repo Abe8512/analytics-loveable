@@ -1,163 +1,115 @@
 
 import { create } from 'zustand';
-import { supabase } from '@/integrations/supabase/client';
-import { v4 as uuidv4 } from 'uuid';
 import { BulkUploadFilter } from '@/types/teamTypes';
 
-export type UploadState = 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
-
-export interface BulkUploadFile {
+interface BulkUploadFile {
   id: string;
   name: string;
   size: number;
+  type: string;
   progress: number;
-  status: 'pending' | 'uploading' | 'processing' | 'complete' | 'error';
+  status: 'queued' | 'processing' | 'complete' | 'error';
   error?: string;
   transcriptId?: string;
+  result?: string;
   assignedTo?: string;
 }
 
-export interface BulkUploadTranscript {
-  id: string;
-  filename?: string;
-  text: string;
-  created_at: string;
-  duration?: number;
-  sentiment?: string;
-  keywords?: string[];
-  status?: string;
-}
-
-export interface BulkUploadStore {
+interface BulkUploadState {
   files: BulkUploadFile[];
-  isProcessing: boolean;
-  uploadHistory: any[];
-  hasLoadedHistory: boolean;
-  progress: number;
-  uploadState: UploadState;
-  transcripts: BulkUploadTranscript[];
-  fileCount: number;
-  
-  // Actions
-  processQueue: () => void;
-  addFiles: (files: BulkUploadFile[]) => void;
-  refreshTranscripts: (filters?: BulkUploadFilter) => Promise<any[]>;
-  setProgress: (id: string, progress: number, status?: BulkUploadFile['status'], transcriptId?: string, error?: string) => void;
-  addTranscript: (transcript: Partial<BulkUploadTranscript>) => void;
-  setFileCount: (count: number) => void;
-  setUploadHistory: (history: any[]) => void;
-  start: () => void;
-  complete: () => void;
+  isUploading: boolean;
+  currentlyProcessing: string | null;
+  totalProgress: number;
+  addFile: (file: File) => void;
+  addFiles: (files: File[]) => void;
+  updateFileStatus: (id: string, status: BulkUploadFile['status'], progress: number, result?: string, error?: string, transcriptId?: string) => void;
+  removeFile: (id: string) => void;
+  clearFiles: () => void;
+  setIsUploading: (isUploading: boolean) => void;
+  setCurrentlyProcessing: (id: string | null) => void;
+  removeCompletedFiles: () => void;
+  assignFileToUser: (fileId: string, userId: string) => void;
 }
 
-export const useBulkUploadStore = create<BulkUploadStore>((set, get) => ({
+export const useBulkUploadStore = create<BulkUploadState>((set) => ({
   files: [],
-  isProcessing: false,
-  uploadHistory: [],
-  hasLoadedHistory: false,
-  progress: 0,
-  uploadState: 'idle',
-  transcripts: [],
-  fileCount: 0,
+  isUploading: false,
+  currentlyProcessing: null,
+  totalProgress: 0,
   
-  processQueue: () => {
-    set({ isProcessing: true });
-  },
-  
-  addFiles: (files) => {
-    set((state) => ({
-      files: [...state.files, ...files],
-    }));
-  },
-  
-  refreshTranscripts: async (filters?: BulkUploadFilter) => {
-    try {
-      let query = supabase
-        .from('call_transcripts')
-        .select('*')
-        .order('created_at', { ascending: false });
-        
-      if (filters?.limit) {
-        query = query.limit(filters.limit);
-      }
-      
-      if (filters?.offset) {
-        query = query.range(filters.offset, filters.offset + (filters.limit || 10) - 1);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        throw error;
-      }
-      
-      // Transform data to transcripts
-      const transcripts = data?.map(item => ({
-        id: item.id,
-        filename: item.filename,
-        text: item.text,
-        created_at: item.created_at,
-        duration: item.duration,
-        sentiment: item.sentiment,
-        keywords: item.keywords,
-        status: 'complete'
-      })) || [];
-      
-      set({ transcripts, hasLoadedHistory: true });
-      return transcripts;
-    } catch (error) {
-      console.error('Error refreshing transcripts:', error);
-      return [];
-    }
-  },
-  
-  setProgress: (id, progress, status, transcriptId, error) => {
-    set((state) => ({
-      files: state.files.map((file) =>
-        file.id === id
-          ? {
-              ...file,
-              progress,
-              status: status || file.status,
-              transcriptId: transcriptId || file.transcriptId,
-              error: error || file.error,
-            }
-          : file
-      ),
-      progress: state.files.reduce((sum, file) => sum + file.progress, progress) / (state.files.length + 1),
-    }));
-  },
-  
-  addTranscript: (transcript) => {
-    const newTranscript: BulkUploadTranscript = {
-      id: transcript.id || uuidv4(),
-      filename: transcript.filename,
-      text: transcript.text || '',
-      created_at: transcript.created_at || new Date().toISOString(),
-      duration: transcript.duration,
-      sentiment: transcript.sentiment,
-      keywords: transcript.keywords,
-      status: transcript.status,
+  addFile: (file) => set((state) => {
+    const id = crypto.randomUUID();
+    const newFile: BulkUploadFile = {
+      id,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      progress: 0,
+      status: 'queued'
     };
     
-    set((state) => ({
-      transcripts: [newTranscript, ...state.transcripts],
+    return { 
+      files: [...state.files, newFile] 
+    };
+  }),
+  
+  addFiles: (files) => set((state) => {
+    const newFiles = files.map(file => ({
+      id: crypto.randomUUID(),
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      progress: 0,
+      status: 'queued' as const
     }));
-  },
+    
+    return { 
+      files: [...state.files, ...newFiles] 
+    };
+  }),
   
-  setFileCount: (count) => {
-    set({ fileCount: count });
-  },
+  updateFileStatus: (id, status, progress, result, error, transcriptId) => 
+    set((state) => {
+      const newFiles = state.files.map(file => 
+        file.id === id ? { 
+          ...file, 
+          status, 
+          progress, 
+          result: result || file.result,
+          error: error || file.error,
+          transcriptId: transcriptId || file.transcriptId
+        } : file
+      );
+      
+      // Calculate total progress across all files
+      const totalProgress = newFiles.reduce((sum, file) => sum + file.progress, 0) / newFiles.length;
+      
+      return { 
+        files: newFiles,
+        totalProgress: Math.round(totalProgress)
+      };
+    }),
+    
+  removeFile: (id) => set((state) => ({
+    files: state.files.filter(file => file.id !== id)
+  })),
   
-  setUploadHistory: (history) => {
-    set({ uploadHistory: history, hasLoadedHistory: true });
-  },
+  clearFiles: () => set(() => ({
+    files: [],
+    totalProgress: 0
+  })),
   
-  start: () => {
-    set({ uploadState: 'uploading', isProcessing: true });
-  },
+  setIsUploading: (isUploading) => set(() => ({ isUploading })),
   
-  complete: () => {
-    set({ uploadState: 'complete', isProcessing: false });
-  },
+  setCurrentlyProcessing: (id) => set(() => ({ currentlyProcessing: id })),
+  
+  removeCompletedFiles: () => set((state) => ({
+    files: state.files.filter(file => file.status !== 'complete')
+  })),
+  
+  assignFileToUser: (fileId, userId) => set((state) => ({
+    files: state.files.map(file => 
+      file.id === fileId ? { ...file, assignedTo: userId } : file
+    )
+  }))
 }));

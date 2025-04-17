@@ -18,7 +18,14 @@ export const EVENT_TYPES = {
   TRANSCRIPTS_REFRESHED: 'transcripts-refreshed',
   SENTIMENT_UPDATED: 'sentiment-updated',
   METRICS_REFRESHED: 'metrics-refreshed',
-  TRANSCRIPT_SELECTED: 'transcript-selected'
+  TRANSCRIPT_SELECTED: 'transcript-selected',
+  // Add these for transcript events
+  'transcript-created': 'transcript-created',
+  'processing-started': 'processing-started',
+  'processing-progress': 'processing-progress',
+  'processing-error': 'processing-error',
+  'processing-completed': 'processing-completed',
+  'transcripts-updated': 'transcripts-updated'
 };
 
 export type EventType = 
@@ -37,7 +44,11 @@ export type EventType =
   | 'transcripts-refreshed'
   | 'sentiment-updated'
   | 'metrics-refreshed'
-  | 'transcript-selected';
+  | 'transcript-selected'
+  | 'processing-started'
+  | 'processing-progress'
+  | 'processing-error'
+  | 'processing-completed';
 
 export interface EventPayload {
   timestamp: string;
