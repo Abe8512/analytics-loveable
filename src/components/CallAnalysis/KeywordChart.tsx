@@ -1,83 +1,75 @@
 
-import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { KeywordTrend, KeywordCategory } from '@/hooks/useKeywordTrends';
-import { Skeleton } from '@/components/ui/skeleton';
+import React from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { KeywordCategory } from '@/hooks/useKeywordTrends';
+
+interface KeywordTrend {
+  keyword: string;
+  occurrences: number;
+  change: number;
+  category: KeywordCategory;
+}
 
 interface KeywordChartProps {
   keywords: KeywordTrend[];
   category: KeywordCategory;
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
-const KeywordChart: React.FC<KeywordChartProps> = ({ keywords, category, isLoading = false }) => {
-  // Get color based on category
-  const getCategoryColor = (cat: KeywordCategory): string => {
-    switch (cat) {
-      case 'positive': return '#10B981';
-      case 'negative': return '#EF4444';
-      default: return '#3B82F6';
+const KeywordChart: React.FC<KeywordChartProps> = ({ keywords, category, isLoading }) => {
+  // Transform keywords for display in chart
+  const chartData = keywords.map(k => ({
+    name: k.keyword,
+    value: k.occurrences,
+    change: k.change
+  }));
+  
+  // Define color based on category
+  const getCategoryColor = () => {
+    switch (category) {
+      case 'positive':
+        return '#10b981';
+      case 'negative':
+        return '#ef4444';
+      case 'objection':
+        return '#f59e0b';
+      case 'product':
+        return '#3b82f6';
+      default:
+        return '#8884d8';
     }
   };
   
-  // Memoize the chart data preparation to prevent unnecessary recalculations
-  const chartData = useMemo(() => {
-    if (!Array.isArray(keywords)) return [];
-    
-    // Sort by count (highest first) and limit to top 10
-    return [...keywords]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }, [keywords]);
-
-  if (isLoading) {
-    return (
-      <div className="w-full h-[300px] flex items-center justify-center">
-        <Skeleton className="h-[250px] w-full" />
-      </div>
-    );
-  }
-
-  if (chartData.length === 0) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <p className="text-muted-foreground">No keyword data available yet. Complete a call to see trends.</p>
-      </div>
-    );
-  }
-
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart
-        data={chartData}
-        margin={{
-          top: 20,
-          right: 30,
-          left: 20,
-          bottom: 60,
-        }}
-      >
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis 
-          dataKey="keyword" 
-          angle={-45} 
-          textAnchor="end"
-          height={80}
-        />
-        <YAxis />
-        <Tooltip 
-          formatter={(value) => [`${value} mentions`, 'Frequency']}
-          labelFormatter={(label) => `Keyword: ${label}`}
-        />
-        <Legend />
-        <Bar 
-          dataKey="count" 
-          name="Frequency" 
-          fill={getCategoryColor(category)}
-          animationDuration={500}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="w-full h-64">
+      {isLoading ? (
+        <div className="flex justify-center items-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={chartData}
+            margin={{ top: 10, right: 10, left: 10, bottom: 40 }}
+          >
+            <XAxis 
+              dataKey="name" 
+              angle={-45} 
+              textAnchor="end" 
+              height={60}
+              interval={0}
+              fontSize={12}
+            />
+            <YAxis />
+            <Tooltip
+              formatter={(value, name) => [value, 'Occurrences']}
+              labelFormatter={(label) => `Keyword: ${label}`}
+            />
+            <Bar dataKey="value" fill={getCategoryColor()} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
   );
 };
 
