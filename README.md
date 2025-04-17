@@ -33,7 +33,7 @@ A powerful call analytics platform for sales teams that transcribes, analyzes, a
 
 1. **Clone the repository**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/your-username/future-sentiment-analytics.git
 cd future-sentiment-analytics
 ```
 
@@ -56,6 +56,32 @@ npm run dev
 
 Visit `http://localhost:8080` to see the application.
 
+## Troubleshooting Build Issues
+
+If you encounter the "vite not found" error:
+
+1. Try reinstalling dependencies:
+```bash
+rm -rf node_modules
+npm install
+```
+
+2. Install Vite globally (not recommended for production, but helpful for debugging):
+```bash
+npm install -g vite
+```
+
+3. Check your Node.js version:
+```bash
+node -v
+```
+This project works best with Node.js version 16 or higher.
+
+4. Run with npx:
+```bash
+npx vite
+```
+
 ## Directory Structure
 
 ```
@@ -70,46 +96,10 @@ src/
 └── utils/           # Utility functions
 ```
 
-## Key Dependencies
-
-- `@tanstack/react-query`: Data fetching & caching
-- `@supabase/supabase-js`: Backend integration
-- `recharts`: Data visualization
-- `shadcn/ui`: UI components
-- `zustand`: State management
-- `natural`: Natural language processing
-- `framer-motion`: Animations
-- `lucide-react`: Icons
-
-## Development Guidelines
-
-1. **Code Style**
-   - Use TypeScript for all new code
-   - Follow the existing component patterns
-   - Keep components focused and small
-   - Use proper TypeScript types
-
-2. **Data Management**
-   - Use TanStack Query for data fetching
-   - Implement proper error handling
-   - Use appropriate loading states
-   - Cache data when possible
-
-3. **Components**
-   - Create reusable components
-   - Implement responsive design
-   - Use Tailwind for styling
-   - Follow accessibility guidelines
-
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
 
 ## License
 
 [MIT License](LICENSE)
-
