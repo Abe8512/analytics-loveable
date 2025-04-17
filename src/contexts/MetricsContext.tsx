@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useSharedFilters } from './SharedFilterContext';
 import { useMetricsFetcher } from '@/hooks/useMetricsFetcher';
@@ -41,16 +42,11 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { 
     data, 
     isLoading, 
-    isError, 
     error, 
     isUsingDemoData, 
-    refresh: fetchMetrics,
+    refresh,
     lastUpdated
-  } = useMetricsFetcher({
-    filters,
-    cacheDuration: 5 * 60 * 1000, // 5 minutes cache
-    shouldSubscribe: true,
-  });
+  } = useMetricsFetcher();
 
   // Format the raw metrics data for display using memoization to prevent unnecessary recalculations
   const formattedMetrics = useMemo(() => {
@@ -58,7 +54,7 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [data]);
 
   // Improved refresh function with better error handling and user feedback
-  const refresh = useCallback(async (forceRefresh: boolean = false) => {
+  const handleRefresh = useCallback(async (forceRefresh: boolean = false) => {
     if (isRefreshing) return; // Prevent concurrent refreshes
     
     try {
@@ -69,7 +65,7 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toast.loading("Refreshing metrics data...");
       }
       
-      await fetchMetrics(forceRefresh);
+      await refresh(forceRefresh);
       
       if (forceRefresh) {
         toast.success("Metrics data refreshed successfully");
@@ -83,19 +79,19 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchMetrics, isRefreshing]);
+  }, [refresh, isRefreshing]);
 
   // Create the context value
   const contextValue = useMemo(() => ({
     metricsData: formattedMetrics,
     rawMetricsData: data,
     isLoading,
-    error: isError ? error : null,
+    error,
     isUsingDemoData,
     lastUpdated,
-    refresh,
+    refresh: handleRefresh,
     isRefreshing,
-  }), [formattedMetrics, data, isLoading, isError, error, isUsingDemoData, lastUpdated, refresh, isRefreshing]);
+  }), [formattedMetrics, data, isLoading, error, isUsingDemoData, lastUpdated, handleRefresh, isRefreshing]);
 
   return (
     <MetricsContext.Provider value={contextValue}>

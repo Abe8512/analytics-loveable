@@ -19,6 +19,7 @@ export const useMetricsFetcher = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isUsingDemoData, setIsUsingDemoData] = useState(false);
 
   const fetchMetrics = useCallback(async (force: boolean = false) => {
     try {
@@ -51,6 +52,7 @@ export const useMetricsFetcher = () => {
         
         setData(metricsData[0]);
         setLastUpdated(new Date());
+        setIsUsingDemoData(false);
         return metricsData[0];
       }
       
@@ -89,6 +91,7 @@ export const useMetricsFetcher = () => {
       
       // If no calls data, return mock metrics
       if (!callsData || callsData.length === 0) {
+        setIsUsingDemoData(true);
         return getMockMetrics();
       }
       
@@ -100,7 +103,7 @@ export const useMetricsFetcher = () => {
       // Count sentiment categories
       const sentimentCounts = callsData.reduce(
         (counts, call) => {
-          const sentiment = call.sentiment || 0.5;
+          const sentiment = call.sentiment_agent || 0.5;
           if (sentiment >= 0.66) counts.positive++;
           else if (sentiment <= 0.33) counts.negative++;
           else counts.neutral++;
@@ -116,18 +119,20 @@ export const useMetricsFetcher = () => {
         positive_sentiment_count: sentimentCounts.positive,
         neutral_sentiment_count: sentimentCounts.neutral,
         negative_sentiment_count: sentimentCounts.negative,
-        avg_sentiment: callsData.reduce((sum, call) => sum + (call.sentiment || 0.5), 0) / totalCalls,
+        avg_sentiment: callsData.reduce((sum, call) => sum + (call.sentiment_agent || 0.5), 0) / totalCalls,
         performance_score: 70, // Default performance score
         report_date: new Date().toISOString()
       };
     } catch (error) {
       console.error('Error calculating metrics from raw data:', error);
+      setIsUsingDemoData(true);
       return getMockMetrics();
     }
   };
 
   // Get mock metrics data for demo/development
   const getMockMetrics = () => {
+    setIsUsingDemoData(true);
     return {
       total_calls: 324,
       avg_duration: 270, // 4.5 minutes in seconds
@@ -148,7 +153,8 @@ export const useMetricsFetcher = () => {
     data,
     isLoading,
     error,
+    isUsingDemoData,
     lastUpdated,
-    fetchMetrics
+    refresh: fetchMetrics
   };
 };
