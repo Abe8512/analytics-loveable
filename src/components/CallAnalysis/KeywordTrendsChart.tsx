@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 
 const KeywordTrendsChart = () => {
   // Get keyword trends data using the custom hook
-  const { isLoading, keywordTrends, lastUpdated, fetchKeywordTrends } = useKeywordTrends();
+  const { keywords, keywordTrends, lastUpdated, fetchKeywordTrends, isLoading } = useKeywordTrends();
   const [activeCategory, setActiveCategory] = useState<KeywordCategory>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   

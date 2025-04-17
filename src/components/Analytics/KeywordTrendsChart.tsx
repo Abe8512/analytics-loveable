@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const KeywordTrendsChart: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'positive' | 'neutral' | 'negative' | 'general'>('all');
-  const { keywordTrends, isLoading } = useKeywordTrends();
+  const { keywords, keywordTrends, isLoading } = useKeywordTrends();
   
   // Process data for chart display
   const chartData = keywordTrends[activeCategory]
