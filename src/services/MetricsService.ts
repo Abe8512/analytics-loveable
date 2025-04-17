@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { RawMetricsRecord, FormattedMetrics } from '@/types/metrics';
-import { createEmptyMetrics, createEmptyCallMetrics, createEmptyCallQualityMetrics } from '@/utils/emptyStateUtils';
+import { createEmptyMetrics, createEmptyCallMetrics, createEmptyCallQualityMetrics, createEmptyRawMetricsRecord } from '@/utils/emptyStateUtils';
 
 /**
  * Checks if metrics data is available in the database
@@ -93,7 +93,7 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
           
         if (transcriptError || !transcriptData || transcriptData.length === 0) {
           console.log('No transcript data found, using demo data');
-          return [createEmptyMetrics()] as RawMetricsRecord[];
+          return [createEmptyRawMetricsRecord()] as RawMetricsRecord[];
         }
         
         // Convert transcript data to metrics format
@@ -142,7 +142,7 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
     
     if (!data || data.length === 0) {
       console.log('No metrics data found, using demo data');
-      return [createEmptyMetrics()] as RawMetricsRecord[];
+      return [createEmptyRawMetricsRecord()] as RawMetricsRecord[];
     }
     
     console.log(`Successfully retrieved ${data.length} metrics records`);
@@ -150,7 +150,7 @@ export const getMetricsData = async (days = 7): Promise<RawMetricsRecord[]> => {
   } catch (err) {
     console.error('Exception in getMetricsData:', err);
     console.log('Falling back to demo data');
-    return [createEmptyMetrics()] as RawMetricsRecord[];
+    return [createEmptyRawMetricsRecord()] as RawMetricsRecord[];
   }
 };
 

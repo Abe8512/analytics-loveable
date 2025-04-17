@@ -1,6 +1,7 @@
 
 import { TeamPerformance } from '@/types/teamTypes';
 import { CallVolumeDataPoint, KeywordTrend } from '@/services/RealTimeMetricsService';
+import { RawMetricsRecord } from '@/types/metrics';
 
 /**
  * Creates an empty team performance object
@@ -81,6 +82,23 @@ export const createEmptyMetrics = () => {
     totalCalls: 0,
     avgDuration: 0,
     avgSentiment: 0.5
+  };
+};
+
+/**
+ * Creates an empty raw metrics record
+ */
+export const createEmptyRawMetricsRecord = (): RawMetricsRecord => {
+  return {
+    report_date: new Date().toISOString().split('T')[0],
+    total_calls: 0,
+    avg_duration: 0,
+    positive_sentiment_count: 0,
+    negative_sentiment_count: 0,
+    neutral_sentiment_count: 0,
+    avg_sentiment: 0.5,
+    agent_talk_ratio: 50,
+    customer_talk_ratio: 50
   };
 };
 
