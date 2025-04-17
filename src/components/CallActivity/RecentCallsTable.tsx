@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import ContentLoader from "@/components/ui/ContentLoader";
-import { useCallTranscripts } from "@/services/CallTranscriptService";
+import { useCallTranscripts } from "@/hooks/useCallTranscripts";
 import { useSharedFilters } from "@/contexts/SharedFilterContext";
 
 interface Call {
@@ -35,7 +35,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({
 }) => {
   const navigate = useNavigate();
   const { filters } = useSharedFilters();
-  const { transcripts, loading, fetchTranscripts } = useCallTranscripts();
+  const { transcripts, loading, error, refresh, fetchTranscripts } = useCallTranscripts();
   const [calls, setCalls] = useState<Call[]>([]);
   
   // Refresh data to ensure we have the latest transcripts

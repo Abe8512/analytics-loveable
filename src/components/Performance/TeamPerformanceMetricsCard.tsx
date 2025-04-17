@@ -36,9 +36,7 @@ const TeamPerformanceMetricsCard = () => {
       success_rate: Math.floor(Math.random() * 40) + 60,
       successRate: Math.floor(Math.random() * 40) + 60,
       conversionRate: Math.floor(Math.random() * 20) + 10,
-      avg_talk_ratio: Math.floor(Math.random() * 30) + 35,
-      objection_handling_score: Math.floor(Math.random() * 40) + 60,
-      positive_language_score: Math.floor(Math.random() * 40) + 60,
+      avgSentiment: (Math.random() * 0.5) + 0.5
     }));
     
     setTeamPerformance(performance);

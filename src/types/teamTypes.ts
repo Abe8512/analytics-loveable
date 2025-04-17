@@ -8,8 +8,8 @@ export interface TeamMember {
   email: string;
   role?: string;
   avatar?: string;
-  avatar_url?: string; // Add this for consistency with components
-  user_id?: string; // Add this for BulkUploadProcessorService
+  avatar_url?: string;
+  user_id?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -22,7 +22,7 @@ export interface TeamPerformance {
   positive_calls: number;
   negative_calls: number;
   
-  // Add these fields to make it compatible with the rep data
+  // Make compatible with rep data
   id?: string;
   name?: string;
   calls?: number;
@@ -33,6 +33,7 @@ export interface TeamPerformance {
   call_volume?: number;
   success_rate?: number;
   sentiment_score?: number;
+  avgSentiment?: number;
 }
 
 export interface AddTeamMemberParams {
@@ -40,6 +41,7 @@ export interface AddTeamMemberParams {
   email: string;
   role?: string;
   avatar?: string;
+  user_id?: string;
 }
 
 // Add BulkUploadFilter interface for BulkUploadProcessor

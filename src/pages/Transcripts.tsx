@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
@@ -21,7 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useCallTranscripts } from '@/services/CallTranscriptService';
+import { useCallTranscripts } from '@/hooks/useCallTranscripts';
 import { Skeleton } from '@/components/ui/skeleton';
 import TranscriptViewer from '@/components/Transcripts/TranscriptViewer';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,7 +37,7 @@ export default function Transcripts() {
   const params = new URLSearchParams(location.search);
   const viewId = params.get('id');
   
-  const { transcripts = [], loading, fetchTranscripts } = useCallTranscripts();
+  const { transcripts = [], loading, error, refresh, fetchTranscripts } = useCallTranscripts();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');

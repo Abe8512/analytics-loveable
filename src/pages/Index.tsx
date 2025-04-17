@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Phone, User, BarChart } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { useTeamMetrics } from '@/services/RealTimeMetricsService';
+import { useTeamMetrics } from '@/hooks/useMetricsHooks';
 import { useEventListener } from '@/services/events/hooks';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 

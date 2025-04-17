@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTeamMetrics, useRepMetrics } from '@/services/RealTimeMetricsService';
+import { useTeamMetrics, useRepMetrics } from '@/hooks/useMetricsHooks';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const TeamPerformanceAnalytics = () => {

@@ -28,27 +28,27 @@ export const EVENT_TYPES = {
   'transcripts-updated': 'transcripts-updated'
 };
 
-export type EventType = 
-  | 'team-member-added'
-  | 'team-member-removed'
-  | 'call-updated'
-  | 'transcript-updated'
-  | 'managed-users-updated'
-  | 'bulk-upload-started'
-  | 'bulk-upload-progress'
-  | 'bulk-upload-completed' 
-  | 'bulk-upload-error'
-  | 'call-uploaded'
-  | 'transcript-created'
-  | 'transcripts-updated'
-  | 'transcripts-refreshed'
-  | 'sentiment-updated'
-  | 'metrics-refreshed'
-  | 'transcript-selected'
-  | 'processing-started'
-  | 'processing-progress'
-  | 'processing-error'
-  | 'processing-completed';
+export type EventType = keyof typeof EVENT_TYPES | 
+  'team-member-added' |
+  'team-member-removed' |
+  'call-updated' |
+  'transcript-updated' |
+  'managed-users-updated' |
+  'bulk-upload-started' |
+  'bulk-upload-progress' |
+  'bulk-upload-completed' | 
+  'bulk-upload-error' |
+  'call-uploaded' |
+  'transcript-created' |
+  'transcripts-updated' |
+  'transcripts-refreshed' |
+  'sentiment-updated' |
+  'metrics-refreshed' |
+  'transcript-selected' |
+  'processing-started' |
+  'processing-progress' |
+  'processing-error' |
+  'processing-completed';
 
 export interface EventPayload {
   timestamp: string;

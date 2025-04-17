@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { CallTranscript } from '@/types/call';
+import { CallTranscript, safeCallTranscriptCast } from '@/types/call';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -61,7 +61,9 @@ export const useCallTranscripts = (): UseCallTranscriptsResult => {
         return [];
       }
 
-      return data as CallTranscript[];
+      // Safely cast the data to CallTranscript type
+      const safeTranscripts: CallTranscript[] = data.map(item => safeCallTranscriptCast(item));
+      return safeTranscripts;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching transcripts';
       console.error(errorMessage);
