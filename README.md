@@ -1,69 +1,115 @@
-# Welcome to your Lovable project
 
-## Project info
+# Future Sentiment Analytics
 
-**URL**: https://lovable.dev/projects/99795928-ebcf-46fe-98ad-dd8cea9e64ed
+A powerful call analytics platform for sales teams that transcribes, analyzes, and provides insights from call recordings. This application helps sales managers track team performance, identify coaching opportunities, and improve sales outcomes through data-driven insights.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- **Call Analytics**
+  - Transcription analysis
+  - Sentiment tracking
+  - Performance metrics
+  - Real-time insights
 
-**Use Lovable**
+- **Team Management**
+  - Team member organization
+  - Performance tracking
+  - Call assignment
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/99795928-ebcf-46fe-98ad-dd8cea9e64ed) and start prompting.
+- **Data Visualization**
+  - Interactive charts
+  - Performance trends
+  - Historical analysis
+  - Team comparisons
 
-Changes made via Lovable will be committed automatically to this repo.
+## Tech Stack
 
-**Use your preferred IDE**
+- **Frontend**: React 18, TypeScript, Tailwind CSS, Shadcn UI
+- **Data Visualization**: Recharts
+- **State Management**: TanStack Query, Zustand
+- **Backend Integration**: Supabase
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Getting Started
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. **Clone the repository**
+```bash
+git clone <your-repo-url>
+cd future-sentiment-analytics
+```
 
-Follow these steps:
+2. **Install dependencies**
+```bash
+npm install
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+3. **Set up environment variables**
+Create a `.env` file in the root directory:
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. **Run the development server**
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Visit `http://localhost:8080` to see the application.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Directory Structure
 
-**Use GitHub Codespaces**
+```
+src/
+├── components/        # Reusable UI components
+├── contexts/         # React context providers
+├── features/         # Feature-specific components
+├── hooks/           # Custom React hooks
+├── services/        # Business logic & data services
+├── store/           # State management
+├── types/           # TypeScript definitions
+└── utils/           # Utility functions
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Key Dependencies
 
-## What technologies are used for this project?
+- `@tanstack/react-query`: Data fetching & caching
+- `@supabase/supabase-js`: Backend integration
+- `recharts`: Data visualization
+- `shadcn/ui`: UI components
+- `zustand`: State management
+- `natural`: Natural language processing
+- `framer-motion`: Animations
+- `lucide-react`: Icons
 
-This project is built with .
+## Development Guidelines
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+1. **Code Style**
+   - Use TypeScript for all new code
+   - Follow the existing component patterns
+   - Keep components focused and small
+   - Use proper TypeScript types
 
-## How can I deploy this project?
+2. **Data Management**
+   - Use TanStack Query for data fetching
+   - Implement proper error handling
+   - Use appropriate loading states
+   - Cache data when possible
 
-Simply open [Lovable](https://lovable.dev/projects/99795928-ebcf-46fe-98ad-dd8cea9e64ed) and click on Share -> Publish.
+3. **Components**
+   - Create reusable components
+   - Implement responsive design
+   - Use Tailwind for styling
+   - Follow accessibility guidelines
 
-## I want to use a custom domain - is that possible?
+## Contributing
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+[MIT License](LICENSE)
+

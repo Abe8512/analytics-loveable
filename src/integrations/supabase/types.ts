@@ -803,7 +803,7 @@ export type Database = {
         Returns: undefined
       }
       execute_sql_with_results: {
-        Args: { sql: string; params?: string } | { query_text: string }
+        Args: { query_text: string } | { sql: string; params?: string }
         Returns: Json
       }
       fix_all_call_records: {
@@ -834,13 +834,13 @@ export type Database = {
       }
       get_keyword_analytics: {
         Args:
+          | { p_category?: string; p_limit?: number; p_days?: number }
           | {
               start_date?: string
               end_date?: string
               user_ids?: string[]
               limit_count?: number
             }
-          | { p_category?: string; p_limit?: number; p_days?: number }
         Returns: Json
       }
       get_recent_alerts: {
