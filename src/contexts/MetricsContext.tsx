@@ -44,8 +44,8 @@ export const MetricsProvider: React.FC<{ children: React.ReactNode }> = ({ child
     isLoading, 
     error, 
     isUsingDemoData, 
-    refresh,
-    lastUpdated
+    lastUpdated,
+    refresh 
   } = useMetricsFetcher();
 
   // Format the raw metrics data for display using memoization to prevent unnecessary recalculations
