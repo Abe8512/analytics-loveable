@@ -1,46 +1,56 @@
 
 import { create } from 'zustand';
-import { BulkUploadFilter } from '@/types/teamTypes';
+import { BulkUploadFilter, BulkUploadFile } from '@/types/bulkUpload';
 
-interface BulkUploadFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  progress: number;
-  status: 'queued' | 'processing' | 'complete' | 'error';
-  error?: string;
-  transcriptId?: string;
-  result?: string;
-  assignedTo?: string;
-}
-
-interface BulkUploadState {
+export interface BulkUploadState {
   files: BulkUploadFile[];
   isUploading: boolean;
+  isProcessing: boolean;
   currentlyProcessing: string | null;
   totalProgress: number;
+  progress: number;
+  uploadState: any;
+  transcripts: any[];
+  fileCount: number;
+  
+  // Methods
+  start: () => void;
+  complete: () => void;
   addFile: (file: File) => void;
   addFiles: (files: File[]) => void;
   updateFileStatus: (id: string, status: BulkUploadFile['status'], progress: number, result?: string, error?: string, transcriptId?: string) => void;
+  setProgress: (fileId: string, progress: number, status: string, transcriptId?: string, error?: string) => void;
   removeFile: (id: string) => void;
   clearFiles: () => void;
   setIsUploading: (isUploading: boolean) => void;
   setCurrentlyProcessing: (id: string | null) => void;
   removeCompletedFiles: () => void;
   assignFileToUser: (fileId: string, userId: string) => void;
+  addTranscript: (transcript: any) => void;
+  setFileCount: (count: number) => void;
+  refreshTranscripts: (filter?: BulkUploadFilter) => Promise<void>;
 }
 
-export const useBulkUploadStore = create<BulkUploadState>((set) => ({
+export const useBulkUploadStore = create<BulkUploadState>((set, get) => ({
   files: [],
   isUploading: false,
+  isProcessing: false,
   currentlyProcessing: null,
   totalProgress: 0,
+  progress: 0,
+  uploadState: null,
+  transcripts: [],
+  fileCount: 0,
+  
+  start: () => set({ isProcessing: true }),
+  
+  complete: () => set({ isProcessing: false }),
   
   addFile: (file) => set((state) => {
     const id = crypto.randomUUID();
     const newFile: BulkUploadFile = {
       id,
+      file,
       name: file.name,
       size: file.size,
       type: file.type,
@@ -56,6 +66,7 @@ export const useBulkUploadStore = create<BulkUploadState>((set) => ({
   addFiles: (files) => set((state) => {
     const newFiles = files.map(file => ({
       id: crypto.randomUUID(),
+      file,
       name: file.name,
       size: file.size,
       type: file.type,
@@ -90,6 +101,11 @@ export const useBulkUploadStore = create<BulkUploadState>((set) => ({
       };
     }),
     
+  setProgress: (fileId, progress, status, transcriptId, error) => {
+    const { updateFileStatus } = get();
+    updateFileStatus(fileId, status as BulkUploadFile['status'], progress, undefined, error, transcriptId);
+  },
+    
   removeFile: (id) => set((state) => ({
     files: state.files.filter(file => file.id !== id)
   })),
@@ -111,5 +127,17 @@ export const useBulkUploadStore = create<BulkUploadState>((set) => ({
     files: state.files.map(file => 
       file.id === fileId ? { ...file, assignedTo: userId } : file
     )
-  }))
+  })),
+  
+  addTranscript: (transcript) => set((state) => ({
+    transcripts: [...state.transcripts, transcript]
+  })),
+  
+  setFileCount: (count) => set(() => ({ fileCount: count })),
+  
+  refreshTranscripts: async (filter) => {
+    // This would normally be implemented to fetch transcripts
+    // For now it's a placeholder
+    return Promise.resolve();
+  }
 }));

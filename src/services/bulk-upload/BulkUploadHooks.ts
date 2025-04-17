@@ -1,26 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { useBulkUploadStore } from '@/store/useBulkUploadStore';
+import { useBulkUploadStore, BulkUploadState } from '@/store/useBulkUploadStore';
 import { BulkUploadFilter } from '@/types/bulkUpload';
 import { EventsService } from '@/services/EventsService';
 import { EventType } from '@/services/events/types';
-
-// Define the proper interface for the bulk upload store state
-interface BulkUploadStoreState {
-  files: any[];
-  isUploading: boolean;
-  isProcessing: boolean;
-  progress: number;
-  start: () => void;
-  complete: () => void;
-  setProgress: (fileId: string, progress: number, status: string, transcriptId?: string, error?: string) => void;
-  addTranscript: (transcript: any) => void;
-  setFileCount: (count: number) => void;
-  uploadState: any;
-  transcripts: any[];
-  fileCount: number;
-  refreshTranscripts: (filter?: BulkUploadFilter) => Promise<void>;
-}
 
 // Create a hook for the bulk upload processing state
 export const useBulkUploadProcessingState = () => {
@@ -33,7 +16,7 @@ export const useBulkUploadProcessingState = () => {
     setProgress,
     addTranscript,
     setFileCount
-  } = useBulkUploadStore() as BulkUploadStoreState;
+  } = useBulkUploadStore();
   
   const [hasError, setHasError] = useState(false);
   
@@ -93,7 +76,7 @@ export const useBulkUpload = () => {
     transcripts,
     fileCount,
     refreshTranscripts
-  } = useBulkUploadStore() as BulkUploadStoreState;
+  } = useBulkUploadStore();
   
   const [isLoading, setIsLoading] = useState(true);
   
