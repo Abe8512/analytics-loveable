@@ -1,181 +1,93 @@
 
-import { supabase } from '@/integrations/supabase/client';
+// Mock data service for development and testing
 
-// Set USE_MOCK_DATA to false to prevent any accidental mock data generation
-export const USE_MOCK_DATA = false;
+// KPI data
+export interface KPIData {
+  objectionHandlingScore: number;
+  discoveryQuestionsRate: number;
+  closingTechniquesScore: number; 
+  clientEngagementScore: number;
+  painPointIdentificationScore: number;
+  followUpCommitmentRate: number;
+  silencePercentage: number;
+}
 
-// Generate KPI data for the dashboard - fallback when real data isn't available
-export const generateMockKPIData = async () => {
-  console.warn('Mock data requested. Attempting to fetch real data instead.');
-  
-  try {
-    // Try to fetch real data first
-    const { data, error } = await supabase
-      .from('performance_metrics')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
-      
-    if (!error && data && data.length > 0) {
-      return data[0];
-    }
-  } catch (e) {
-    console.error('Error fetching real data:', e);
-  }
-  
-  // Fallback to generated data
+// Chart data interface
+export interface ChartData {
+  objectionHandlingData: Array<{name: string; score: number}>;
+  questionFrequencyData: Array<{name: string; value: number}>;
+  keywordOccurrenceData: Array<{subject: string; A: number}>;
+  talkRatioData: Array<{name: string; agent: number; customer: number}>;
+  silenceDistributionData: Array<{name: string; value: number}>;
+}
+
+// Sales funnel data
+export interface SalesFunnelData {
+  name: string;
+  value: number;
+}
+
+// Flag to determine whether to use mock data
+export const USE_MOCK_DATA = true;
+
+// Generate mock KPI data
+export const generateMockKPIData = (): KPIData => {
   return {
-    objectionHandlingScore: 72,
-    discoveryQuestionsRate: 68,
-    closingTechniquesScore: 81,
-    clientEngagementScore: 85,
-    followUpCommitmentRate: 79,
-    painPointIdentificationScore: 76,
-    silencePercentage: 12,
+    objectionHandlingScore: 78,
+    discoveryQuestionsRate: 14.2,
+    closingTechniquesScore: 82,
+    clientEngagementScore: 76,
+    painPointIdentificationScore: 65,
+    followUpCommitmentRate: 88,
+    silencePercentage: 12
   };
 };
 
-// Generate chart data - fallback when real data isn't available
-export const generateMockChartData = async () => {
-  console.warn('Mock chart data requested. Attempting to fetch real data instead.');
-  
-  try {
-    // Try to fetch real data for charts
-    const { data: trendsData, error: trendsError } = await supabase
-      .from('performance_trends')
-      .select('*')
-      .order('date', { ascending: true })
-      .limit(30);
-      
-    if (!trendsError && trendsData && trendsData.length > 0) {
-      // Transform the real data into chart format
-      return {
-        objectionHandlingData: trendsData.map(item => ({
-          date: item.date,
-          value: item.objection_handling || 0
-        })),
-        questionFrequencyData: trendsData.map(item => ({
-          date: item.date,
-          value: item.question_frequency || 0
-        })),
-        keywordOccurrenceData: trendsData.map(item => ({
-          date: item.date,
-          value: item.keyword_occurrence || 0
-        })),
-        talkRatioData: trendsData.map(item => ({
-          date: item.date,
-          agent: item.talk_ratio_agent || 0,
-          customer: item.talk_ratio_customer || 0
-        })),
-        silenceDistributionData: trendsData.map(item => ({
-          date: item.date,
-          value: item.silence_percentage || 0
-        }))
-      };
-    }
-  } catch (e) {
-    console.error('Error fetching real chart data:', e);
-  }
-  
-  // Fallback to generated chart data
+// Generate mock chart data
+export const generateMockChartData = (): ChartData => {
   return {
-    objectionHandlingData: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      value: 65 + Math.random() * 20
-    })),
-    questionFrequencyData: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      value: 5 + Math.random() * 8
-    })),
-    keywordOccurrenceData: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      value: 10 + Math.random() * 15
-    })),
-    talkRatioData: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      agent: 45 + Math.random() * 15,
-      customer: 40 + Math.random() * 15
-    })),
-    silenceDistributionData: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      value: 5 + Math.random() * 15
-    }))
+    objectionHandlingData: [
+      { name: 'Q1', score: 65 },
+      { name: 'Q2', score: 72 },
+      { name: 'Q3', score: 78 },
+      { name: 'Q4', score: 82 }
+    ],
+    questionFrequencyData: [
+      { name: 'Discovery', value: 35 },
+      { name: 'Feature', value: 25 },
+      { name: 'Objection', value: 20 },
+      { name: 'Closing', value: 15 },
+      { name: 'Follow-up', value: 5 }
+    ],
+    keywordOccurrenceData: [
+      { subject: 'Price', A: 80 },
+      { subject: 'Features', A: 95 },
+      { subject: 'Support', A: 68 },
+      { subject: 'Competition', A: 74 },
+      { subject: 'Timeline', A: 62 }
+    ],
+    talkRatioData: [
+      { name: 'Call 1', agent: 65, customer: 35 },
+      { name: 'Call 2', agent: 58, customer: 42 },
+      { name: 'Call 3', agent: 52, customer: 48 },
+      { name: 'Call 4', agent: 48, customer: 52 }
+    ],
+    silenceDistributionData: [
+      { name: '0-2 sec', value: 35 },
+      { name: '2-5 sec', value: 42 },
+      { name: '5-10 sec', value: 18 },
+      { name: '10+ sec', value: 5 }
+    ]
   };
 };
 
-// Generate team performance metrics for reports
-export const generateMockTeamMetrics = async () => {
-  console.warn('Mock team metrics requested. Attempting to fetch real data instead.');
-  
-  try {
-    // Try to fetch real team metrics
-    const { data, error } = await supabase
-      .from('team_performance')
-      .select('*')
-      .order('updated_at', { ascending: false });
-      
-    if (!error && data && data.length > 0) {
-      return data;
-    }
-  } catch (e) {
-    console.error('Error fetching real team metrics:', e);
-  }
-  
-  // Fallback to generated team metrics
-  return Array.from({ length: 8 }, (_, i) => ({
-    id: `tm-${i + 1}`,
-    name: ['Alex Johnson', 'Sarah Smith', 'Chris Lee', 'Jordan Patel', 'Taylor Brown', 'Morgan Davis', 'Casey Wilson', 'Jamie Garcia'][i],
-    calls: Math.floor(30 + Math.random() * 50),
-    successRate: Math.round(65 + Math.random() * 25),
-    avgSentiment: (0.65 + Math.random() * 0.25).toFixed(2),
-    conversionRate: Math.round(30 + Math.random() * 40)
-  }));
-};
-
-// Generate sales funnel data when needed
-export const generateMockSalesFunnelData = async () => {
-  console.warn('Mock sales funnel data requested. Attempting to fetch real data instead.');
-  
-  try {
-    // Try to fetch real sales funnel data
-    const { data, error } = await supabase
-      .from('sales_funnel')
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(1);
-      
-    if (!error && data && data.length > 0) {
-      return data[0];
-    }
-  } catch (e) {
-    console.error('Error fetching real sales funnel data:', e);
-  }
-  
-  // Fallback to generated sales funnel data
+// Generate mock sales funnel data
+export const generateMockSalesFunnelData = (): SalesFunnelData[] => {
   return [
-    { name: 'Prospects', value: 1200 },
-    { name: 'Qualified Leads', value: 800 },
-    { name: 'Presentations', value: 400 },
-    { name: 'Proposals', value: 200 },
-    { name: 'Negotiations', value: 100 },
-    { name: 'Closed Deals', value: 50 }
+    { name: 'Leads', value: 100 },
+    { name: 'Qualified', value: 65 },
+    { name: 'Demo', value: 40 },
+    { name: 'Proposal', value: 25 },
+    { name: 'Closed', value: 18 }
   ];
 };
-
-// Generate random chart data for components
-export function generateRandomChartData() {
-  console.warn('Random chart data requested. Attempting to use real data instead.');
-  
-  const dates = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - 29 + i);
-    return date.toISOString().split('T')[0];
-  });
-  
-  return dates.map(date => ({
-    date,
-    calls: Math.floor(5 + Math.random() * 15),
-    sentiment: 0.4 + Math.random() * 0.4,
-    performance: 60 + Math.random() * 30
-  }));
-}

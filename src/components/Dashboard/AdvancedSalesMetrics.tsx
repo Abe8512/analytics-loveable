@@ -17,7 +17,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { generateMockKPIData, generateMockChartData, generateMockSalesFunnelData, USE_MOCK_DATA } from "@/services/MockDataService";
+import { 
+  generateMockKPIData, 
+  generateMockChartData, 
+  generateMockSalesFunnelData, 
+  USE_MOCK_DATA 
+} from "@/services/MockDataService";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 import { motion } from "framer-motion";
@@ -60,7 +65,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const AdvancedSalesMetrics = () => {
   const { isDarkMode } = useTheme();
   
-  // Get mock data
+  // Get mock data using useMemo to prevent unnecessary recalculations
   const kpiData = useMemo(() => generateMockKPIData(), []);
   const chartData = useMemo(() => generateMockChartData(), []);
   const funnelData = useMemo(() => generateMockSalesFunnelData(), []);

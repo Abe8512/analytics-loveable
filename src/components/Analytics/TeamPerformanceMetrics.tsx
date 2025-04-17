@@ -1,124 +1,113 @@
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/integrations/supabase/client';
-import { TeamPerformance } from '@/types/analytics';
-import { TeamPerformanceAnalytics } from '@/components/Performance/TeamPerformanceAnalytics';
+import React from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { ArrowUpRight, Users } from 'lucide-react';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  callVolume: number;
+  successRate: number;
+  avgSentiment: number;
+}
 
 interface TeamPerformanceMetricsProps {
   isLoading?: boolean;
 }
 
-const TeamPerformanceMetrics: React.FC<TeamPerformanceMetricsProps> = ({ isLoading: externalLoading }) => {
-  const [teamData, setTeamData] = useState<TeamPerformance[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const TeamPerformanceMetrics: React.FC<TeamPerformanceMetricsProps> = ({ isLoading = false }) => {
+  // Mock data for team members
+  const teamMembers: TeamMember[] = [
+    { id: '1', name: 'Sarah Johnson', callVolume: 127, successRate: 78, avgSentiment: 0.82 },
+    { id: '2', name: 'Michael Chen', callVolume: 98, successRate: 65, avgSentiment: 0.75 },
+    { id: '3', name: 'Jessica Smith', callVolume: 112, successRate: 72, avgSentiment: 0.68 },
+    { id: '4', name: 'David Wilson', callVolume: 85, successRate: 61, avgSentiment: 0.71 }
+  ];
 
-  useEffect(() => {
-    const fetchTeamPerformance = async () => {
-      try {
-        setLoading(true);
-        // Try to get team performance from Supabase
-        const { data, error } = await supabase
-          .from('rep_metrics_summary')
-          .select('*')
-          .order('call_volume', { ascending: false });
-        
-        if (error) {
-          console.error('Error fetching team performance:', error);
-          setTeamData(getMockTeamData());
-          return;
-        }
-        
-        if (data && data.length > 0) {
-          // Map the data to our TeamPerformance interface
-          const mappedData = data.map(rep => ({
-            id: rep.rep_id,
-            name: rep.rep_name || `Rep ${rep.rep_id.substring(0, 5)}`,
-            calls: rep.call_volume || 0,
-            successRate: rep.success_rate || 0,
-            avgSentiment: rep.sentiment_score || 0.5,
-            conversionRate: 0.4 + Math.random() * 0.3 // Mock conversion rate between 40-70%
-          }));
-          setTeamData(mappedData);
-        } else {
-          // Fallback to mock data if no data in database
-          setTeamData(getMockTeamData());
-        }
-      } catch (error) {
-        console.error('Error in fetchTeamPerformance:', error);
-        setTeamData(getMockTeamData());
-        setError('Failed to load team performance data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTeamPerformance();
-  }, []);
-
-  const getMockTeamData = (): TeamPerformance[] => {
-    console.log('Mock team metrics requested but this function is deprecated. Use real data instead.');
-    return [
-      {
-        id: '1',
-        name: 'Sarah Johnson',
-        calls: 127,
-        successRate: 78,
-        avgSentiment: 0.82,
-        conversionRate: 0.65
-      },
-      {
-        id: '2',
-        name: 'Michael Chen',
-        calls: 98,
-        successRate: 65,
-        avgSentiment: 0.75,
-        conversionRate: 0.52
-      },
-      {
-        id: '3',
-        name: 'Jessica Smith',
-        calls: 112,
-        successRate: 72,
-        avgSentiment: 0.68,
-        conversionRate: 0.58
-      },
-      {
-        id: '4',
-        name: 'David Wilson',
-        calls: 85,
-        successRate: 61,
-        avgSentiment: 0.71,
-        conversionRate: 0.49
-      }
-    ];
+  // Format sentiment as percentage
+  const formatSentiment = (value: number): string => {
+    return `${Math.round(value * 100)}%`;
   };
 
-  const isDataLoading = loading || externalLoading;
+  // Determine sentiment class based on value
+  const getSentimentClass = (value: number): string => {
+    if (value >= 0.7) return "text-green-600";
+    if (value >= 0.5) return "text-amber-600";
+    return "text-red-600";
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Team Performance</CardTitle>
-        <CardDescription>
-          Performance metrics for each team member
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center">
+              <Users className="mr-2 h-5 w-5" />
+              Team Performance
+            </CardTitle>
+            <CardDescription>
+              Performance metrics for all sales representatives
+            </CardDescription>
+          </div>
+          <Badge variant="outline" className="ml-2 bg-primary/10">
+            <ArrowUpRight className="mr-1 h-3.5 w-3.5" />
+            <span>Team View</span>
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent>
-        {isDataLoading ? (
+        {isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-64 w-full" />
-          </div>
-        ) : error ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>{error}</p>
-            <p className="text-sm mt-2">Showing fallback data instead.</p>
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
           </div>
         ) : (
-          <TeamPerformanceAnalytics data={teamData} />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Rep Name</TableHead>
+                <TableHead>Call Volume</TableHead>
+                <TableHead>Success Rate</TableHead>
+                <TableHead>Sentiment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {teamMembers.map((member) => (
+                <TableRow key={member.id}>
+                  <TableCell className="font-medium">{member.name}</TableCell>
+                  <TableCell>{member.callVolume}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Progress value={member.successRate} className="h-2 w-24" />
+                      <span className="text-sm">{member.successRate}%</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className={getSentimentClass(member.avgSentiment)}>
+                    {formatSentiment(member.avgSentiment)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
