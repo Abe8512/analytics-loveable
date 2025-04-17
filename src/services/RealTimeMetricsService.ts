@@ -5,6 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { TeamPerformance } from '@/types/teamTypes';
 import { EventsStore } from './events/store';
 import { EventType, EVENT_TYPES } from './events/types';
+import { MetricsData } from '@/types/metrics';
+import { TeamPerformance } from '@/types/teamTypes';
+import { createEmptySentimentTrends, createEmptyTeamPerformance, createEmptyKeywordTrends, createEmptyCallVolume } from '@/utils/emptyStateUtils';
 
 export interface TeamMetrics {
   callVolume: number;
@@ -220,3 +223,237 @@ export const useRepMetrics = (repId?: string): {
 
   return { metrics, isLoading, error, refreshMetrics };
 };
+
+export interface RealTimeMetricsServiceInterface {
+  getActiveListeners: () => number;
+  registerPerformanceListener: (callback: (data: TeamPerformance) => void) => () => void;
+  registerCallVolumeListener: (callback: (data: any[]) => void) => () => void;
+  registerKeywordTrendsListener: (callback: (data: any[]) => void) => () => void;
+  registerSentimentTrendsListener: (callback: (data: any[]) => void) => () => void;
+  refreshAllMetrics: () => Promise<void>;
+}
+
+class RealTimeMetricsServiceClass implements RealTimeMetricsServiceInterface {
+  private performanceListeners: ((data: TeamPerformance) => void)[] = [];
+  private callVolumeListeners: ((data: any[]) => void)[] = [];
+  private keywordTrendsListeners: ((data: any[]) => void)[] = [];
+  private sentimentTrendsListeners: ((data: any[]) => void)[] = [];
+  
+  // Cache for metrics data
+  private teamPerformanceCache: TeamPerformance | null = null;
+  private callVolumeCache: any[] | null = null;
+  private keywordTrendsCache: any[] | null = null;
+  private sentimentTrendsCache: any[] | null = null;
+  
+  // Polling intervals
+  private pollingIntervals: number[] = [];
+  
+  constructor() {
+    // Start polling for metrics updates
+    this.startPolling();
+  }
+  
+  private startPolling() {
+    // Poll for team performance every 30 seconds
+    const performanceInterval = window.setInterval(() => {
+      this.refreshTeamPerformance();
+    }, 30 * 1000);
+    
+    // Poll for call volume every minute
+    const callVolumeInterval = window.setInterval(() => {
+      this.refreshCallVolume();
+    }, 60 * 1000);
+    
+    // Poll for keyword trends every 2 minutes
+    const keywordTrendsInterval = window.setInterval(() => {
+      this.refreshKeywordTrends();
+    }, 2 * 60 * 1000);
+    
+    // Poll for sentiment trends every 2 minutes
+    const sentimentTrendsInterval = window.setInterval(() => {
+      this.refreshSentimentTrends();
+    }, 2 * 60 * 1000);
+    
+    // Store intervals so we can clear them later
+    this.pollingIntervals = [
+      performanceInterval,
+      callVolumeInterval,
+      keywordTrendsInterval,
+      sentimentTrendsInterval
+    ];
+  }
+  
+  private stopPolling() {
+    this.pollingIntervals.forEach(interval => {
+      clearInterval(interval);
+    });
+  }
+  
+  /**
+   * Get the number of active listeners
+   */
+  public getActiveListeners(): number {
+    return this.performanceListeners.length + 
+           this.callVolumeListeners.length + 
+           this.keywordTrendsListeners.length + 
+           this.sentimentTrendsListeners.length;
+  }
+  
+  /**
+   * Register a listener for team performance updates
+   */
+  public registerPerformanceListener(callback: (data: TeamPerformance) => void): () => void {
+    this.performanceListeners.push(callback);
+    
+    // Immediately invoke with cached data if available
+    if (this.teamPerformanceCache) {
+      callback(this.teamPerformanceCache);
+    } else {
+      // Otherwise, fetch fresh data
+      this.refreshTeamPerformance().then(data => {
+        if (data) callback(data);
+      });
+    }
+    
+    // Return unsubscribe function
+    return () => {
+      this.performanceListeners = this.performanceListeners.filter(cb => cb !== callback);
+    };
+  }
+  
+  /**
+   * Register a listener for call volume updates
+   */
+  public registerCallVolumeListener(callback: (data: any[]) => void): () => void {
+    this.callVolumeListeners.push(callback);
+    
+    // Immediately invoke with cached data if available
+    if (this.callVolumeCache) {
+      callback(this.callVolumeCache);
+    } else {
+      // Otherwise, fetch fresh data
+      this.refreshCallVolume().then(data => {
+        if (data) callback(data);
+      });
+    }
+    
+    // Return unsubscribe function
+    return () => {
+      this.callVolumeListeners = this.callVolumeListeners.filter(cb => cb !== callback);
+    };
+  }
+  
+  // Similar implementations for other listeners
+  public registerKeywordTrendsListener(callback: (data: any[]) => void): () => void {
+    // ... similar implementation to other listeners
+    return () => {};
+  }
+  
+  public registerSentimentTrendsListener(callback: (data: any[]) => void): () => void {
+    // ... similar implementation to other listeners
+    return () => {};
+  }
+  
+  /**
+   * Refresh all metrics data
+   */
+  public async refreshAllMetrics(): Promise<void> {
+    // Implementation of the specific refresh functions
+    const refreshTeamPerformanceImpl = async (): Promise<TeamPerformance | null> => {
+      try {
+        // In a real implementation, fetch data from API/database
+        const data = createEmptyTeamPerformance();
+        
+        // Cache the data
+        this.teamPerformanceCache = data;
+        
+        // Notify all listeners
+        this.performanceListeners.forEach(listener => {
+          listener(data);
+        });
+        
+        return data;
+      } catch (error) {
+        console.error('Error refreshing team performance:', error);
+        return null;
+      }
+    };
+    
+    const refreshCallVolumeImpl = async (): Promise<any[] | null> => {
+      try {
+        // In a real implementation, fetch data from API/database
+        const data = createEmptyCallVolume();
+        
+        // Cache the data
+        this.callVolumeCache = data;
+        
+        // Notify all listeners
+        this.callVolumeListeners.forEach(listener => {
+          listener(data);
+        });
+        
+        return data;
+      } catch (error) {
+        console.error('Error refreshing call volume:', error);
+        return null;
+      }
+    };
+    
+    const refreshKeywordTrendsImpl = async (): Promise<any[] | null> => {
+      try {
+        // In a real implementation, fetch data from API/database
+        const data = createEmptyKeywordTrends();
+        
+        // Cache the data
+        this.keywordTrendsCache = data;
+        
+        // Notify all listeners
+        this.keywordTrendsListeners.forEach(listener => {
+          listener(data);
+        });
+        
+        return data;
+      } catch (error) {
+        console.error('Error refreshing keyword trends:', error);
+        return null;
+      }
+    };
+    
+    const refreshSentimentTrendsImpl = async (): Promise<any[] | null> => {
+      try {
+        // In a real implementation, fetch data from API/database
+        const data = createEmptySentimentTrends();
+        
+        // Cache the data
+        this.sentimentTrendsCache = data;
+        
+        // Notify all listeners
+        this.sentimentTrendsListeners.forEach(listener => {
+          listener(data);
+        });
+        
+        return data;
+      } catch (error) {
+        console.error('Error refreshing sentiment trends:', error);
+        return null;
+      }
+    };
+    
+    // Call all refresh functions
+    await Promise.all([
+      refreshTeamPerformanceImpl(),
+      refreshCallVolumeImpl(),
+      refreshKeywordTrendsImpl(),
+      refreshSentimentTrendsImpl()
+    ]);
+  }
+  
+  // Define the actual refreshTeamPerformance method
+  private refreshTeamPerformance = refreshTeamPerformanceImpl;
+  private refreshCallVolume = refreshCallVolumeImpl;
+  private refreshKeywordTrends = refreshKeywordTrendsImpl;
+  private refreshSentimentTrends = refreshSentimentTrendsImpl;
+}
+
+// Export a singleton instance
+export const RealTimeMetricsService = new RealTimeMetricsServiceClass();

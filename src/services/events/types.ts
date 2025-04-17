@@ -17,7 +17,8 @@ export const EVENT_TYPES = {
   TRANSCRIPTS_UPDATED: 'transcripts-updated',
   TRANSCRIPTS_REFRESHED: 'transcripts-refreshed',
   SENTIMENT_UPDATED: 'sentiment-updated',
-  METRICS_REFRESHED: 'metrics-refreshed'
+  METRICS_REFRESHED: 'metrics-refreshed',
+  TRANSCRIPT_SELECTED: 'transcript-selected'
 };
 
 export type EventType = 
@@ -48,3 +49,8 @@ export interface EventListener {
   callback: (data?: any) => void;
   id: string;
 }
+
+/**
+ * Team event types
+ */
+export type TeamEventType = EventType;

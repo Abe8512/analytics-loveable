@@ -1,49 +1,70 @@
 
 import { EventsStore } from './store';
-import { EventType, EventPayload, TeamEventType } from './types';
+import { TeamMember } from '@/types/teamTypes';
+import { EventType, EVENT_TYPES } from './types';
 
 /**
- * Emit team member added event
- * @param teamMember The newly added team member
+ * Dispatches a team member added event
+ * @param teamMember The team member that was added
  */
-export const emitTeamMemberAdded = (teamMember: any) => {
-  if (!teamMember) return false;
-
-  EventsStore.dispatchEvent('team-member-added' as EventType, {
+export const dispatchTeamMemberAdded = (teamMember: TeamMember) => {
+  EventsStore.dispatchEvent(EVENT_TYPES.TEAM_MEMBER_ADDED, {
     teamMember,
     timestamp: new Date().toISOString()
   });
-
-  return true;
 };
 
 /**
- * Listen for team member added events
- * @param callback Function to call when a team member is added
+ * Dispatches a team member removed event
+ * @param teamMemberId The ID of the team member that was removed
  */
-export const onTeamMemberAdded = (callback: (payload: EventPayload) => void) => {
-  return EventsStore.addEventListener('team-member-added' as EventType, callback);
-};
-
-/**
- * Emit team member removed event
- * @param teamMemberId ID of the removed team member
- */
-export const emitTeamMemberRemoved = (teamMemberId: string) => {
-  if (!teamMemberId) return false;
-
-  EventsStore.dispatchEvent('team-member-removed' as EventType, {
+export const dispatchTeamMemberRemoved = (teamMemberId: string) => {
+  EventsStore.dispatchEvent(EVENT_TYPES.TEAM_MEMBER_REMOVED, {
     teamMemberId,
     timestamp: new Date().toISOString()
   });
-
-  return true;
 };
 
 /**
- * Listen for team member removed events
- * @param callback Function to call when a team member is removed
+ * Dispatches a managed users updated event
+ * @param managedUsers The updated managed users
  */
-export const onTeamMemberRemoved = (callback: (payload: EventPayload) => void) => {
-  return EventsStore.addEventListener('team-member-removed' as EventType, callback);
+export const dispatchManagedUsersUpdated = (managedUsers: TeamMember[]) => {
+  EventsStore.dispatchEvent(EVENT_TYPES.MANAGED_USERS_UPDATED, {
+    managedUsers,
+    timestamp: new Date().toISOString()
+  });
+};
+
+/**
+ * Registers a listener for team member added events
+ * @param callback The callback function to execute when a team member is added
+ * @returns A function to remove the event listener
+ */
+export const onTeamMemberAdded = (callback: (teamMember: TeamMember) => void) => {
+  return EventsStore.addEventListener(EVENT_TYPES.TEAM_MEMBER_ADDED, (data) => {
+    callback(data?.teamMember);
+  });
+};
+
+/**
+ * Registers a listener for team member removed events
+ * @param callback The callback function to execute when a team member is removed
+ * @returns A function to remove the event listener
+ */
+export const onTeamMemberRemoved = (callback: (teamMemberId: string) => void) => {
+  return EventsStore.addEventListener(EVENT_TYPES.TEAM_MEMBER_REMOVED, (data) => {
+    callback(data?.teamMemberId);
+  });
+};
+
+/**
+ * Registers a listener for managed users updated events
+ * @param callback The callback function to execute when managed users are updated
+ * @returns A function to remove the event listener
+ */
+export const onManagedUsersUpdated = (callback: (managedUsers: TeamMember[]) => void) => {
+  return EventsStore.addEventListener(EVENT_TYPES.MANAGED_USERS_UPDATED, (data) => {
+    callback(data?.managedUsers || []);
+  });
 };

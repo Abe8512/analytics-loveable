@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { EventType, EventPayload, EVENT_TYPES } from './types';
 
@@ -31,18 +32,19 @@ class EventsStoreClass {
     this.listeners = this.listeners.filter(listener => listener.type !== type);
   }
   
-  dispatchEvent(type: EventType, payload: EventPayload = {}): void {
+  dispatchEvent(type: EventType, payload: Partial<EventPayload> = {}): void {
     console.log(`[EventsStore] Dispatching event: ${type}`, payload);
     
     // Ensure timestamp is always present
-    if (!payload.timestamp) {
-      payload.timestamp = new Date().toISOString();
-    }
+    const fullPayload: EventPayload = {
+      timestamp: payload.timestamp || new Date().toISOString(),
+      ...payload
+    };
     
     // Add to event history
     this.eventHistory.push({
       type,
-      payload,
+      payload: fullPayload,
       timestamp: Date.now()
     });
     
@@ -56,7 +58,7 @@ class EventsStoreClass {
       .filter(listener => listener.type === type)
       .forEach(listener => {
         try {
-          listener.callback(payload);
+          listener.callback(fullPayload);
         } catch (error) {
           console.error(`Error in event listener for ${type}:`, error);
         }
@@ -75,42 +77,17 @@ export const EventsStore = new EventsStoreClass();
 export { EVENT_TYPES };
 
 // Export the core functions
-export const dispatchEvent = (eventType: string, data: any = {}) => {
+export const dispatchEvent = (eventType: EventType, data: Partial<EventPayload> = {}) => {
   // Ensure timestamp is included in every event payload
-  const eventData = {
+  const eventData: EventPayload = {
     ...data,
     timestamp: data.timestamp || new Date().toISOString()
   };
   
   console.log(`[EventsStore] Dispatching event: ${eventType}`, eventData);
   
-  // Ensure timestamp is always present
-  if (!eventData.timestamp) {
-    eventData.timestamp = new Date().toISOString();
-  }
-  
-  // Add to event history
-  EventsStore.eventHistory.push({
-    type: eventType,
-    payload: eventData,
-    timestamp: Date.now()
-  });
-  
-  // Limit history size
-  if (EventsStore.eventHistory.length > 100) {
-    EventsStore.eventHistory = EventsStore.eventHistory.slice(-100);
-  }
-  
-  // Call all matching listeners
-  EventsStore.listeners
-    .filter(listener => listener.type === eventType)
-    .forEach(listener => {
-      try {
-        listener.callback(eventData);
-      } catch (error) {
-        console.error(`Error in event listener for ${eventType}:`, error);
-      }
-    });
+  // Use the EventsStore instance method to dispatch the event
+  EventsStore.dispatchEvent(eventType, eventData);
 };
 
 export const addEventListener = (type: EventType, callback: (payload: EventPayload) => void) => 

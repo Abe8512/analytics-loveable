@@ -1,51 +1,38 @@
 
+import { UUID } from "crypto";
+
+// Team member types
 export interface TeamMember {
   id: string;
   name: string;
   email: string;
   role?: string;
-  user_id?: string;
-  avatar_url?: string;
   avatar?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TeamPerformance {
-  id?: string;
-  rep_id: string;
-  rep_name: string;
-  call_volume: number;
-  avg_call_duration: number;
-  sentiment_score: number;
-  success_rate: number;
-  avg_talk_ratio: number;
-  objection_handling_score: number;
-  positive_language_score: number;
-  top_keywords: string[];
-  last_call_date: string;
-  name?: string;
-  calls?: number;
-  successRate?: number;
-  avgSentiment?: number;
-  conversionRate?: number;
+  active_reps: number;
+  total_calls: number;
+  avg_sentiment: number;
+  avg_duration: number;
+  positive_calls: number;
+  negative_calls: number;
 }
 
-// Helper to safely cast from one TeamMember interface to another
-export function safeTeamMemberCast(member: any): TeamMember {
-  return {
-    id: member.id || '',
-    name: member.name || '',
-    email: member.email || '',
-    role: member.role || 'sales-rep',
-    user_id: member.user_id,
-    avatar_url: member.avatar_url,
-    avatar: member.avatar
-  };
+export interface AddTeamMemberParams {
+  name: string;
+  email: string;
+  role?: string;
+  avatar?: string;
 }
 
-export interface BulkUploadFilter {
-  force?: boolean;
-  limit?: number;
-  offset?: number;
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
+// Team service interface
+export interface TeamServiceInterface {
+  getTeamMembers: () => Promise<TeamMember[]>;
+  addTeamMember: (member: AddTeamMemberParams) => Promise<TeamMember | null>;
+  updateTeamMember: (id: string, updates: Partial<TeamMember>) => Promise<boolean>;
+  removeTeamMember: (id: string) => Promise<boolean>;
+  isTeamMembersTableMissing: () => Promise<boolean>;
 }

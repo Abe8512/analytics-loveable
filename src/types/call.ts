@@ -1,3 +1,4 @@
+
 export interface CallTranscript {
   id: string;
   text: string;
@@ -14,6 +15,7 @@ export interface CallTranscript {
   customer_name?: string;
   assigned_to?: string;
   metadata?: any;
+  user_id?: string; // Adding this because it's used in CallTranscriptService
 }
 
 export interface CallTranscriptSegment {
@@ -66,7 +68,8 @@ export function castToCallTranscript(data: any): CallTranscript {
     user_name: data.user_name || '',
     customer_name: data.customer_name || 'Customer',
     assigned_to: data.assigned_to,
-    metadata: data.metadata || {}
+    metadata: data.metadata || {},
+    user_id: data.user_id
   };
 }
 

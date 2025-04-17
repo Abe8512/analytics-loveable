@@ -1,3 +1,4 @@
+
 import { CallTranscript } from '@/types/call';
 import { EventsStore } from './store';
 import { EventType, EVENT_TYPES } from './types';
@@ -7,7 +8,7 @@ import { EventType, EVENT_TYPES } from './types';
  * @param transcript The selected transcript
  */
 export const dispatchTranscriptSelected = (transcript: CallTranscript | null) => {
-  EventsStore.dispatchEvent('transcript-selected' as EventType, { 
+  EventsStore.dispatchEvent(EVENT_TYPES.TRANSCRIPT_SELECTED, { 
     transcript,
     timestamp: new Date().toISOString()
   });
@@ -19,7 +20,7 @@ export const dispatchTranscriptSelected = (transcript: CallTranscript | null) =>
  * @returns A function to remove the event listener
  */
 export const onTranscriptSelected = (callback: (transcript: CallTranscript | null) => void) => {
-  return EventsStore.addEventListener('transcript-selected' as EventType, (data) => {
+  return EventsStore.addEventListener(EVENT_TYPES.TRANSCRIPT_SELECTED, (data) => {
     callback(data?.transcript || null);
   });
 };
@@ -43,7 +44,7 @@ export function dispatchSentimentUpdated(transcriptId: string, sentiment: string
  * @returns A function to remove the event listener
  */
 export const onSentimentUpdated = (callback: (data: { transcriptId: string, sentiment: string | number }) => void) => {
-  return EventsStore.addEventListener('sentiment-updated' as EventType, (data) => {
+  return EventsStore.addEventListener(EVENT_TYPES.SENTIMENT_UPDATED, (data) => {
     if (data?.transcriptId && data?.sentiment) {
       callback({
         transcriptId: data.transcriptId,
@@ -58,7 +59,7 @@ export const onSentimentUpdated = (callback: (data: { transcriptId: string, sent
  * @param changedTranscripts Optional array of changed transcripts
  */
 export const dispatchTranscriptsUpdated = (changedTranscripts?: CallTranscript[]) => {
-  EventsStore.dispatchEvent('transcripts-updated' as EventType, { 
+  EventsStore.dispatchEvent(EVENT_TYPES.TRANSCRIPTS_UPDATED, { 
     changedTranscripts,
     timestamp: new Date().toISOString()
   });

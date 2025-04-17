@@ -8,24 +8,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Clock, Mic, BarChart2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEventListener } from '@/services/events/hooks';
-import { EVENT_TYPES } from '@/services/events/types';
+import { EVENT_TYPES, EventType } from '@/services/events/types';
 
 const PastCallsList = () => {
   const { callHistory, loadPastCalls } = useCallMetricsStore();
   const [refreshing, setRefreshing] = useState(false);
   
   // Listen for events that should trigger a refresh
-  useEventListener(EVENT_TYPES.TRANSCRIPT_CREATED, () => {
+  useEventListener(EVENT_TYPES.TRANSCRIPT_CREATED as EventType, () => {
     console.log('New transcript created, refreshing past calls...');
     handleRefresh();
   });
   
-  useEventListener(EVENT_TYPES.BULK_UPLOAD_COMPLETED, () => {
+  useEventListener(EVENT_TYPES.BULK_UPLOAD_COMPLETED as EventType, () => {
     console.log('Bulk upload completed, refreshing past calls...');
     handleRefresh();
   });
   
-  useEventListener(EVENT_TYPES.TRANSCRIPTS_REFRESHED, () => {
+  useEventListener(EVENT_TYPES.TRANSCRIPTS_REFRESHED as EventType, () => {
     console.log('Transcripts refreshed, updating past calls...');
     handleRefresh();
   });
