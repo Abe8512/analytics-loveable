@@ -83,7 +83,6 @@ function App() {
                           <RequireAuth>
                             <Elements stripe={stripePromise}>
                               <SubscriptionPage
-                                isSubscribed={false}
                                 pricingPlans={pricing}
                               />
                             </Elements>
