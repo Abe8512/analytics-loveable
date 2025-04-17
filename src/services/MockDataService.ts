@@ -34,6 +34,10 @@ export interface TeamMemberMetrics {
   callVolume: number;
   successRate: number;
   avgSentiment: number;
+  // Add missing properties
+  sentiment_score?: number;
+  avg_talk_ratio?: number;
+  top_keywords?: string[];
 }
 
 // Flag to determine whether to use mock data
@@ -104,9 +108,45 @@ export const generateMockSalesFunnelData = (): SalesFunnelData[] => {
 // Generate mock team metrics data
 export const generateMockTeamMetrics = (): TeamMemberMetrics[] => {
   return [
-    { id: '1', name: 'Sarah Johnson', callVolume: 127, successRate: 78, avgSentiment: 0.82 },
-    { id: '2', name: 'Michael Chen', callVolume: 98, successRate: 65, avgSentiment: 0.75 },
-    { id: '3', name: 'Jessica Smith', callVolume: 112, successRate: 72, avgSentiment: 0.68 },
-    { id: '4', name: 'David Wilson', callVolume: 85, successRate: 61, avgSentiment: 0.71 }
+    { 
+      id: '1', 
+      name: 'Sarah Johnson', 
+      callVolume: 127, 
+      successRate: 78, 
+      avgSentiment: 0.82,
+      sentiment_score: 0.82,
+      avg_talk_ratio: 0.65,
+      top_keywords: ['pricing', 'features', 'support']
+    },
+    { 
+      id: '2', 
+      name: 'Michael Chen', 
+      callVolume: 98, 
+      successRate: 65, 
+      avgSentiment: 0.75,
+      sentiment_score: 0.75,
+      avg_talk_ratio: 0.58,
+      top_keywords: ['integration', 'timeline', 'budget']
+    },
+    { 
+      id: '3', 
+      name: 'Jessica Smith', 
+      callVolume: 112, 
+      successRate: 72, 
+      avgSentiment: 0.68,
+      sentiment_score: 0.68,
+      avg_talk_ratio: 0.62,
+      top_keywords: ['demo', 'support', 'features']
+    },
+    { 
+      id: '4', 
+      name: 'David Wilson', 
+      callVolume: 85, 
+      successRate: 61, 
+      avgSentiment: 0.71,
+      sentiment_score: 0.71,
+      avg_talk_ratio: 0.55,
+      top_keywords: ['pricing', 'competition', 'implementation']
+    }
   ];
 };
