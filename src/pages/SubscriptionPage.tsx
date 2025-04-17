@@ -17,12 +17,12 @@ interface PricingPlan {
 }
 
 interface SubscriptionPageProps {
-  isSubscribed: boolean;
   pricingPlans: PricingPlan[];
 }
 
-const SubscriptionPage = ({ isSubscribed, pricingPlans }: SubscriptionPageProps) => {
+const SubscriptionPage = ({ pricingPlans }: SubscriptionPageProps) => {
   const { subscription, isLoading, error, checkSubscription } = useSubscription();
+  const isSubscribed = !!subscription;
   
   const handleSubscribe = async (planId: string) => {
     // Call subscription service

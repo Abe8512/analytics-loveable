@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -21,7 +22,6 @@ import { RequireUnauth } from '@/components/auth/RequireUnauth';
 import PricingPage from '@/pages/PricingPage';
 import SubscriptionPage from '@/pages/SubscriptionPage';
 import AccountSettings from '@/pages/AccountSettings';
-import { useSubscription } from '@/hooks/useSubscription';
 import { pricing } from '@/config/pricing';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
@@ -49,7 +49,6 @@ function App() {
   };
 
   const stripePromise = useMemo(() => loadStripe(siteConfig.stripe.publicKey), []);
-  const { subscription } = useSubscription();
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, setIsDarkMode: handleThemeChange }}>
@@ -84,7 +83,7 @@ function App() {
                           <RequireAuth>
                             <Elements stripe={stripePromise}>
                               <SubscriptionPage
-                                isSubscribed={!!subscription}
+                                isSubscribed={false}
                                 pricingPlans={pricing}
                               />
                             </Elements>
