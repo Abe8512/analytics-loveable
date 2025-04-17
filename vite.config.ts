@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => ({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  define: {
+    // Handle the 'module' is not defined error by providing a global module
+    'global': {},
+    'process.env': {},
+  },
   server: {
     port: 8080
   },

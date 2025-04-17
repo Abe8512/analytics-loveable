@@ -1,8 +1,7 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { SentimentAnalysisService } from './SentimentAnalysisService';
 import type { Json } from '@/integrations/supabase/types';
-import * as natural from 'natural';
+import { PorterStemmer, WordTokenizer } from '@/utils/browserNatural';
 
 export interface TranscriptAnalysisResult {
   sentimentScore: number;
@@ -36,8 +35,8 @@ export interface AnalyzedTranscript {
   updated_at: string;
 }
 
-const stemmer = natural.PorterStemmer;
-const tokenizer = new natural.WordTokenizer();
+const stemmer = PorterStemmer;
+const tokenizer = new WordTokenizer();
 const stopwords = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'but', 'by', 'for', 'if', 'in', 
   'into', 'is', 'it', 'no', 'not', 'of', 'on', 'or', 'such', 'that', 'the', 
